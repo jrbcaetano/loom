@@ -1,0 +1,384 @@
+.loom-profile {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.loom-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #e6ecf6;
+  color: #24415f;
+  font-weight: 700;
+  font-size: 0.82rem;
+}
+
+.loom-profile-name {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.loom-profile-subtitle {
+  margin: 0.1rem 0 0;
+  font-size: 0.78rem;
+  color: var(--loom-color-text-muted);
+}
+
+.loom-nav-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.loom-nav-label {
+  margin: 0;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--loom-color-text-muted);
+  font-weight: 700;
+}
+
+.loom-nav-link,
+.loom-space-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-radius: var(--loom-radius-sm);
+  padding: 0.58rem 0.65rem;
+  font-size: 0.94rem;
+  transition: background 140ms ease;
+}
+
+.loom-nav-link {
+  justify-content: flex-start;
+  gap: 0.55rem;
+}
+
+.loom-nav-icon {
+  color: #2f87da;
+  font-size: 0.76rem;
+}
+
+.loom-nav-link:hover,
+.loom-space-link:hover {
+  background: #edf2f7;
+}
+
+.loom-nav-link.is-active {
+  background: #dfeaf8;
+  color: #11457a;
+  font-weight: 700;
+}
+
+.loom-space-link.is-active {
+  background: #eaf3fd;
+}
+
+.loom-space-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.loom-nav-link.is-disabled {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.loom-role-chip {
+  border-radius: 999px;
+  border: 1px solid var(--loom-color-border);
+  padding: 0.08rem 0.43rem;
+  font-size: 0.7rem;
+  color: var(--loom-color-text-muted);
+}
+
+.loom-user-email {
+  margin: 0;
+  color: var(--loom-color-text-muted);
+  font-size: 0.85rem;
+}
+
+.loom-page-title {
+  margin: 0.2rem 0 0;
+  font-size: 2rem;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.loom-page-subtitle {
+  margin: 0.34rem 0 0;
+  color: #b6bdc9;
+  font-size: 2.8rem;
+  line-height: 1.05;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.loom-empty-text {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--loom-color-text-muted);
+}
+
+.loom-sidebar-footer {
+  margin-top: auto;
+}
+
+.loom-search-faux {
+  border: 1px solid var(--loom-color-border);
+  background: #fff;
+  border-radius: var(--loom-radius-sm);
+  color: var(--loom-color-text-muted);
+  padding: 0.45rem 0.65rem;
+  font-size: 0.8rem;
+  min-width: 110px;
+  text-align: left;
+}
+
+.loom-button-primary {
+  border: 0;
+  border-radius: var(--loom-radius-sm);
+  background: #1777d2;
+  color: #fff;
+  min-height: 40px;
+  padding: 0.58rem 0.9rem;
+  font-size: 0.86rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.loom-button-primary:hover {
+  background: #1268b8;
+}
+
+.loom-button-ghost {
+  border: 1px solid var(--loom-color-border);
+  border-radius: var(--loom-radius-sm);
+  background: #fff;
+  color: var(--loom-color-text);
+  min-height: 40px;
+  padding: 0.58rem 0.9rem;
+  font-size: 0.86rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.loom-button-ghost:hover {
+  background: #f8fafc;
+}
+
+.loom-button-primary:disabled,
+.loom-button-ghost:disabled {
+  opacity: 0.62;
+  cursor: not-allowed;
+}
+
+.loom-button-block {
+  width: 100%;
+  display: inline-flex;
+  justify-content: center;
+}
+
+.loom-input {
+  width: 100%;
+  min-height: 42px;
+  border-radius: var(--loom-radius-sm);
+  border: 1px solid var(--loom-color-border);
+  background: #fff;
+  padding: 0.62rem 0.78rem;
+  font-size: 0.92rem;
+  color: var(--loom-color-text);
+  outline: none;
+}
+
+.loom-input:focus {
+  border-color: #1777d2;
+  box-shadow: 0 0 0 2px rgb(23 119 210 / 0.14);
+}
+
+.loom-form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.loom-feedback-error {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--loom-color-danger);
+}
+
+.loom-feedback-success {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--loom-color-success);
+}
+
+.loom-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.loom-card {
+  padding: 1rem;
+}
+
+.loom-rail-card {
+  border: 1px solid var(--loom-color-border);
+  border-radius: var(--loom-radius-md);
+  background: #fff;
+  padding: 0.75rem;
+}
+
+.loom-rail-label {
+  margin: 0 0 0.55rem;
+  font-size: 0.86rem;
+  color: #7a8597;
+}
+
+.loom-rail-item {
+  border: 1px solid var(--loom-color-border);
+  border-radius: var(--loom-radius-sm);
+  background: #fff;
+  padding: 0.55rem 0.62rem;
+  font-size: 0.9rem;
+}
+
+.loom-task-group {
+  border: 1px solid var(--loom-color-border);
+  border-radius: var(--loom-radius-md);
+  background: #fff;
+  padding: 0.9rem;
+}
+
+.loom-task-list {
+  margin: 0.65rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.loom-task-item {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  border-top: 1px solid #edf2f7;
+  padding: 0.72rem 0.2rem;
+}
+
+.loom-task-item:first-child {
+  border-top: 0;
+}
+
+.loom-task-check {
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  border: 1px solid #c5cedb;
+  flex-shrink: 0;
+}
+
+.loom-task-body {
+  min-width: 0;
+}
+
+.loom-task-title {
+  margin: 0;
+  font-size: 1.02rem;
+  color: #1f2937;
+}
+
+.loom-task-meta {
+  margin: 0.18rem 0 0;
+  font-size: 0.84rem;
+  color: var(--loom-color-text-muted);
+  display: flex;
+  gap: 0.8rem;
+  align-items: center;
+}
+
+.loom-input-row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  border: 1px solid var(--loom-color-border);
+  border-radius: var(--loom-radius-sm);
+  background: #fff;
+  padding: 0.65rem 0.8rem;
+}
+
+.loom-input-row-prefix {
+  color: #97a4b7;
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.loom-input-row-text {
+  margin: 0;
+  color: #97a4b7;
+  font-size: 0.94rem;
+}
+
+.loom-subtle-link {
+  font-size: 0.84rem;
+  color: #1777d2;
+  font-weight: 600;
+}
+
+.loom-subtle-link:hover {
+  text-decoration: underline;
+}
+
+@media (min-width: 720px) {
+  .loom-form-row {
+    flex-direction: row;
+    align-items: center;
+  }
+}
+
+@media (max-width: 1024px) {
+  .loom-search-faux {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .loom-page-title {
+    font-size: 1.5rem;
+  }
+
+  .loom-page-subtitle {
+    font-size: 1.7rem;
+    line-height: 1.1;
+  }
+}
+
+@media (max-width: 640px) {
+  .loom-page-title {
+    font-size: 1.28rem;
+  }
+
+  .loom-page-subtitle {
+    font-size: 1.22rem;
+    font-weight: 600;
+  }
+
+  .loom-form-row {
+    gap: 0.6rem;
+  }
+
+  .loom-form-row .loom-button-primary,
+  .loom-form-row .loom-button-ghost {
+    width: 100%;
+    justify-content: center;
+  }
+}

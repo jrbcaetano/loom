@@ -1,0 +1,11 @@
+{
+  "name": "loom",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev:server": "npm run dev --prefix server",
+    "dev:client": "npm run dev --prefix client",
+    "build:client": "npm run build --prefix client"
+  }
+}
+

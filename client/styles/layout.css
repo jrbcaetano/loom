@@ -1,0 +1,144 @@
+.loom-shell {
+  min-height: 100vh;
+  position: relative;
+}
+
+.loom-nav-backdrop {
+  display: none;
+}
+
+.loom-sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  width: 280px;
+  z-index: 30;
+  padding: 1.2rem 1rem;
+  border-right: 1px solid var(--loom-color-border);
+  background: #f7f8fb;
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+  overflow-y: auto;
+}
+
+.loom-content {
+  margin-left: 280px;
+  padding: 1.4rem 1.3rem;
+}
+
+.loom-content-inner {
+  max-width: 1380px;
+  margin: 0 auto;
+}
+
+.loom-workspace-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.loom-center {
+  min-width: 0;
+}
+
+.loom-topbar {
+  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--loom-color-border);
+  padding-bottom: 0.9rem;
+}
+
+.loom-topbar-title {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  min-width: 0;
+}
+
+.loom-mobile-nav-toggle {
+  display: none;
+}
+
+.loom-main-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.95rem;
+}
+
+.loom-right-rail {
+  border-left: 1px solid var(--loom-color-border);
+  padding-left: 1rem;
+  min-width: 0;
+}
+
+.loom-right-rail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.8rem;
+}
+
+@media (max-width: 1200px) {
+  .loom-workspace-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .loom-right-rail {
+    border-left: 0;
+    padding-left: 0;
+  }
+}
+
+@media (max-width: 1024px) {
+  .loom-sidebar {
+    transform: translateX(-102%);
+    transition: transform 220ms ease;
+    box-shadow: var(--loom-shadow-md);
+  }
+
+  .loom-sidebar.is-open {
+    transform: translateX(0);
+  }
+
+  .loom-content {
+    margin-left: 0;
+    padding: 0.9rem;
+  }
+
+  .loom-mobile-nav-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--loom-radius-sm);
+    border: 1px solid var(--loom-color-border);
+    background: #fff;
+    padding: 0.4rem 0.65rem;
+    font-size: 0.8rem;
+    font-weight: 700;
+  }
+
+  .loom-nav-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    border: 0;
+    margin: 0;
+    padding: 0;
+    background: rgb(15 23 42 / 0.28);
+  }
+
+  .loom-nav-backdrop.is-open {
+    display: block;
+  }
+}
+
+@media (max-width: 640px) {
+  .loom-content {
+    padding: 0.65rem;
+  }
+
+  .loom-main-stack {
+    gap: 0.75rem;
+  }
+}
