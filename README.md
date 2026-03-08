@@ -1,73 +1,105 @@
-# Loom MVP Foundation
+# Loom MVP
 
-Loom is evolving from a client/server communication PoC into a space-first MVP.
+Loom is a mobile-first family management web app built with Next.js + Supabase.
 
-## Current architecture
+## Stack
 
-- `client/`: Next.js (App Router) + TypeScript + Tailwind + Supabase auth/data access
-- `server/`: Existing Express PoC kept in place (not removed), ready for future API needs
-- `client/supabase/migrations/`: SQL migrations for space + membership foundation
-- `client/styles/`: centralized design tokens and UI styling layers
+- Frontend: Next.js (App Router), TypeScript, TailwindCSS
+- Data/Auth: Supabase Postgres, Supabase Auth, Supabase Realtime, RLS
+- Client state/forms: React Query, React Hook Form, Zod
+- i18n: dictionary-based locale system with `en` default and runtime language switch
 
-## Implemented in this step
+## Implemented MVP Scope
 
-- Google OAuth sign-in wiring through Supabase
-- Session handling with `@supabase/ssr` (browser, server, middleware)
-- Protected dashboard shell (`/dashboard`)
-- Space creation flow (RPC): creates space + admin membership atomically
-- Admin member management by email invite:
-  - Space admin page
-  - Pending invite tracking
-  - Automatic invite claim on next login/dashboard load
-- Navigation + layout foundation inspired by task-first products (sidebar + workspace shell)
-- Refined UX structure: responsive drawer sidebar, workspace top bar, split-panel list flows
-- RLS-backed schema for:
-  - `spaces`
-  - `space_memberships`
-  - role enum: `admin`, `member`
+- Authentication: register, login, logout, forgot password
+- Onboarding: create family if user has none
+- Family management:
+  - family settings
+  - member listing
+  - invite by email
+- Lists:
+  - create/edit/archive lists
+  - add/complete/delete list items
+  - realtime item updates
+- Tasks:
+  - create/edit/archive tasks
+  - assign users
+  - quick completion
+  - filters (mine/status/priority)
+  - realtime updates
+- Calendar:
+  - create/edit/archive events
+  - agenda + month view
+- Notifications:
+  - in-app notification center
+  - mark one/all as read
+- Profile:
+  - update name
+  - update locale
+  - avatar upload (Supabase Storage)
+- Visibility model in DB:
+  - `private`, `family`, `selected_members`
 
-## MVP implementation plan (small steps)
+## Database
 
-1. Foundation (this delivery): auth + spaces + memberships + protected dashboard shell.
-2. Add shopping lists data model and RLS (space-shared only in MVP).
-3. Implement shopping list UI/flows (create list, add/remove items, mark complete).
-4. Harden UX and production details (loading/error states, logging, tests, deploy config).
-5. Extend architecture for future visibility levels (private, space, selected members).
+Migration file for the Loom family domain:
 
-## Environment variables
+- `client/supabase/migrations/20260307203000_loom_family_mvp_reset.sql`
 
-Create `client/.env.local` from `client/.env.example`:
+This migration:
+
+- removes old PoC `spaces` domain objects
+- creates Loom enums/tables:
+  - `profiles`
+  - `families`
+  - `family_members`
+  - `lists`
+  - `list_items`
+  - `tasks`
+  - `events`
+  - `entity_shares`
+  - `notifications`
+  - `user_settings`
+- applies RLS and permission helper functions
+- adds onboarding/member RPCs
+- enables realtime publication for lists/tasks/events/notifications
+
+## Supabase Manual Setup
+
+1. Create a Supabase project.
+2. In `SQL Editor`, run:
+   - `client/supabase/migrations/20260307203000_loom_family_mvp_reset.sql`
+3. In `Authentication > Providers`, ensure `Email` is enabled.
+4. Optional for avatars:
+   - create public storage bucket named `avatars`.
+5. Confirm URL + anon key values for environment variables.
+
+## Environment Variables
+
+Create `client/.env.local`:
 
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 
-Supabase project setup requirements:
+Reference template:
 
-- Enable Google provider in Supabase Auth.
-- Add callback URL(s), for local:
-  - `http://localhost:3000/auth/callback`
+- `client/.env.example`
 
-## Local setup
+## Local Run
 
 1. Install dependencies:
    - `npm install --prefix client`
-   - `npm install --prefix server`
-2. Apply database migration:
-   - run `client/supabase/migrations/20260306170000_mvp_foundation.sql` in Supabase SQL Editor
-   - run `client/supabase/migrations/20260306183000_fix_space_memberships_rls_recursion.sql` in Supabase SQL Editor
-   - run `client/supabase/migrations/20260306191500_space_invites_admin_flow.sql` in Supabase SQL Editor
-3. Run frontend:
+2. Run app:
    - `npm run dev:client`
-4. Optional (existing PoC server):
-   - `npm run dev:server`
+3. Open:
+   - `http://localhost:3000`
 
-Frontend runs on `http://localhost:3000` by default with Next.js.
+## Build Validation
 
-## Styling structure
+- `npm run build --prefix client`
 
-To keep design changes easy and centralized:
+## Notes
 
-- `client/styles/tokens.css`: colors, radii, shadows and theme-level variables
-- `client/styles/base.css`: global base element styles
-- `client/styles/layout.css`: shell/grid/navigation layout
-- `client/styles/components.css`: reusable component classes (buttons, inputs, cards, lists)
+- RLS is the source of truth for data access.
+- API routes and feature services validate input with Zod.
+- Realtime currently targets list and task collaboration flows.

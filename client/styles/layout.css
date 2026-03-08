@@ -1,144 +1,92 @@
 .loom-shell {
   min-height: 100vh;
-  position: relative;
-}
-
-.loom-nav-backdrop {
-  display: none;
+  display: flex;
+  background: transparent;
 }
 
 .loom-sidebar {
-  position: fixed;
-  inset: 0 auto 0 0;
   width: 280px;
-  z-index: 30;
-  padding: 1.2rem 1rem;
   border-right: 1px solid var(--loom-color-border);
-  background: #f7f8fb;
-  display: flex;
+  background: #f6f9ff;
+  padding: 1rem;
+  display: none;
   flex-direction: column;
-  gap: 1.2rem;
-  overflow-y: auto;
+  gap: 0.9rem;
 }
 
-.loom-content {
-  margin-left: 280px;
-  padding: 1.4rem 1.3rem;
+.loom-main {
+  width: 100%;
+  min-width: 0;
+  padding: 1rem 1rem 5rem;
 }
 
-.loom-content-inner {
-  max-width: 1380px;
+.loom-page-header {
+  margin-bottom: 1rem;
+}
+
+.loom-page-title {
+  margin: 0;
+  font-size: 1.6rem;
+  font-weight: 800;
+}
+
+.loom-page-subtitle {
+  margin: 0.2rem 0 0;
+  color: var(--loom-color-text-muted);
+}
+
+.loom-main-body {
+  max-width: 980px;
   margin: 0 auto;
 }
 
-.loom-workspace-grid {
+.loom-dashboard-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 320px;
-  gap: 1.25rem;
-  align-items: start;
+  grid-template-columns: 1fr;
+  gap: 1rem;
 }
 
-.loom-center {
-  min-width: 0;
+.loom-mobile-tabs {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  border-top: 1px solid var(--loom-color-border);
+  background: #fff;
 }
 
-.loom-topbar {
-  margin-bottom: 1rem;
-  border-bottom: 1px solid var(--loom-color-border);
-  padding-bottom: 0.9rem;
-}
-
-.loom-topbar-title {
-  display: flex;
-  align-items: center;
-  gap: 0.7rem;
-  min-width: 0;
-}
-
-.loom-mobile-nav-toggle {
-  display: none;
-}
-
-.loom-main-stack {
+.loom-mobile-tab {
+  padding: 0.55rem 0.2rem 0.6rem;
   display: flex;
   flex-direction: column;
-  gap: 0.95rem;
-}
-
-.loom-right-rail {
-  border-left: 1px solid var(--loom-color-border);
-  padding-left: 1rem;
-  min-width: 0;
-}
-
-.loom-right-rail-header {
-  display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  margin-bottom: 0.8rem;
+  gap: 0.12rem;
+  font-size: 0.72rem;
+  color: var(--loom-color-text-muted);
 }
 
-@media (max-width: 1200px) {
-  .loom-workspace-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .loom-right-rail {
-    border-left: 0;
-    padding-left: 0;
-  }
+.loom-mobile-tab.is-active {
+  color: var(--loom-color-primary);
+  font-weight: 700;
 }
 
-@media (max-width: 1024px) {
+@media (min-width: 960px) {
   .loom-sidebar {
-    transform: translateX(-102%);
-    transition: transform 220ms ease;
-    box-shadow: var(--loom-shadow-md);
+    display: flex;
   }
 
-  .loom-sidebar.is-open {
-    transform: translateX(0);
+  .loom-main {
+    padding: 1.25rem;
   }
 
-  .loom-content {
-    margin-left: 0;
-    padding: 0.9rem;
+  .loom-mobile-tabs {
+    display: none;
   }
 
-  .loom-mobile-nav-toggle {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: var(--loom-radius-sm);
-    border: 1px solid var(--loom-color-border);
-    background: #fff;
-    padding: 0.4rem 0.65rem;
-    font-size: 0.8rem;
-    font-weight: 700;
-  }
-
-  .loom-nav-backdrop {
-    position: fixed;
-    inset: 0;
-    z-index: 20;
-    border: 0;
-    margin: 0;
-    padding: 0;
-    background: rgb(15 23 42 / 0.28);
-  }
-
-  .loom-nav-backdrop.is-open {
-    display: block;
-  }
-}
-
-@media (max-width: 640px) {
-  .loom-content {
-    padding: 0.65rem;
-  }
-
-  .loom-main-stack {
-    gap: 0.75rem;
+  .loom-dashboard-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

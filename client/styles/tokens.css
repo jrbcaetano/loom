@@ -1,17 +1,17 @@
 :root {
-  --loom-color-bg: #f6f7fb;
+  --loom-color-bg: #f4f7fb;
   --loom-color-surface: #ffffff;
-  --loom-color-surface-soft: #f8fafc;
-  --loom-color-text: #101828;
-  --loom-color-text-muted: #667085;
-  --loom-color-border: #dde3ed;
-  --loom-color-primary: #1777d2;
-  --loom-color-primary-hover: #1268b8;
-  --loom-color-danger: #b42318;
-  --loom-color-success: #027a48;
-  --loom-shadow-sm: 0 1px 2px rgb(16 24 40 / 0.05);
-  --loom-shadow-md: 0 18px 40px rgb(16 24 40 / 0.14);
-  --loom-radius-sm: 8px;
-  --loom-radius-md: 12px;
-  --loom-radius-lg: 14px;
+  --loom-color-surface-soft: #f8fbff;
+  --loom-color-text: #0f172a;
+  --loom-color-text-muted: #5b6780;
+  --loom-color-border: #d9e3f2;
+  --loom-color-primary: #0f78d8;
+  --loom-color-primary-hover: #0a66bc;
+  --loom-color-danger: #be123c;
+  --loom-color-success: #15803d;
+  --loom-shadow-sm: 0 2px 10px rgb(15 23 42 / 0.04);
+  --loom-shadow-md: 0 18px 50px rgb(15 23 42 / 0.12);
+  --loom-radius-sm: 10px;
+  --loom-radius-md: 14px;
+  --loom-radius-lg: 18px;
 }

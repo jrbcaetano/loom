@@ -1,0 +1,77 @@
+import { createClient } from "@/lib/supabase/server";
+import { z } from "zod";
+
+const profileSchema = z.object({
+  fullName: z.string().trim().min(1).max(120),
+  preferredLocale: z.enum(["en", "pt"]).default("en"),
+  avatarUrl: z.string().url().nullable().optional()
+});
+
+export type ProfileRow = {
+  id: string;
+  email: string | null;
+  fullName: string | null;
+  avatarUrl: string | null;
+  preferredLocale: string;
+};
+
+export async function getMyProfile(): Promise<ProfileRow | null> {
+  const supabase = await createClient();
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return null;
+  }
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id, email, full_name, avatar_url, preferred_locale")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (!data) {
+    return {
+      id: user.id,
+      email: user.email ?? null,
+      fullName: null,
+      avatarUrl: null,
+      preferredLocale: "en"
+    };
+  }
+
+  return {
+    id: data.id,
+    email: data.email,
+    fullName: data.full_name,
+    avatarUrl: data.avatar_url,
+    preferredLocale: data.preferred_locale
+  };
+}
+
+export async function updateMyProfile(input: unknown) {
+  const parsed = profileSchema.parse(input);
+  const supabase = await createClient();
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    throw new Error("Not authenticated");
+  }
+
+  const { error } = await supabase.from("profiles").update({
+    full_name: parsed.fullName,
+    preferred_locale: parsed.preferredLocale,
+    avatar_url: parsed.avatarUrl ?? null
+  }).eq("id", user.id);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}

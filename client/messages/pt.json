@@ -1,0 +1,39 @@
+{
+  "app": {
+    "name": "Loom",
+    "tagline": "Coordenacao familiar com partilha clara"
+  },
+  "auth": {
+    "login": "Entrar",
+    "register": "Criar conta",
+    "forgot": "Recuperar palavra-passe",
+    "email": "Email",
+    "password": "Palavra-passe",
+    "fullName": "Nome completo",
+    "signOut": "Sair"
+  },
+  "nav": {
+    "home": "Inicio",
+    "lists": "Listas",
+    "tasks": "Tarefas",
+    "calendar": "Calendario",
+    "more": "Mais",
+    "notifications": "Notificacoes",
+    "family": "Familia",
+    "profile": "Perfil",
+    "settings": "Definicoes"
+  },
+  "visibility": {
+    "private": "Privado",
+    "family": "Familia",
+    "selected_members": "Selecionado"
+  },
+  "home": {
+    "title": "Hoje em casa",
+    "myTasks": "As minhas tarefas",
+    "familySummary": "Resumo da familia",
+    "upcomingEvents": "Proximos eventos",
+    "recentLists": "Listas recentes",
+    "quickActions": "Acoes rapidas"
+  }
+}

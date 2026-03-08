@@ -1,0 +1,39 @@
+{
+  "app": {
+    "name": "Loom",
+    "tagline": "Family coordination with clear sharing"
+  },
+  "auth": {
+    "login": "Log in",
+    "register": "Create account",
+    "forgot": "Forgot password",
+    "email": "Email",
+    "password": "Password",
+    "fullName": "Full name",
+    "signOut": "Sign out"
+  },
+  "nav": {
+    "home": "Home",
+    "lists": "Lists",
+    "tasks": "Tasks",
+    "calendar": "Calendar",
+    "more": "More",
+    "notifications": "Notifications",
+    "family": "Family",
+    "profile": "Profile",
+    "settings": "Settings"
+  },
+  "visibility": {
+    "private": "Private",
+    "family": "Family",
+    "selected_members": "Selected"
+  },
+  "home": {
+    "title": "Today at home",
+    "myTasks": "My tasks today",
+    "familySummary": "Family summary",
+    "upcomingEvents": "Upcoming events",
+    "recentLists": "Recent lists",
+    "quickActions": "Quick actions"
+  }
+}
