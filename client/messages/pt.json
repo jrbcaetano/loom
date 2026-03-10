@@ -20,6 +20,7 @@
     "forgotSubtitle": "Vamos enviar instrucoes para redefinicao",
     "forgotPrompt": "Esqueceu-se da palavra-passe?",
     "registerSuccess": "Conta criada. Verifique o email se for necessaria confirmacao.",
+    "inviteOnly": "Esta aplicacao esta em modo apenas por convite. Peca acesso a um admin de produto.",
     "hasAccount": "Ja tem conta? Entrar",
     "resetSent": "Instrucoes enviadas se a conta existir.",
     "sendReset": "Enviar link de recuperacao",
@@ -42,7 +43,32 @@
     "expenses": "Despesas",
     "documents": "Documentos",
     "routines": "Rotinas",
-    "rewards": "Recompensas"
+    "rewards": "Recompensas",
+    "productAdmin": "Admin de Produto"
+  },
+  "admin": {
+    "title": "Admin de Produto",
+    "subtitle": "Gira o acesso global enquanto a aplicacao estiver em modo convite.",
+    "securityTitle": "Seguranca",
+    "securityBody": "Esta area esta protegida por validacao no servidor e politicas na base de dados.",
+    "backToApp": "Voltar a aplicacao",
+    "access": {
+      "createTitle": "Criar convite de acesso",
+      "createSubtitle": "Apenas emails convidados podem criar conta.",
+      "inviteAction": "Convidar",
+      "invitesTitle": "Convites de acesso",
+      "status": "Estado",
+      "expiresAt": "Expira em",
+      "acceptedAt": "Aceite em",
+      "invitedBy": "Convidado por",
+      "acceptedBy": "Aceite por",
+      "revokeAction": "Revogar",
+      "revoking": "A revogar...",
+      "empty": "Ainda nao existem convites de acesso.",
+      "loadError": "Falha ao carregar convites de acesso",
+      "createError": "Falha ao criar convite de acesso",
+      "revokeError": "Falha ao revogar convite de acesso"
+    }
   },
   "visibility": {
     "private": "Privado",

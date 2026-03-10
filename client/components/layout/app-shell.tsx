@@ -50,6 +50,14 @@ const adminNav: NavItem[] = [
   { href: "/settings", labelKey: "nav.settings", icon: "\u2699", iconBg: "#f1f3f5", iconFg: "#495057" }
 ];
 
+const productAdminNavItem: NavItem = {
+  href: "/admin",
+  labelKey: "nav.productAdmin",
+  icon: "\u26E8",
+  iconBg: "#fef3c7",
+  iconFg: "#b45309"
+};
+
 const titleByPrefix: Array<{ prefix: string; titleKey: string }> = [
   { prefix: "/home", titleKey: "nav.home" },
   { prefix: "/lists", titleKey: "nav.lists" },
@@ -66,7 +74,8 @@ const titleByPrefix: Array<{ prefix: string; titleKey: string }> = [
   { prefix: "/notifications", titleKey: "nav.notifications" },
   { prefix: "/family", titleKey: "nav.family" },
   { prefix: "/profile", titleKey: "nav.profile" },
-  { prefix: "/settings", titleKey: "nav.settings" }
+  { prefix: "/settings", titleKey: "nav.settings" },
+  { prefix: "/admin", titleKey: "nav.productAdmin" }
 ];
 
 type AppShellProps = {
@@ -74,6 +83,7 @@ type AppShellProps = {
   userDisplayName?: string | null;
   userAvatarUrl?: string | null;
   activeFamilyName?: string | null;
+  isProductAdmin?: boolean;
   children: ReactNode;
 };
 
@@ -100,7 +110,7 @@ function iconStyle(item: NavItem): CSSProperties {
   };
 }
 
-export function AppShell({ userEmail, userDisplayName, userAvatarUrl, activeFamilyName, children }: AppShellProps) {
+export function AppShell({ userEmail, userDisplayName, userAvatarUrl, activeFamilyName, isProductAdmin = false, children }: AppShellProps) {
   const pathname = usePathname();
   const { t } = useI18n();
   const title = t(getTitleKey(pathname));
@@ -111,9 +121,9 @@ export function AppShell({ userEmail, userDisplayName, userAvatarUrl, activeFami
     <div className="loom-shell">
       <aside className="loom-sidebar">
         <div className="px-2">
-          <p className="loom-brand">
+          <Link href="/home" className="loom-brand">
             <span className="loom-brand-badge">{"\u2302"}</span> Loom
-          </p>
+          </Link>
         </div>
 
         <nav className="loom-nav-stack">
@@ -156,6 +166,15 @@ export function AppShell({ userEmail, userDisplayName, userAvatarUrl, activeFami
         </nav>
 
         <div className="loom-sidebar-footer">
+          {isProductAdmin ? (
+            <Link
+              href={productAdminNavItem.href}
+              className={clsx("loom-nav-link mb-3", isActive(pathname, productAdminNavItem.href) && "is-active")}
+            >
+              <span className="loom-nav-dot" style={iconStyle(productAdminNavItem)}>{productAdminNavItem.icon}</span>
+              {t(productAdminNavItem.labelKey)}
+            </Link>
+          ) : null}
           <p className="loom-muted small">{userEmail}</p>
           <SignOutButton />
         </div>

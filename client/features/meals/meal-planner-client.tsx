@@ -4,6 +4,7 @@ import { FormEvent, useMemo, useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useI18n } from "@/lib/i18n/context";
+import { resolveDateLocale } from "@/lib/date";
 
 type Recipe = { id: string; title: string };
 type MealEntry = {
@@ -25,6 +26,7 @@ async function fetchMealPlan(familyId: string) {
 
 export function MealPlannerClient({ familyId, recipes }: { familyId: string; recipes: Recipe[] }) {
   const { t, locale } = useI18n();
+  const dateLocale = resolveDateLocale(locale);
   const queryClient = useQueryClient();
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [mealType, setMealType] = useState<"breakfast" | "lunch" | "dinner">("dinner");
@@ -143,7 +145,7 @@ export function MealPlannerClient({ familyId, recipes }: { familyId: string; rec
             <section key={groupDate} className="loom-card p-5">
               <div className="loom-row-between">
                 <div>
-                  <p className="m-0 font-semibold">{new Date(`${groupDate}T00:00:00`).toLocaleDateString(locale === "pt" ? "pt-PT" : "en-US", { weekday: "long", month: "short", day: "numeric" })}</p>
+                  <p className="m-0 font-semibold">{new Date(`${groupDate}T00:00:00`).toLocaleDateString(dateLocale, { weekday: "long", month: "short", day: "numeric" })}</p>
                   <p className="loom-muted small m-0">{entries.length} {t("meals.meals", "meals")}</p>
                 </div>
               </div>

@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { getActiveFamilyContext } from "@/features/families/context";
 import { getHomeSnapshot } from "@/features/home/server";
 import { getServerI18n } from "@/lib/i18n/server";
+import { resolveDateLocale } from "@/lib/date";
 
 export default async function HomePage() {
   const user = await requireUser();
@@ -15,7 +16,8 @@ export default async function HomePage() {
 
   const snapshot = await getHomeSnapshot(context.activeFamilyId, user.id);
   const firstName = (user.user_metadata?.full_name as string | undefined)?.split(" ")[0] ?? t("home.greetingFallbackName", "there");
-  const todayLabel = new Intl.DateTimeFormat(locale === "pt" ? "pt-PT" : "en-US", { weekday: "long", month: "long", day: "numeric" }).format(new Date());
+  const dateLocale = resolveDateLocale(locale);
+  const todayLabel = new Intl.DateTimeFormat(dateLocale, { weekday: "long", month: "long", day: "numeric" }).format(new Date());
   const eventsToday = snapshot.upcomingEvents.slice(0, 3);
   const tasksPreview = snapshot.myTasks.slice(0, 3);
   const mealsPreview = snapshot.weeklyMeals.slice(0, 3);
@@ -44,7 +46,7 @@ export default async function HomePage() {
               : [{ id: "e1", title: t("home.sampleFamilyBreakfast", "Family breakfast"), start_at: new Date().toISOString(), location: "" }]
             ).map((event) => (
               <Link key={event.id} href={event.id.startsWith("e") ? "/calendar" : `/calendar/${event.id}`} className="loom-home-row">
-                <span className="loom-home-time">{new Date(event.start_at).toLocaleTimeString(locale === "pt" ? "pt-PT" : "en-US", { hour: "numeric", minute: "2-digit" })}</span>
+                <span className="loom-home-time">{new Date(event.start_at).toLocaleTimeString(dateLocale, { hour: "numeric", minute: "2-digit" })}</span>
                 <span className="loom-home-text">{event.title}</span>
                 <span>{"👨"}</span>
               </Link>
@@ -86,7 +88,7 @@ export default async function HomePage() {
                 <span className="loom-home-checkbox" />
                 <span className="loom-home-task-copy">
                   <span>{task.title}</span>
-                  <small>{task.due_at ? new Date(task.due_at).toLocaleDateString(locale === "pt" ? "pt-PT" : "en-US") : t("tasks.noDueDate", "No due date")}</small>
+                  <small>{task.due_at ? new Date(task.due_at).toLocaleDateString(dateLocale) : t("tasks.noDueDate", "No due date")}</small>
                 </span>
               </Link>
             ))}

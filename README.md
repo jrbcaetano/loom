@@ -103,3 +103,5 @@ Reference template:
 - RLS is the source of truth for data access.
 - API routes and feature services validate input with Zod.
 - Realtime currently targets list and task collaboration flows.
+- Product admin and invite-only setup guide:
+  - `docs/admin-access-setup.md`

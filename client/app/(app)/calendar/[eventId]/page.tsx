@@ -5,6 +5,7 @@ import { getFamilyMembers } from "@/features/families/server";
 import { EventForm } from "@/features/events/event-form";
 import { VisibilityBadge } from "@/components/common/visibility-badge";
 import { getServerI18n } from "@/lib/i18n/server";
+import { resolveDateLocale } from "@/lib/date";
 
 type EventDetailPageProps = {
   params: Promise<{ eventId: string }>;
@@ -19,6 +20,7 @@ function formatDateTimeLocal(value: string) {
 
 export default async function EventDetailPage({ params, searchParams }: EventDetailPageProps) {
   const { t, locale } = await getServerI18n();
+  const dateLocale = resolveDateLocale(locale);
   const { eventId } = await params;
   const query = await searchParams;
   const event = await getEventById(eventId);
@@ -37,7 +39,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
         <div className="loom-module-header-copy">
           <h2 className="loom-module-title">{event.title}</h2>
           <p className="loom-module-subtitle">
-            {new Date(event.startAt).toLocaleString(locale === "pt" ? "pt-PT" : "en-US")} - {new Date(event.endAt).toLocaleString(locale === "pt" ? "pt-PT" : "en-US")}
+            {new Date(event.startAt).toLocaleString(dateLocale)} - {new Date(event.endAt).toLocaleString(dateLocale)}
           </p>
         </div>
         <div className="loom-inline-actions">
@@ -53,11 +55,11 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
         <div className="loom-info-grid mt-3">
           <article className="loom-info-item">
             <p className="loom-info-label">{t("calendar.starts", "Starts")}</p>
-            <p className="loom-info-value">{new Date(event.startAt).toLocaleString(locale === "pt" ? "pt-PT" : "en-US")}</p>
+            <p className="loom-info-value">{new Date(event.startAt).toLocaleString(dateLocale)}</p>
           </article>
           <article className="loom-info-item">
             <p className="loom-info-label">{t("calendar.ends", "Ends")}</p>
-            <p className="loom-info-value">{new Date(event.endAt).toLocaleString(locale === "pt" ? "pt-PT" : "en-US")}</p>
+            <p className="loom-info-value">{new Date(event.endAt).toLocaleString(dateLocale)}</p>
           </article>
           <article className="loom-info-item">
             <p className="loom-info-label">{t("common.visibility", "Visibility")}</p>

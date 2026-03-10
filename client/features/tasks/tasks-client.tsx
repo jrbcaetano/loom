@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import { useI18n } from "@/lib/i18n/context";
+import { resolveDateLocale } from "@/lib/date";
 
 type TaskRow = {
   id: string;
@@ -55,7 +56,7 @@ function formatDue(task: TaskRow, t: (key: string, fallback?: string) => string,
 
   if (due >= today && due < tomorrow) return t("calendar.today", "Today");
   if (due >= tomorrow && due < dayAfter) return t("calendar.tomorrow", "Tomorrow");
-  return due.toLocaleDateString(locale === "pt" ? "pt-PT" : "en-US");
+  return due.toLocaleDateString(resolveDateLocale(locale));
 }
 
 function getInitials(value: string) {

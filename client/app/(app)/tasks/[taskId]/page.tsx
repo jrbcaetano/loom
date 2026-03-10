@@ -5,6 +5,7 @@ import { getFamilyMembers } from "@/features/families/server";
 import { TaskForm } from "@/features/tasks/task-form";
 import { VisibilityBadge } from "@/components/common/visibility-badge";
 import { getServerI18n } from "@/lib/i18n/server";
+import { resolveDateLocale } from "@/lib/date";
 
 type TaskDetailPageProps = {
   params: Promise<{ taskId: string }>;
@@ -25,6 +26,7 @@ function formatDisplayDate(value: string | null, locale: string, fallback: strin
 
 export default async function TaskDetailPage({ params, searchParams }: TaskDetailPageProps) {
   const { t, locale } = await getServerI18n();
+  const dateLocale = resolveDateLocale(locale);
   const { taskId } = await params;
   const query = await searchParams;
   const task = await getTaskById(taskId);
@@ -68,11 +70,11 @@ export default async function TaskDetailPage({ params, searchParams }: TaskDetai
           </article>
           <article className="loom-info-item">
             <p className="loom-info-label">{t("tasks.starts", "Starts")}</p>
-            <p className="loom-info-value">{formatDisplayDate(task.startAt, locale === "pt" ? "pt-PT" : "en-US", t("common.notSet", "Not set"))}</p>
+            <p className="loom-info-value">{formatDisplayDate(task.startAt, dateLocale, t("common.notSet", "Not set"))}</p>
           </article>
           <article className="loom-info-item">
             <p className="loom-info-label">{t("tasks.due", "Due")}</p>
-            <p className="loom-info-value">{formatDisplayDate(task.dueAt, locale === "pt" ? "pt-PT" : "en-US", t("common.notSet", "Not set"))}</p>
+            <p className="loom-info-value">{formatDisplayDate(task.dueAt, dateLocale, t("common.notSet", "Not set"))}</p>
           </article>
         </div>
 

@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { useI18n } from "@/lib/i18n/context";
+import { resolveDateLocale } from "@/lib/date";
 
 type NoteRow = {
   id: string;
@@ -24,6 +25,7 @@ async function fetchNotes(familyId: string, search: string) {
 
 export function NotesClient({ familyId }: { familyId: string }) {
   const { t, locale } = useI18n();
+  const dateLocale = resolveDateLocale(locale);
   const [search, setSearch] = useState("");
   const [scope, setScope] = useState<"all" | "shared" | "private">("all");
 
@@ -71,7 +73,7 @@ export function NotesClient({ familyId }: { familyId: string }) {
               <span className="loom-home-pill is-muted">{(note.category ?? "").toLowerCase() === "private" ? t("visibility.private", "Private") : t("common.shared", "Shared")}</span>
             </div>
             <p className="loom-muted small mt-3">{note.content.slice(0, 120)}{note.content.length > 120 ? "..." : ""}</p>
-            <p className="loom-muted small mt-3">{t("common.updated", "Updated")} {new Date(note.updated_at).toLocaleDateString(locale === "pt" ? "pt-PT" : "en-US")}</p>
+            <p className="loom-muted small mt-3">{t("common.updated", "Updated")} {new Date(note.updated_at).toLocaleDateString(dateLocale)}</p>
           </article>
         ))}
         {filtered.length === 0 && !query.isPending ? <p className="loom-muted">{t("notes.none", "No notes found.")}</p> : null}

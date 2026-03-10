@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useI18n } from "@/lib/i18n/context";
+import { resolveDateLocale } from "@/lib/date";
 
 type NotificationRow = {
   id: string;
@@ -39,6 +40,7 @@ function iconForType(type: NotificationRow["type"]) {
 
 export function NotificationsClient() {
   const { t, locale } = useI18n();
+  const dateLocale = resolveDateLocale(locale);
   const queryClient = useQueryClient();
 
   const { data, isPending, error } = useQuery({
@@ -98,7 +100,7 @@ export function NotificationsClient() {
               </div>
               {notification.body ? <p className="loom-muted small mt-2">{notification.body}</p> : null}
               <div className="loom-row-between mt-3">
-                <p className="loom-muted small m-0">{new Date(notification.createdAt).toLocaleString(locale === "pt" ? "pt-PT" : "en-US")}</p>
+                <p className="loom-muted small m-0">{new Date(notification.createdAt).toLocaleString(dateLocale)}</p>
                 {!notification.isRead ? (
                   <button type="button" className="loom-plain-button" onClick={() => markOne.mutate(notification.id)}>
                     {t("notifications.markRead", "Mark read")}
@@ -121,7 +123,7 @@ export function NotificationsClient() {
                 <p className="m-0 font-semibold">{notification.title}</p>
               </div>
               {notification.body ? <p className="loom-muted small mt-2">{notification.body}</p> : null}
-              <p className="loom-muted small mt-3 m-0">{new Date(notification.createdAt).toLocaleString(locale === "pt" ? "pt-PT" : "en-US")}</p>
+              <p className="loom-muted small mt-3 m-0">{new Date(notification.createdAt).toLocaleString(dateLocale)}</p>
             </article>
           ))}
           {earlierItems.length === 0 ? <p className="loom-muted">{t("notifications.noneEarlier", "No earlier notifications.")}</p> : null}

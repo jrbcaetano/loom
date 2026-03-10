@@ -30,6 +30,14 @@ const forgotSchema = z.object({
 
 type ForgotValues = z.infer<typeof forgotSchema>;
 
+function mapRegisterError(message: string, t: (key: string, fallback?: string) => string) {
+  if (message.toLowerCase().includes("invite-only")) {
+    return t("auth.inviteOnly", "This app is currently invite-only. Ask a product admin for access.");
+  }
+
+  return message;
+}
+
 export function LoginForm() {
   const [serverError, setServerError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -111,7 +119,7 @@ export function RegisterForm() {
     });
 
     if (error) {
-      setServerError(error.message);
+      setServerError(mapRegisterError(error.message, t));
       setIsLoading(false);
       return;
     }

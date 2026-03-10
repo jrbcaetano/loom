@@ -20,6 +20,7 @@
     "forgotSubtitle": "We will send reset instructions",
     "forgotPrompt": "Forgot password?",
     "registerSuccess": "Account created. Check your email if confirmation is required.",
+    "inviteOnly": "This app is currently invite-only. Ask a product admin for access.",
     "hasAccount": "Already have an account? Log in",
     "resetSent": "Reset instructions sent if the account exists.",
     "sendReset": "Send reset link",
@@ -42,7 +43,32 @@
     "expenses": "Expenses",
     "documents": "Documents",
     "routines": "Routines",
-    "rewards": "Rewards"
+    "rewards": "Rewards",
+    "productAdmin": "Product Admin"
+  },
+  "admin": {
+    "title": "Product Admin",
+    "subtitle": "Manage platform-level access while the app remains invite-only.",
+    "securityTitle": "Security",
+    "securityBody": "This area is protected by server-side checks and database policies.",
+    "backToApp": "Back to app",
+    "access": {
+      "createTitle": "Create access invite",
+      "createSubtitle": "Only invited emails can create an account.",
+      "inviteAction": "Invite",
+      "invitesTitle": "Access invites",
+      "status": "Status",
+      "expiresAt": "Expires at",
+      "acceptedAt": "Accepted at",
+      "invitedBy": "Invited by",
+      "acceptedBy": "Accepted by",
+      "revokeAction": "Revoke",
+      "revoking": "Revoking...",
+      "empty": "No access invites yet.",
+      "loadError": "Failed to load access invites",
+      "createError": "Failed to create access invite",
+      "revokeError": "Failed to revoke access invite"
+    }
   },
   "visibility": {
     "private": "Private",

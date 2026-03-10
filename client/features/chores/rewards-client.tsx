@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useI18n } from "@/lib/i18n/context";
+import { resolveDateLocale } from "@/lib/date";
 
 type RewardsResponse = {
   balance: number;
@@ -17,6 +18,7 @@ async function fetchRewards() {
 
 export function RewardsClient() {
   const { t, locale } = useI18n();
+  const dateLocale = resolveDateLocale(locale);
   const query = useQuery({
     queryKey: ["rewards"],
     queryFn: fetchRewards
@@ -33,7 +35,7 @@ export function RewardsClient() {
           {(query.data.transactions ?? []).slice(0, 20).map((transaction) => (
             <p key={transaction.id} className="m-0 loom-muted small">
               {transaction.type === "earn" ? "+" : "-"}
-              {transaction.points} - {new Date(transaction.created_at).toLocaleString(locale === "pt" ? "pt-PT" : "en-US")}
+              {transaction.points} - {new Date(transaction.created_at).toLocaleString(dateLocale)}
             </p>
           ))}
         </div>

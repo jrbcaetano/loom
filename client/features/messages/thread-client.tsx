@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import { useI18n } from "@/lib/i18n/context";
+import { resolveDateLocale } from "@/lib/date";
 
 type MessageRow = {
   id: string;
@@ -23,6 +24,7 @@ async function fetchMessages(conversationId: string) {
 
 export function MessageThreadClient({ conversationId, currentUserId }: { conversationId: string; currentUserId: string }) {
   const { t, locale } = useI18n();
+  const dateLocale = resolveDateLocale(locale);
   const [content, setContent] = useState("");
   const [serverError, setServerError] = useState<string | null>(null);
   const queryClient = useQueryClient();
@@ -100,7 +102,7 @@ export function MessageThreadClient({ conversationId, currentUserId }: { convers
               <div className="loom-thread-bubble">
                 <div className="loom-row-between">
                   <p className="m-0 text-sm font-semibold">{message.senderUserId === currentUserId ? t("messages.you", "You") : t("messages.familyMember", "Family member")}</p>
-                  <p className="m-0 loom-muted small">{new Date(message.createdAt).toLocaleTimeString(locale === "pt" ? "pt-PT" : "en-US", { hour: "numeric", minute: "2-digit" })}</p>
+                  <p className="m-0 loom-muted small">{new Date(message.createdAt).toLocaleTimeString(dateLocale, { hour: "numeric", minute: "2-digit" })}</p>
                 </div>
                 <p className="m-0 mt-2">{message.content}</p>
               </div>

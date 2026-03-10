@@ -18,6 +18,7 @@ import {
   subMonths
 } from "date-fns";
 import { useI18n } from "@/lib/i18n/context";
+import { resolveDateFnsLocale } from "@/lib/date";
 
 type EventRow = {
   id: string;
@@ -72,7 +73,8 @@ function itemAvatar(item: CalendarItem) {
 }
 
 export function CalendarView({ events, tasks }: { events: EventRow[]; tasks: TaskRow[]; currentUserId: string }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const dateFnsLocale = resolveDateFnsLocale(locale);
   const [currentMonth, setCurrentMonth] = useState<Date>(startOfMonth(new Date()));
   const [selectedDay, setSelectedDay] = useState<Date>(new Date());
 
@@ -134,7 +136,7 @@ export function CalendarView({ events, tasks }: { events: EventRow[]; tasks: Tas
         <button className="loom-calendar-nav" type="button" onClick={() => setCurrentMonth((value) => subMonths(value, 1))} aria-label={t("calendar.previousMonth", "Previous month")}>
           ‹
         </button>
-        <h3 className="loom-calendar-month">{format(currentMonth, "MMMM yyyy")}</h3>
+        <h3 className="loom-calendar-month">{format(currentMonth, "MMMM yyyy", { locale: dateFnsLocale })}</h3>
         <button className="loom-calendar-nav" type="button" onClick={() => setCurrentMonth((value) => addMonths(value, 1))} aria-label={t("calendar.nextMonth", "Next month")}>
           ›
         </button>
@@ -161,10 +163,10 @@ export function CalendarView({ events, tasks }: { events: EventRow[]; tasks: Tas
                   className={`loom-calendar-day ${isCurrent ? "" : "is-muted"} ${isSelected ? "is-selected" : ""} ${isToday(day) ? "is-today" : ""} ${dayItems.length > 0 ? "is-has-items" : ""}`}
                   onClick={() => setSelectedDay(day)}
                 >
-                  <span className="loom-calendar-day-number">{format(day, "d")}</span>
+                  <span className="loom-calendar-day-number">{format(day, "d", { locale: dateFnsLocale })}</span>
                   <span className="loom-calendar-dots">
                     {dayItems.slice(0, 3).map((item) => (
-                      <span key={`${item.kind}-${item.id}-${format(day, "yyyy-MM-dd")}`} className={`loom-calendar-dot ${itemColorClass(item)}`} />
+                      <span key={`${item.kind}-${item.id}-${format(day, "yyyy-MM-dd", { locale: dateFnsLocale })}`} className={`loom-calendar-dot ${itemColorClass(item)}`} />
                     ))}
                   </span>
                 </button>
@@ -185,7 +187,9 @@ export function CalendarView({ events, tasks }: { events: EventRow[]; tasks: Tas
                     <div>
                       <p className="m-0 font-semibold">{item.title}</p>
                       <p className="loom-muted small m-0">
-                        {isSameDay(parseISO(item.startAt), selectedDay) ? t("calendar.today", "Today") : format(parseISO(item.startAt), "MMM d")} - {format(parseISO(item.startAt), "h:mm a")}
+                        {isSameDay(parseISO(item.startAt), selectedDay)
+                          ? t("calendar.today", "Today")
+                          : format(parseISO(item.startAt), "MMM d", { locale: dateFnsLocale })} - {format(parseISO(item.startAt), "p", { locale: dateFnsLocale })}
                       </p>
                     </div>
                     <span>{itemAvatar(item)}</span>

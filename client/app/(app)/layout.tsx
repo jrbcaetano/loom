@@ -5,11 +5,13 @@ import { getAuthAvatarUrl, getAuthDisplayName } from "@/lib/auth-user";
 import { getActiveFamilyContext } from "@/features/families/context";
 import { getMyProfile } from "@/features/profile/server";
 import { AppShell } from "@/components/layout/app-shell";
+import { isProductAdminByUserId } from "@/features/admin/server";
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const user = await requireUser();
   const profile = await getMyProfile();
   const context = await getActiveFamilyContext(user.id);
+  const isProductAdmin = await isProductAdminByUserId(user.id);
 
   if (context.families.length === 0) {
     redirect("/onboarding");
@@ -23,6 +25,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       userDisplayName={profile?.fullName ?? getAuthDisplayName(user)}
       userAvatarUrl={profile?.avatarUrl ?? getAuthAvatarUrl(user)}
       activeFamilyName={activeFamily?.name ?? null}
+      isProductAdmin={isProductAdmin}
     >
       {children}
     </AppShell>
