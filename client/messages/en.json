@@ -230,6 +230,7 @@
     "allDayEvent": "All day event",
     "previousMonth": "Previous month",
     "nextMonth": "Next month",
+    "loadError": "Some calendar data could not be loaded. Please try again in a moment.",
     "noUpcomingItems": "No upcoming items.",
     "events": "Events",
     "today": "Today",

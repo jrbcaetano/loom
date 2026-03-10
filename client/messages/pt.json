@@ -230,6 +230,7 @@
     "allDayEvent": "Evento de dia inteiro",
     "previousMonth": "Mes anterior",
     "nextMonth": "Mes seguinte",
+    "loadError": "Nao foi possivel carregar parte dos dados do calendario. Tente novamente daqui a pouco.",
     "noUpcomingItems": "Sem itens futuros.",
     "events": "Eventos",
     "today": "Hoje",
