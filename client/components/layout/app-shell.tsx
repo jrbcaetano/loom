@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { clsx } from "clsx";
-import type { CSSProperties, ReactNode } from "react";
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { SignOutButton } from "@/components/sign-out-button";
 import { useI18n } from "@/lib/i18n/context";
 
@@ -20,22 +20,21 @@ const primaryNav: NavItem[] = [
   { href: "/tasks", labelKey: "nav.tasks", icon: "\u2611", iconBg: "#ecebff", iconFg: "#6b5cf6" },
   { href: "/lists", labelKey: "nav.lists", icon: "\u2630", iconBg: "#e7f6ff", iconFg: "#0f9bd8" },
   { href: "/calendar", labelKey: "nav.calendar", icon: "\u25EB", iconBg: "#fff1df", iconFg: "#f59e0b" },
-  { href: "/profile", labelKey: "nav.profile", icon: "\u25CC", iconBg: "#eaf9ef", iconFg: "#16a34a" }
+  { href: "/notifications", labelKey: "nav.notifications", icon: "\u25B3", iconBg: "#fdecea", iconFg: "#e03131" }
 ];
 
-const mobilePrimaryNav: NavItem[] = [
+const mobileBottomNav: NavItem[] = [
   { href: "/home", labelKey: "nav.home", icon: "\u2302", iconBg: "#e7efff", iconFg: "#4f7df3" },
   { href: "/tasks", labelKey: "nav.tasks", icon: "\u2611", iconBg: "#ecebff", iconFg: "#6b5cf6" },
   { href: "/lists", labelKey: "nav.lists", icon: "\u2630", iconBg: "#e7f6ff", iconFg: "#0f9bd8" },
-  { href: "/calendar", labelKey: "nav.calendar", icon: "\u25EB", iconBg: "#fff1df", iconFg: "#f59e0b" },
-  { href: "/profile", labelKey: "nav.profile", icon: "\u25CC", iconBg: "#eaf9ef", iconFg: "#16a34a" }
+  { href: "/calendar", labelKey: "nav.calendar", icon: "\u25EB", iconBg: "#fff1df", iconFg: "#f59e0b" }
 ];
 
 const familyOpsNav: NavItem[] = [
   { href: "/meals", labelKey: "nav.meals", icon: "\u2318", iconBg: "#f3ecff", iconFg: "#7c3aed" },
   { href: "/chores", labelKey: "nav.chores", icon: "\u2605", iconBg: "#fff6d9", iconFg: "#e0a100" },
-  { href: "/notes", labelKey: "nav.notes", icon: "\u270E", iconBg: "#ffeaf2", iconFg: "#e64980" },
-  { href: "/notifications", labelKey: "nav.notifications", icon: "\u25B3", iconBg: "#fdecea", iconFg: "#e03131" }
+  { href: "/rewards", labelKey: "nav.rewards", icon: "\u25CE", iconBg: "#e5f5ff", iconFg: "#0c8599" },
+  { href: "/notes", labelKey: "nav.notes", icon: "\u270E", iconBg: "#ffeaf2", iconFg: "#e64980" }
 ];
 
 const recordsNav: NavItem[] = [
@@ -47,6 +46,7 @@ const recordsNav: NavItem[] = [
 
 const adminNav: NavItem[] = [
   { href: "/family/members", labelKey: "nav.family", icon: "\u25C9", iconBg: "#ecf0ff", iconFg: "#5f6ad4" },
+  { href: "/family/settings", labelKey: "family.settingsTitle", icon: "\u2692", iconBg: "#eef6ff", iconFg: "#1d4ed8" },
   { href: "/settings", labelKey: "nav.settings", icon: "\u2699", iconBg: "#f1f3f5", iconFg: "#495057" }
 ];
 
@@ -58,32 +58,13 @@ const productAdminNavItem: NavItem = {
   iconFg: "#b45309"
 };
 
-const titleByPrefix: Array<{ prefix: string; titleKey: string }> = [
-  { prefix: "/home", titleKey: "nav.home" },
-  { prefix: "/lists", titleKey: "nav.lists" },
-  { prefix: "/tasks", titleKey: "nav.tasks" },
-  { prefix: "/calendar", titleKey: "nav.calendar" },
-  { prefix: "/messages", titleKey: "nav.messages" },
-  { prefix: "/meals", titleKey: "nav.meals" },
-  { prefix: "/expenses", titleKey: "nav.expenses" },
-  { prefix: "/documents", titleKey: "nav.documents" },
-  { prefix: "/routines", titleKey: "nav.routines" },
-  { prefix: "/notes", titleKey: "nav.notes" },
-  { prefix: "/chores", titleKey: "nav.chores" },
-  { prefix: "/rewards", titleKey: "nav.rewards" },
-  { prefix: "/notifications", titleKey: "nav.notifications" },
-  { prefix: "/family", titleKey: "nav.family" },
-  { prefix: "/profile", titleKey: "nav.profile" },
-  { prefix: "/settings", titleKey: "nav.settings" },
-  { prefix: "/admin", titleKey: "nav.productAdmin" }
-];
-
 type AppShellProps = {
   userEmail: string;
   userDisplayName?: string | null;
   userAvatarUrl?: string | null;
   activeFamilyName?: string | null;
   isProductAdmin?: boolean;
+  unreadNotificationsCount?: number;
   children: ReactNode;
 };
 
@@ -95,14 +76,6 @@ function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-function getTitleKey(pathname: string) {
-  if (pathname.startsWith("/lists/") && pathname !== "/lists" && pathname !== "/lists/new") {
-    return "app.name";
-  }
-
-  return titleByPrefix.find((item) => pathname.startsWith(item.prefix))?.titleKey ?? "app.name";
-}
-
 function iconStyle(item: NavItem): CSSProperties {
   return {
     ["--loom-icon-bg" as string]: item.iconBg,
@@ -110,12 +83,34 @@ function iconStyle(item: NavItem): CSSProperties {
   };
 }
 
-export function AppShell({ userEmail, userDisplayName, userAvatarUrl, activeFamilyName, isProductAdmin = false, children }: AppShellProps) {
+export function AppShell({
+  userEmail,
+  userDisplayName,
+  userAvatarUrl,
+  activeFamilyName,
+  isProductAdmin = false,
+  unreadNotificationsCount = 0,
+  children
+}: AppShellProps) {
   const pathname = usePathname();
   const { t } = useI18n();
-  const title = t(getTitleKey(pathname));
-  const initial = (userDisplayName ?? userEmail).slice(0, 1).toUpperCase();
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const [isMobileMoreOpen, setIsMobileMoreOpen] = useState(false);
+  const profileName = (userDisplayName ?? "").trim() || userEmail || t("nav.profile", "Profile");
+  const initial = profileName.slice(0, 1).toUpperCase();
   const _activeFamilyName = activeFamilyName;
+  const unreadLabel = unreadNotificationsCount > 99 ? "99+" : String(unreadNotificationsCount);
+
+  const mobileOverflowNav = useMemo(() => {
+    const primaryHrefs = new Set(mobileBottomNav.map((item) => item.href));
+    const sections = [primaryNav.find((item) => item.href === "/notifications"), ...familyOpsNav, ...recordsNav, ...adminNav].filter(Boolean) as NavItem[];
+    return sections.filter((item) => !primaryHrefs.has(item.href));
+  }, []);
+
+  useEffect(() => {
+    setIsProfileMenuOpen(false);
+    setIsMobileMoreOpen(false);
+  }, [pathname]);
 
   return (
     <div className="loom-shell">
@@ -130,7 +125,12 @@ export function AppShell({ userEmail, userDisplayName, userAvatarUrl, activeFami
           {primaryNav.map((item) => (
             <Link key={item.href} href={item.href} className={clsx("loom-nav-link", isActive(pathname, item.href) && "is-active")}>
               <span className="loom-nav-dot" style={iconStyle(item)}>{item.icon}</span>
-              {t(item.labelKey)}
+              <span>{t(item.labelKey)}</span>
+              {item.href === "/notifications" && unreadNotificationsCount > 0 ? (
+                <span className="loom-nav-counter" aria-label={t("nav.notifications", "Notifications")}>
+                  {unreadLabel}
+                </span>
+              ) : null}
             </Link>
           ))}
         </nav>
@@ -175,48 +175,120 @@ export function AppShell({ userEmail, userDisplayName, userAvatarUrl, activeFami
               {t(productAdminNavItem.labelKey)}
             </Link>
           ) : null}
-          <p className="loom-muted small">{userEmail}</p>
-          <SignOutButton />
+          <div className="loom-profile-menu-anchor">
+            <button type="button" className="loom-profile-trigger" onClick={() => setIsProfileMenuOpen((value) => !value)}>
+              {userAvatarUrl ? (
+                <span className="loom-profile-avatar has-image" style={{ backgroundImage: `url(${userAvatarUrl})` }} aria-hidden />
+              ) : (
+                <span className="loom-profile-avatar" aria-hidden>
+                  {initial || "U"}
+                </span>
+              )}
+              <span className="loom-profile-meta">
+                <span className="loom-profile-name">{profileName}</span>
+                <span className="loom-profile-email">{userEmail}</span>
+              </span>
+              <span className="loom-profile-caret" aria-hidden>
+                {isProfileMenuOpen ? "\u25B4" : "\u25BE"}
+              </span>
+            </button>
+            {isProfileMenuOpen ? (
+              <div className="loom-profile-menu">
+                <Link href="/profile" className="loom-profile-menu-item">
+                  {t("nav.editProfile", "Edit Profile")}
+                </Link>
+                <SignOutButton className="loom-profile-menu-item loom-signout-danger" />
+              </div>
+            ) : null}
+          </div>
         </div>
       </aside>
 
       <main className="loom-main">
         <div className="loom-main-inner">
-          <header className="loom-page-header" data-family={_activeFamilyName ?? ""}>
-            <div className="loom-row-between">
-              <div>
-                <h1 className="loom-page-title">{title}</h1>
-              </div>
-              <div className="loom-header-actions">
-                <Link href="/notifications" className="loom-header-icon" aria-label={t("nav.notifications")}>
-                  {"\u25B3"}
+          <header className="loom-mobile-header">
+            <div className="loom-mobile-header-inner">
+              <Link href="/home" className="loom-mobile-brand">
+                <span className="loom-brand-badge">{"\u2302"}</span>
+                <span>Loom</span>
+              </Link>
+              <div className="loom-mobile-header-actions">
+                <Link href="/notifications" className="loom-mobile-header-action" aria-label={t("nav.notifications", "Notifications")}>
+                  <span>{"\u25B3"}</span>
+                  {unreadNotificationsCount > 0 ? <span className="loom-mobile-notification-badge">{unreadLabel}</span> : null}
                 </Link>
-                {userAvatarUrl ? (
-                  <div className="loom-header-avatar has-image" style={{ backgroundImage: `url(${userAvatarUrl})` }} aria-hidden />
-                ) : (
-                  <div className="loom-header-avatar" aria-hidden>
-                    {initial || "U"}
-                  </div>
-                )}
+                <button
+                  type="button"
+                  className="loom-mobile-header-action"
+                  aria-label={t("nav.more", "More")}
+                  onClick={() => setIsMobileMoreOpen((value) => !value)}
+                >
+                  {"\u2630"}
+                </button>
               </div>
             </div>
           </header>
-          <div className="loom-main-body">{children}</div>
+          <div className="loom-main-body" data-family={_activeFamilyName ?? ""}>{children}</div>
         </div>
       </main>
 
-      <button className="loom-mobile-fab" type="button" aria-label="Quick add">
-        +
-      </button>
-
       <nav className="loom-mobile-tabs" aria-label="Primary">
-        {mobilePrimaryNav.map((item) => (
+        {mobileBottomNav.map((item) => (
           <Link key={item.href} href={item.href} className={clsx("loom-mobile-tab", isActive(pathname, item.href) && "is-active")}>
             <span className="loom-mobile-tab-icon" style={iconStyle(item)}>{item.icon}</span>
             <span>{t(item.labelKey)}</span>
           </Link>
         ))}
       </nav>
+
+      {isMobileMoreOpen ? (
+        <>
+          <button type="button" className="loom-mobile-more-backdrop" aria-label={t("common.cancel", "Cancel")} onClick={() => setIsMobileMoreOpen(false)} />
+          <aside className="loom-mobile-more-panel" aria-label={t("nav.more", "More")}>
+            <div className="loom-mobile-more-section">
+              <button type="button" className="loom-profile-trigger" onClick={() => setIsProfileMenuOpen((value) => !value)}>
+                {userAvatarUrl ? (
+                  <span className="loom-profile-avatar has-image" style={{ backgroundImage: `url(${userAvatarUrl})` }} aria-hidden />
+                ) : (
+                  <span className="loom-profile-avatar" aria-hidden>
+                    {initial || "U"}
+                  </span>
+                )}
+                <span className="loom-profile-meta">
+                  <span className="loom-profile-name">{profileName}</span>
+                  <span className="loom-profile-email">{userEmail}</span>
+                </span>
+                <span className="loom-profile-caret" aria-hidden>
+                  {isProfileMenuOpen ? "\u25B4" : "\u25BE"}
+                </span>
+              </button>
+              {isProfileMenuOpen ? (
+                <div className="loom-profile-menu">
+                  <Link href="/profile" className="loom-profile-menu-item">
+                    {t("nav.editProfile", "Edit Profile")}
+                  </Link>
+                  <SignOutButton className="loom-profile-menu-item loom-signout-danger" />
+                </div>
+              ) : null}
+            </div>
+
+            <div className="loom-mobile-more-section">
+              {mobileOverflowNav.map((item) => (
+                <Link key={item.href} href={item.href} className={clsx("loom-mobile-more-link", isActive(pathname, item.href) && "is-active")}>
+                  <span className="loom-nav-dot" style={iconStyle(item)}>{item.icon}</span>
+                  <span>{t(item.labelKey)}</span>
+                </Link>
+              ))}
+              {isProductAdmin ? (
+                <Link href={productAdminNavItem.href} className={clsx("loom-mobile-more-link", isActive(pathname, productAdminNavItem.href) && "is-active")}>
+                  <span className="loom-nav-dot" style={iconStyle(productAdminNavItem)}>{productAdminNavItem.icon}</span>
+                  <span>{t(productAdminNavItem.labelKey)}</span>
+                </Link>
+              ) : null}
+            </div>
+          </aside>
+        </>
+      ) : null}
     </div>
   );
 }

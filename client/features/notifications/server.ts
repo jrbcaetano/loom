@@ -35,6 +35,20 @@ export async function getNotifications(limit = 100): Promise<NotificationRow[]> 
   }));
 }
 
+export async function getUnreadNotificationsCount(): Promise<number> {
+  const supabase = await createClient();
+  const { count, error } = await supabase
+    .from("notifications")
+    .select("id", { count: "exact", head: true })
+    .eq("is_read", false);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return count ?? 0;
+}
+
 export async function markNotificationRead(notificationId: string) {
   const supabase = await createClient();
   const { error } = await supabase.from("notifications").update({ is_read: true }).eq("id", notificationId);

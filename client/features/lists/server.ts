@@ -23,9 +23,14 @@ export type ListItem = {
   category: string | null;
   isCompleted: boolean;
   sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
   createdByUserId: string | null;
   createdByName: string | null;
   createdByAvatarUrl: string | null;
+  updatedByUserId: string | null;
+  updatedByName: string | null;
+  updatedByAvatarUrl: string | null;
 };
 
 export type ListDetail = {
@@ -413,7 +418,7 @@ export async function getListById(listId: string, locale: AppLocale = "en"): Pro
 
   const { data: items, error: itemsError } = await supabase
     .from("list_items")
-    .select("id, text, quantity, category, is_completed, sort_order, created_by")
+    .select("id, text, quantity, category, is_completed, sort_order, created_by, updated_by, created_at, updated_at")
     .eq("list_id", listId)
     .order("is_completed", { ascending: true })
     .order("sort_order", { ascending: true });
@@ -422,21 +427,23 @@ export async function getListById(listId: string, locale: AppLocale = "en"): Pro
     throw new Error(itemsError.message);
   }
 
-  const createdByUserIds = Array.from(new Set((items ?? []).map((item) => item.created_by).filter(Boolean))) as string[];
-  const createdByProfileMap = new Map<string, { full_name: string | null; avatar_url: string | null }>();
+  const profileIds = Array.from(
+    new Set((items ?? []).flatMap((item) => [item.created_by, item.updated_by]).filter(Boolean))
+  ) as string[];
+  const profileMap = new Map<string, { full_name: string | null; avatar_url: string | null }>();
 
-  if (createdByUserIds.length > 0) {
+  if (profileIds.length > 0) {
     const { data: profiles, error: profilesError } = await supabase
       .from("profiles")
       .select("id, full_name, avatar_url")
-      .in("id", createdByUserIds);
+      .in("id", profileIds);
 
     if (profilesError) {
       throw new Error(profilesError.message);
     }
 
     for (const profile of profiles ?? []) {
-      createdByProfileMap.set(profile.id, { full_name: profile.full_name, avatar_url: profile.avatar_url });
+      profileMap.set(profile.id, { full_name: profile.full_name, avatar_url: profile.avatar_url });
     }
   }
 
@@ -456,9 +463,14 @@ export async function getListById(listId: string, locale: AppLocale = "en"): Pro
       category: item.category,
       isCompleted: item.is_completed,
       sortOrder: item.sort_order,
+      createdAt: item.created_at,
+      updatedAt: item.updated_at,
       createdByUserId: item.created_by,
-      createdByName: item.created_by ? (createdByProfileMap.get(item.created_by)?.full_name ?? null) : null,
-      createdByAvatarUrl: item.created_by ? (createdByProfileMap.get(item.created_by)?.avatar_url ?? null) : null
+      createdByName: item.created_by ? (profileMap.get(item.created_by)?.full_name ?? null) : null,
+      createdByAvatarUrl: item.created_by ? (profileMap.get(item.created_by)?.avatar_url ?? null) : null,
+      updatedByUserId: item.updated_by,
+      updatedByName: item.updated_by ? (profileMap.get(item.updated_by)?.full_name ?? null) : null,
+      updatedByAvatarUrl: item.updated_by ? (profileMap.get(item.updated_by)?.avatar_url ?? null) : null
     }))
   };
 }
@@ -590,6 +602,7 @@ export async function addListItem(input: unknown) {
       quantity: parsed.quantity ?? null,
       category,
       created_by: userId,
+      updated_by: userId,
       sort_order: itemCount ?? 0
     })
     .select("id")
@@ -608,6 +621,7 @@ export async function updateListItem(input: unknown) {
   const userId = await currentUserId(supabase);
 
   const payload: Record<string, unknown> = {};
+  payload.updated_by = userId;
 
   if (typeof parsed.text === "string") payload.text = parsed.text;
   if (parsed.quantity !== undefined) payload.quantity = parsed.quantity;

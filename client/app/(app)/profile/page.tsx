@@ -5,6 +5,7 @@ import { getActiveFamilyContext } from "@/features/families/context";
 import { getFamilyMembers } from "@/features/families/server";
 import { getMyProfile } from "@/features/profile/server";
 import { ProfileForm } from "@/features/profile/profile-form";
+import { SignOutButton } from "@/components/sign-out-button";
 import { getServerI18n } from "@/lib/i18n/server";
 
 export default async function ProfilePage() {
@@ -108,6 +109,10 @@ export default async function ProfilePage() {
                 avatarUrl: profile.avatarUrl
               }}
             />
+          </article>
+
+          <article className="loom-card p-5">
+            <SignOutButton className="loom-button-ghost loom-signout-danger" />
           </article>
         </section>
       </section>

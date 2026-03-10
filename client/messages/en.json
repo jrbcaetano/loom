@@ -47,6 +47,7 @@
     "documents": "Documents",
     "routines": "Routines",
     "rewards": "Rewards",
+    "editProfile": "Edit Profile",
     "productAdmin": "Product Admin"
   },
   "admin": {
@@ -106,7 +107,10 @@
     "deleteConfirm": "Are you sure you want to delete this item?",
     "deleteError": "Failed to delete",
     "complete": "Complete",
+    "open": "Open",
     "manage": "Manage",
+    "by": "by",
+    "created": "Created",
     "updated": "Updated",
     "name": "Name",
     "remove": "Remove",

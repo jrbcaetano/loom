@@ -6,12 +6,16 @@ import { getActiveFamilyContext } from "@/features/families/context";
 import { getMyProfile } from "@/features/profile/server";
 import { AppShell } from "@/components/layout/app-shell";
 import { isProductAdminByUserId } from "@/features/admin/server";
+import { getUnreadNotificationsCount } from "@/features/notifications/server";
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const user = await requireUser();
-  const profile = await getMyProfile();
-  const context = await getActiveFamilyContext(user.id);
-  const isProductAdmin = await isProductAdminByUserId(user.id);
+  const [profile, context, isProductAdmin, unreadNotificationsCount] = await Promise.all([
+    getMyProfile(),
+    getActiveFamilyContext(user.id),
+    isProductAdminByUserId(user.id),
+    getUnreadNotificationsCount()
+  ]);
 
   if (context.families.length === 0) {
     redirect("/onboarding");
@@ -26,6 +30,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       userAvatarUrl={profile?.avatarUrl ?? getAuthAvatarUrl(user)}
       activeFamilyName={activeFamily?.name ?? null}
       isProductAdmin={isProductAdmin}
+      unreadNotificationsCount={unreadNotificationsCount}
     >
       {children}
     </AppShell>

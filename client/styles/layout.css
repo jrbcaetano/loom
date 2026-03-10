@@ -26,6 +26,70 @@
   width: 100%;
 }
 
+.loom-mobile-header {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  border-bottom: 1px solid var(--loom-color-border);
+  background: var(--loom-color-surface);
+}
+
+.loom-mobile-header-inner {
+  min-height: 4.35rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  padding: 0.6rem 1rem;
+}
+
+.loom-mobile-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 2rem;
+  font-weight: var(--loom-font-weight-medium);
+}
+
+.loom-mobile-header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.loom-mobile-header-action {
+  width: 2.35rem;
+  height: 2.35rem;
+  border-radius: 10px;
+  border: 1px solid var(--loom-color-border);
+  background: var(--loom-color-surface-soft);
+  color: var(--loom-color-text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.loom-mobile-notification-badge {
+  position: absolute;
+  top: -0.25rem;
+  right: -0.25rem;
+  min-width: 1.05rem;
+  height: 1.05rem;
+  border-radius: 999px;
+  padding: 0 0.23rem;
+  background: var(--loom-color-primary);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.62rem;
+  font-weight: 700;
+  border: 1px solid var(--loom-color-surface);
+}
+
 .loom-page-header {
   margin-bottom: 0.75rem;
   border-bottom: 1px solid var(--loom-color-border);
@@ -67,12 +131,16 @@
   width: 100%;
   max-width: 390px;
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   border-top: 1px solid var(--loom-color-border);
   background: var(--loom-color-surface);
 }
 
 .loom-mobile-tab {
+  border: 0;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
   padding: 0.55rem 0.2rem 0.65rem;
   display: flex;
   flex-direction: column;
@@ -103,35 +171,65 @@
   color: #fff;
 }
 
-.loom-mobile-fab {
+.loom-mobile-more-backdrop {
   position: fixed;
-  left: 50%;
-  transform: translateX(-50%);
-  bottom: 4rem;
-  width: 56px;
-  height: 56px;
+  inset: 0;
   border: 0;
-  border-radius: 999px;
-  background: var(--loom-color-primary);
-  color: #fff;
-  box-shadow: var(--loom-shadow-md);
-  z-index: 45;
-  display: inline-flex;
+  background: rgb(9 14 24 / 0.28);
+  z-index: 50;
+}
+
+.loom-mobile-more-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(82vw, 290px);
+  border-left: 1px solid var(--loom-color-border);
+  background: var(--loom-color-surface);
+  z-index: 55;
+  padding: 1rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.loom-mobile-more-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.loom-mobile-more-link {
+  border-radius: var(--loom-radius-sm);
+  border: 1px solid var(--loom-color-border);
+  background: var(--loom-color-surface);
+  padding: 0.58rem 0.64rem;
+  display: flex;
   align-items: center;
-  justify-content: center;
-  font-size: 1.6rem;
-  line-height: 1;
+  gap: 0.6rem;
+  color: var(--loom-color-text-muted);
+}
+
+.loom-mobile-more-link.is-active {
+  border-color: var(--loom-color-primary);
+  color: var(--loom-color-primary);
+  font-weight: 600;
 }
 
 @media (min-width: 960px) {
   .loom-sidebar {
     display: flex;
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 20;
   }
 
   .loom-main {
     padding: 0;
     max-width: none;
-    margin: 0;
+    margin: 0 0 0 260px;
   }
 
   .loom-main-inner {
@@ -140,11 +238,16 @@
     margin: 0 auto;
   }
 
+  .loom-mobile-header {
+    display: none;
+  }
+
   .loom-mobile-tabs {
     display: none;
   }
 
-  .loom-mobile-fab {
+  .loom-mobile-more-backdrop,
+  .loom-mobile-more-panel {
     display: none;
   }
 

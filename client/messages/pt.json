@@ -47,6 +47,7 @@
     "documents": "Documentos",
     "routines": "Rotinas",
     "rewards": "Recompensas",
+    "editProfile": "Editar perfil",
     "productAdmin": "Admin de Produto"
   },
   "admin": {
@@ -106,7 +107,10 @@
     "deleteConfirm": "Tem a certeza que quer apagar este item?",
     "deleteError": "Falha ao apagar",
     "complete": "Concluir",
+    "open": "Abrir",
     "manage": "Gerir",
+    "by": "por",
+    "created": "Criado",
     "updated": "Atualizado",
     "name": "Nome",
     "remove": "Remover",
