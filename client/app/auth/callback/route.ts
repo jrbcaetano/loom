@@ -17,6 +17,18 @@ export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
   const next = getSafeNextPath(requestUrl.searchParams.get("next"));
+  const oauthProviderError =
+    requestUrl.searchParams.get("error_description") ?? requestUrl.searchParams.get("error");
+
+  function redirectToLoginWithError(message: string) {
+    const loginUrl = new URL("/login", requestUrl.origin);
+    loginUrl.searchParams.set("oauth_error", message);
+    return NextResponse.redirect(loginUrl);
+  }
+
+  if (oauthProviderError) {
+    return redirectToLoginWithError(oauthProviderError);
+  }
 
   if (!code) {
     return NextResponse.redirect(new URL("/login", requestUrl.origin));
@@ -26,7 +38,7 @@ export async function GET(request: Request) {
   const { error } = await supabase.auth.exchangeCodeForSession(code);
 
   if (error) {
-    return NextResponse.redirect(new URL("/login", requestUrl.origin));
+    return redirectToLoginWithError(error.message);
   }
 
   return NextResponse.redirect(new URL(next, requestUrl.origin));

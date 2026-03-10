@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -38,9 +38,16 @@ function mapRegisterError(message: string, t: (key: string, fallback?: string) =
   return message;
 }
 
-function getOAuthRedirectTo(nextPath: string) {
-  const next = encodeURIComponent(nextPath);
-  return `${window.location.origin}/auth/callback?next=${next}`;
+function getOAuthRedirectTo() {
+  return `${window.location.origin}/auth/callback`;
+}
+
+function formatOAuthCallbackError(value: string | null) {
+  if (!value) {
+    return null;
+  }
+
+  return value.replaceAll("+", " ");
 }
 
 export function LoginForm() {
@@ -49,6 +56,9 @@ export function LoginForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const oauthCallbackError = formatOAuthCallbackError(searchParams.get("oauth_error"));
+  const effectiveOauthError = oauthError ?? oauthCallbackError;
   const { t } = useI18n();
   const form = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),
@@ -81,7 +91,7 @@ export function LoginForm() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: getOAuthRedirectTo("/home")
+        redirectTo: getOAuthRedirectTo()
       }
     });
 
@@ -114,7 +124,7 @@ export function LoginForm() {
       </button>
 
       {serverError ? <p className="loom-feedback-error">{serverError}</p> : null}
-      {oauthError ? <p className="loom-feedback-error">{oauthError}</p> : null}
+      {effectiveOauthError ? <p className="loom-feedback-error">{effectiveOauthError}</p> : null}
 
       <div className="loom-inline-links">
         <Link href="/register">{t("auth.register")}</Link>
@@ -174,7 +184,7 @@ export function RegisterForm() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: getOAuthRedirectTo("/home")
+        redirectTo: getOAuthRedirectTo()
       }
     });
 
