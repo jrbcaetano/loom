@@ -38,9 +38,16 @@ function mapRegisterError(message: string, t: (key: string, fallback?: string) =
   return message;
 }
 
+function getOAuthRedirectTo(nextPath: string) {
+  const next = encodeURIComponent(nextPath);
+  return `${window.location.origin}/auth/callback?next=${next}`;
+}
+
 export function LoginForm() {
   const [serverError, setServerError] = useState<string | null>(null);
+  const [oauthError, setOauthError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const router = useRouter();
   const { t } = useI18n();
   const form = useForm<LoginValues>({
@@ -50,6 +57,7 @@ export function LoginForm() {
 
   async function onSubmit(values: LoginValues) {
     setServerError(null);
+    setOauthError(null);
     setIsLoading(true);
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithPassword({ email: values.email, password: values.password });
@@ -62,6 +70,25 @@ export function LoginForm() {
 
     router.replace("/home");
     router.refresh();
+  }
+
+  async function onGoogleSignIn() {
+    setServerError(null);
+    setOauthError(null);
+    setIsGoogleLoading(true);
+
+    const supabase = createClient();
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: getOAuthRedirectTo("/home")
+      }
+    });
+
+    if (error) {
+      setOauthError(error.message);
+      setIsGoogleLoading(false);
+    }
   }
 
   return (
@@ -82,7 +109,12 @@ export function LoginForm() {
         {isLoading ? t("auth.loggingIn") : t("auth.login")}
       </button>
 
+      <button type="button" className="loom-button-ghost" disabled={isGoogleLoading} onClick={() => void onGoogleSignIn()}>
+        {isGoogleLoading ? t("auth.googleSigningIn", "Redirecting to Google...") : t("auth.googleLogin", "Continue with Google")}
+      </button>
+
       {serverError ? <p className="loom-feedback-error">{serverError}</p> : null}
+      {oauthError ? <p className="loom-feedback-error">{oauthError}</p> : null}
 
       <div className="loom-inline-links">
         <Link href="/register">{t("auth.register")}</Link>
@@ -94,8 +126,10 @@ export function LoginForm() {
 
 export function RegisterForm() {
   const [serverError, setServerError] = useState<string | null>(null);
+  const [oauthError, setOauthError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const { t } = useI18n();
   const form = useForm<RegisterValues>({
     resolver: zodResolver(registerSchema),
@@ -104,6 +138,7 @@ export function RegisterForm() {
 
   async function onSubmit(values: RegisterValues) {
     setServerError(null);
+    setOauthError(null);
     setSuccess(null);
     setIsLoading(true);
 
@@ -127,6 +162,26 @@ export function RegisterForm() {
     setSuccess(t("auth.registerSuccess"));
     setIsLoading(false);
     form.reset();
+  }
+
+  async function onGoogleSignIn() {
+    setServerError(null);
+    setOauthError(null);
+    setSuccess(null);
+    setIsGoogleLoading(true);
+
+    const supabase = createClient();
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: getOAuthRedirectTo("/home")
+      }
+    });
+
+    if (error) {
+      setOauthError(error.message);
+      setIsGoogleLoading(false);
+    }
   }
 
   return (
@@ -153,7 +208,12 @@ export function RegisterForm() {
         {isLoading ? t("auth.creatingAccount") : t("auth.register")}
       </button>
 
+      <button type="button" className="loom-button-ghost" disabled={isGoogleLoading} onClick={() => void onGoogleSignIn()}>
+        {isGoogleLoading ? t("auth.googleSigningIn", "Redirecting to Google...") : t("auth.googleRegister", "Sign up with Google")}
+      </button>
+
       {serverError ? <p className="loom-feedback-error">{serverError}</p> : null}
+      {oauthError ? <p className="loom-feedback-error">{oauthError}</p> : null}
       {success ? <p className="loom-feedback-success">{success}</p> : null}
 
       <div className="loom-inline-links">
