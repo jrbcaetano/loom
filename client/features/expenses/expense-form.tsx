@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { useI18n } from "@/lib/i18n/context";
 
 const expenseFormSchema = z.object({
   title: z.string().trim().min(1).max(180),
@@ -37,6 +38,7 @@ export function ExpenseForm({
   initialValues?: Partial<ExpenseFormValues>;
 }) {
   const router = useRouter();
+  const { t } = useI18n();
   const [serverError, setServerError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -74,7 +76,7 @@ export function ExpenseForm({
 
     const payload = (await response.json().catch(() => null)) as { expenseId?: string; error?: string } | null;
     if (!response.ok) {
-      setServerError(payload?.error ?? "Failed to save expense");
+      setServerError(payload?.error ?? t("expenses.saveError", "Failed to save expense"));
       setIsLoading(false);
       return;
     }
@@ -87,33 +89,33 @@ export function ExpenseForm({
   return (
     <form className="loom-form-stack" onSubmit={form.handleSubmit(onSubmit)}>
       <label className="loom-field">
-        <span>Title</span>
+        <span>{t("common.title", "Title")}</span>
         <input className="loom-input" type="text" {...form.register("title")} />
       </label>
       <div className="loom-form-inline">
         <label className="loom-field">
-          <span>Amount</span>
+          <span>{t("expenses.amount", "Amount")}</span>
           <input className="loom-input" type="number" step="0.01" min={0} {...form.register("amount", { valueAsNumber: true })} />
         </label>
         <label className="loom-field">
-          <span>Currency</span>
+          <span>{t("expenses.currency", "Currency")}</span>
           <input className="loom-input" type="text" {...form.register("currency")} />
         </label>
       </div>
       <div className="loom-form-inline">
         <label className="loom-field">
-          <span>Category</span>
+          <span>{t("common.category", "Category")}</span>
           <input className="loom-input" type="text" {...form.register("category")} />
         </label>
         <label className="loom-field">
-          <span>Date</span>
+          <span>{t("common.date", "Date")}</span>
           <input className="loom-input" type="date" {...form.register("date")} />
         </label>
       </div>
       <label className="loom-field">
-        <span>Paid by</span>
+        <span>{t("expenses.paidBy", "Paid by")}</span>
         <select className="loom-input" {...form.register("paidByUserId")}>
-          <option value="">Unknown</option>
+          <option value="">{t("common.unknown", "Unknown")}</option>
           {members.map((member) => (
             <option key={member.userId} value={member.userId}>
               {member.displayName}
@@ -122,11 +124,11 @@ export function ExpenseForm({
         </select>
       </label>
       <label className="loom-field">
-        <span>Notes</span>
+        <span>{t("notes.label", "Notes")}</span>
         <textarea className="loom-input loom-textarea" {...form.register("notes")} />
       </label>
       <button className="loom-button-primary" type="submit" disabled={isLoading}>
-        {isLoading ? "Saving..." : submitLabel}
+        {isLoading ? t("common.saving", "Saving...") : submitLabel}
       </button>
       {serverError ? <p className="loom-feedback-error">{serverError}</p> : null}
     </form>

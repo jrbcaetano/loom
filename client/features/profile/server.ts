@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { getAuthAvatarUrl, getAuthDisplayName } from "@/lib/auth-user";
 import { z } from "zod";
 
 const profileSchema = z.object({
@@ -39,8 +40,8 @@ export async function getMyProfile(): Promise<ProfileRow | null> {
     return {
       id: user.id,
       email: user.email ?? null,
-      fullName: null,
-      avatarUrl: null,
+      fullName: getAuthDisplayName(user),
+      avatarUrl: getAuthAvatarUrl(user),
       preferredLocale: "en"
     };
   }
@@ -48,8 +49,8 @@ export async function getMyProfile(): Promise<ProfileRow | null> {
   return {
     id: data.id,
     email: data.email,
-    fullName: data.full_name,
-    avatarUrl: data.avatar_url,
+    fullName: data.full_name ?? getAuthDisplayName(user),
+    avatarUrl: data.avatar_url ?? getAuthAvatarUrl(user),
     preferredLocale: data.preferred_locale
   };
 }

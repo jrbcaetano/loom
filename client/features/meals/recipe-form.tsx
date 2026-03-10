@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { useI18n } from "@/lib/i18n/context";
 
 const recipeFormSchema = z.object({
   title: z.string().trim().min(1).max(180),
@@ -37,6 +38,7 @@ export function RecipeForm({
   initialValues?: Partial<RecipeFormValues>;
 }) {
   const router = useRouter();
+  const { t } = useI18n();
   const [serverError, setServerError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -72,7 +74,7 @@ export function RecipeForm({
 
     const payload = (await response.json().catch(() => null)) as { recipeId?: string; error?: string } | null;
     if (!response.ok) {
-      setServerError(payload?.error ?? "Failed to save recipe");
+      setServerError(payload?.error ?? t("recipes.saveError", "Failed to save recipe"));
       setIsLoading(false);
       return;
     }
@@ -85,44 +87,44 @@ export function RecipeForm({
   return (
     <form className="loom-form-stack" onSubmit={form.handleSubmit(onSubmit)}>
       <label className="loom-field">
-        <span>Title</span>
+        <span>{t("common.title", "Title")}</span>
         <input className="loom-input" type="text" {...form.register("title")} />
       </label>
       <label className="loom-field">
-        <span>Description</span>
+        <span>{t("common.description", "Description")}</span>
         <textarea className="loom-input loom-textarea" {...form.register("description")} />
       </label>
       <label className="loom-field">
-        <span>Instructions</span>
+        <span>{t("recipes.instructions", "Instructions")}</span>
         <textarea className="loom-input loom-textarea" {...form.register("instructions")} />
       </label>
 
       <div className="loom-stack-sm">
         <div className="loom-row-between">
-          <h3 className="loom-section-title">Ingredients</h3>
+          <h3 className="loom-section-title">{t("recipes.ingredients", "Ingredients")}</h3>
           <button type="button" className="loom-button-ghost" onClick={() => ingredients.append({ name: "", quantity: "", unit: "" })}>
-            Add ingredient
+            {t("recipes.addIngredient", "Add ingredient")}
           </button>
         </div>
         {ingredients.fields.map((field, index) => (
           <div key={field.id} className="loom-card soft p-3">
             <div className="loom-form-inline">
               <label className="loom-field">
-                <span>Name</span>
+                <span>{t("common.name", "Name")}</span>
                 <input className="loom-input" type="text" {...form.register(`ingredients.${index}.name`)} />
               </label>
               <label className="loom-field">
-                <span>Quantity</span>
+                <span>{t("lists.form.quantity", "Quantity")}</span>
                 <input className="loom-input" type="text" {...form.register(`ingredients.${index}.quantity`)} />
               </label>
               <label className="loom-field">
-                <span>Unit</span>
+                <span>{t("recipes.unit", "Unit")}</span>
                 <input className="loom-input" type="text" {...form.register(`ingredients.${index}.unit`)} />
               </label>
             </div>
             {ingredients.fields.length > 1 ? (
               <button type="button" className="loom-button-ghost mt-3" onClick={() => ingredients.remove(index)}>
-                Remove
+                {t("common.remove", "Remove")}
               </button>
             ) : null}
           </div>
@@ -130,7 +132,7 @@ export function RecipeForm({
       </div>
 
       <button type="submit" className="loom-button-primary" disabled={isLoading}>
-        {isLoading ? "Saving..." : submitLabel}
+        {isLoading ? t("common.saving", "Saving...") : submitLabel}
       </button>
       {serverError ? <p className="loom-feedback-error">{serverError}</p> : null}
     </form>

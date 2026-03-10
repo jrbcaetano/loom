@@ -6,6 +6,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/client";
+import { useI18n } from "@/lib/i18n/context";
 
 const profileSchema = z.object({
   fullName: z.string().trim().min(1).max(120),
@@ -23,6 +24,7 @@ export function ProfileForm({
     avatarUrl: string | null;
   };
 }) {
+  const { t } = useI18n();
   const [serverError, setServerError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(defaultValues.avatarUrl);
@@ -69,7 +71,7 @@ export function ProfileForm({
     const payload = (await response.json().catch(() => null)) as { error?: string } | null;
 
     if (!response.ok) {
-      setServerError(payload?.error ?? "Failed to update profile");
+      setServerError(payload?.error ?? t("profile.updateError", "Failed to update profile"));
       setIsLoading(false);
       return;
     }
@@ -86,21 +88,22 @@ export function ProfileForm({
 
   return (
     <form className="loom-form-stack" onSubmit={form.handleSubmit(onSubmit)}>
+      <h2 className="loom-section-title">{t("profile.personalDetails", "Personal details")}</h2>
       <label className="loom-field">
-        <span>Full name</span>
+        <span>{t("auth.fullName", "Full name")}</span>
         <input className="loom-input" type="text" {...form.register("fullName")} />
       </label>
 
       <label className="loom-field">
-        <span>Language</span>
+        <span>{t("settings.language", "Language")}</span>
         <select className="loom-input" {...form.register("preferredLocale")}>
-          <option value="en">English</option>
-          <option value="pt">Portuguese</option>
+          <option value="en">{t("settings.english", "English")}</option>
+          <option value="pt">{t("settings.portuguese", "Portuguese")}</option>
         </select>
       </label>
 
       <label className="loom-field">
-        <span>Avatar</span>
+        <span>{t("profile.avatar", "Avatar")}</span>
         <input
           className="loom-input"
           type="file"
@@ -114,17 +117,17 @@ export function ProfileForm({
               setAvatarUrl(url);
               setIsLoading(false);
             } catch (error) {
-              setServerError(error instanceof Error ? error.message : "Failed to upload avatar");
+              setServerError(error instanceof Error ? error.message : t("profile.avatarUploadError", "Failed to upload avatar"));
               setIsLoading(false);
             }
           }}
         />
       </label>
 
-      {avatarUrl ? <img src={avatarUrl} alt="Avatar" className="loom-avatar-preview" /> : null}
+      {avatarUrl ? <img src={avatarUrl} alt={t("profile.avatar", "Avatar")} className="loom-avatar-preview" /> : null}
 
       <button className="loom-button-primary" type="submit" disabled={isLoading}>
-        {isLoading ? "Saving..." : "Save profile"}
+        {isLoading ? t("common.saving", "Saving...") : t("profile.save", "Save profile")}
       </button>
 
       {serverError ? <p className="loom-feedback-error">{serverError}</p> : null}

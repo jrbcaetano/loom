@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useI18n } from "@/lib/i18n/context";
 
 type ConversationSummary = {
   id: string;
@@ -27,6 +28,7 @@ async function fetchConversations(familyId: string) {
 }
 
 export function MessagesClient({ familyId, members }: { familyId: string; members: MemberOption[] }) {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const [selectedUserId, setSelectedUserId] = useState("");
   const [serverError, setServerError] = useState<string | null>(null);
@@ -45,7 +47,7 @@ export function MessagesClient({ familyId, members }: { familyId: string; member
       });
       const payload = (await response.json()) as { conversationId?: string; error?: string };
       if (!response.ok || !payload.conversationId) {
-        throw new Error(payload.error ?? "Failed to create direct conversation");
+        throw new Error(payload.error ?? t("messages.createDirectError", "Failed to create direct conversation"));
       }
       return payload.conversationId;
     },
@@ -55,7 +57,7 @@ export function MessagesClient({ familyId, members }: { familyId: string; member
       window.location.href = `/messages/${conversationId}`;
     },
     onError: (mutationError) => {
-      setServerError(mutationError instanceof Error ? mutationError.message : "Failed to create direct conversation");
+      setServerError(mutationError instanceof Error ? mutationError.message : t("messages.createDirectError", "Failed to create direct conversation"));
     }
   });
 
@@ -63,16 +65,16 @@ export function MessagesClient({ familyId, members }: { familyId: string; member
     <div className="loom-stack">
       <section className="loom-card p-5">
         <div className="loom-row-between">
-          <h2 className="loom-section-title">Start private conversation</h2>
-          <Link href="/messages/family" className="loom-subtle-link">
-            Open family chat
+          <h2 className="loom-section-title">{t("messages.startPrivate", "Start private conversation")}</h2>
+          <Link href="/messages/family" className="loom-button-ghost">
+            {t("messages.familyChat", "Family chat")}
           </Link>
         </div>
         <div className="loom-form-inline mt-3">
           <label className="loom-field">
-            <span>Family member</span>
+            <span>{t("messages.familyMember", "Family member")}</span>
             <select className="loom-input" value={selectedUserId} onChange={(event) => setSelectedUserId(event.target.value)}>
-              <option value="">Select member</option>
+              <option value="">{t("messages.selectMember", "Select member")}</option>
               {members.map((member) => (
                 <option key={member.userId} value={member.userId}>
                   {member.displayName}
@@ -81,28 +83,28 @@ export function MessagesClient({ familyId, members }: { familyId: string; member
             </select>
           </label>
           <button className="loom-button-primary" type="button" disabled={!selectedUserId || mutation.isPending} onClick={() => mutation.mutate()}>
-            {mutation.isPending ? "Opening..." : "Message"}
+            {mutation.isPending ? t("messages.opening", "Opening...") : t("messages.message", "Message")}
           </button>
         </div>
         {serverError ? <p className="loom-feedback-error mt-2">{serverError}</p> : null}
       </section>
 
-      <section className="loom-card p-5">
-        <h2 className="loom-section-title">Conversations</h2>
-        {isPending ? <p className="loom-muted mt-3">Loading conversations...</p> : null}
+      <section className="loom-card">
+        {isPending ? <p className="loom-muted mt-3">{t("messages.loadingConversations", "Loading conversations...")}</p> : null}
         {error ? <p className="loom-feedback-error mt-3">{error.message}</p> : null}
 
-        <div className="loom-stack-sm mt-3">
+        <div className="loom-entity-list p-3">
           {(data ?? []).map((conversation) => (
-            <article key={conversation.id} className="loom-card soft p-4">
-              <div className="loom-row-between">
-                <div>
-                  <Link className="loom-link-strong" href={`/messages/${conversation.id}`}>
-                    {conversation.type === "family" ? "Family chat" : conversation.memberNames.join(", ")}
-                  </Link>
-                  <p className="loom-muted small mt-1">{conversation.lastMessage ?? "No messages yet"}</p>
-                </div>
-                {conversation.unreadCount > 0 ? <span className="loom-badge">{conversation.unreadCount} unread</span> : null}
+            <article key={conversation.id} className="loom-conversation-row">
+              <div>
+                <Link className="loom-link-strong" href={`/messages/${conversation.id}`}>
+                  {conversation.type === "family" ? t("messages.familyChat", "Family chat") : conversation.memberNames.join(", ")}
+                </Link>
+                <p className="loom-entity-meta">{conversation.lastMessage ?? t("messages.noMessagesYet", "No messages yet")}</p>
+              </div>
+              <div className="loom-inline-actions">
+                {conversation.unreadCount > 0 ? <span className="loom-unread-dot" /> : null}
+                <span className="loom-badge">{conversation.unreadCount > 0 ? `${conversation.unreadCount} ${t("messages.unread", "unread")}` : t("messages.read", "Read")}</span>
               </div>
             </article>
           ))}

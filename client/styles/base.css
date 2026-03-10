@@ -8,10 +8,14 @@ body {
   min-height: 100%;
 }
 
+html {
+  font-size: 16px;
+}
+
 body {
   min-height: 100vh;
   color: var(--loom-color-text);
-  background: radial-gradient(circle at 10% -10%, #dff0ff, transparent 40%), var(--loom-color-bg);
+  background: var(--loom-color-bg);
   font-synthesis-weight: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -37,17 +41,19 @@ img {
 
 .loom-brand {
   margin: 0;
-  font-size: 1.4rem;
-  font-weight: 800;
-  letter-spacing: 0.04em;
-  color: #0f4c81;
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--loom-color-text);
+  display: inline-flex;
+  align-items: center;
 }
 
 .loom-section-title {
   margin: 0;
-  font-size: 1.1rem;
-  line-height: 1.3;
-  font-weight: 700;
+  font-size: 1rem;
+  line-height: 1.5;
+  font-weight: var(--loom-font-weight-medium);
 }
 
 .loom-card {
@@ -98,7 +104,7 @@ img {
 
 .loom-subtle-link {
   color: var(--loom-color-primary);
-  font-weight: 600;
+  font-weight: var(--loom-font-weight-medium);
   font-size: 0.9rem;
 }
 

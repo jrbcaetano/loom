@@ -4,6 +4,7 @@ import { getEventById } from "@/features/events/server";
 import { getFamilyMembers } from "@/features/families/server";
 import { EventForm } from "@/features/events/event-form";
 import { VisibilityBadge } from "@/components/common/visibility-badge";
+import { getServerI18n } from "@/lib/i18n/server";
 
 type EventDetailPageProps = {
   params: Promise<{ eventId: string }>;
@@ -17,6 +18,7 @@ function formatDateTimeLocal(value: string) {
 }
 
 export default async function EventDetailPage({ params, searchParams }: EventDetailPageProps) {
+  const { t, locale } = await getServerI18n();
   const { eventId } = await params;
   const query = await searchParams;
   const event = await getEventById(eventId);
@@ -27,29 +29,51 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
 
   const members = (await getFamilyMembers(event.familyId))
     .filter((member) => member.userId)
-    .map((member) => ({ userId: member.userId!, displayName: member.fullName ?? member.email ?? "Member" }));
+    .map((member) => ({ userId: member.userId!, displayName: member.fullName ?? member.email ?? t("common.member", "Member") }));
 
   return (
-    <div className="loom-stack">
-      <section className="loom-card p-5">
-        <div className="loom-row-between">
-          <div>
-            <h2 className="loom-section-title">{event.title}</h2>
-            <p className="loom-muted mt-1">
-              {new Date(event.startAt).toLocaleString()} - {new Date(event.endAt).toLocaleString()}
-            </p>
-            {event.location ? <p className="loom-muted small mt-1">{event.location}</p> : null}
-          </div>
+    <div className="loom-module-page">
+      <section className="loom-module-header">
+        <div className="loom-module-header-copy">
+          <h2 className="loom-module-title">{event.title}</h2>
+          <p className="loom-module-subtitle">
+            {new Date(event.startAt).toLocaleString(locale === "pt" ? "pt-PT" : "en-US")} - {new Date(event.endAt).toLocaleString(locale === "pt" ? "pt-PT" : "en-US")}
+          </p>
+        </div>
+        <div className="loom-inline-actions">
           <VisibilityBadge visibility={event.visibility} />
+          <Link href={`/calendar/${event.id}${query.edit === "1" ? "" : "?edit=1"}`} className="loom-button-ghost">
+            {query.edit === "1" ? t("common.closeEdit", "Close edit") : t("calendar.edit", "Edit event")}
+          </Link>
+        </div>
+      </section>
+
+      <section className="loom-card p-5">
+        <h3 className="loom-section-title">{t("calendar.eventDetails", "Event details")}</h3>
+        <div className="loom-info-grid mt-3">
+          <article className="loom-info-item">
+            <p className="loom-info-label">{t("calendar.starts", "Starts")}</p>
+            <p className="loom-info-value">{new Date(event.startAt).toLocaleString(locale === "pt" ? "pt-PT" : "en-US")}</p>
+          </article>
+          <article className="loom-info-item">
+            <p className="loom-info-label">{t("calendar.ends", "Ends")}</p>
+            <p className="loom-info-value">{new Date(event.endAt).toLocaleString(locale === "pt" ? "pt-PT" : "en-US")}</p>
+          </article>
+          <article className="loom-info-item">
+            <p className="loom-info-label">{t("common.visibility", "Visibility")}</p>
+            <p className="loom-info-value">{event.visibility}</p>
+          </article>
+          <article className="loom-info-item">
+            <p className="loom-info-label">{t("common.location", "Location")}</p>
+            <p className="loom-info-value">{event.location ?? t("common.notSet", "Not set")}</p>
+          </article>
         </div>
       </section>
 
       <section className="loom-card p-5">
         <div className="loom-row-between">
-          <h3 className="loom-section-title">Event settings</h3>
-          <Link href={`/calendar/${event.id}${query.edit === "1" ? "" : "?edit=1"}`} className="loom-subtle-link">
-            {query.edit === "1" ? "Close" : "Edit"}
-          </Link>
+          <h3 className="loom-section-title">{t("calendar.eventSettings", "Event settings")}</h3>
+          <p className="loom-home-pill is-muted m-0">{event.allDay ? t("calendar.allDay", "all day") : t("calendar.scheduled", "scheduled")}</p>
         </div>
 
         {query.edit === "1" ? (
@@ -59,7 +83,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
               members={members}
               endpoint={`/api/events/${event.id}`}
               method="PATCH"
-              submitLabel="Save event"
+              submitLabel={t("calendar.save", "Save event")}
               redirectTo={`/calendar/${event.id}`}
               initialValues={{
                 title: event.title,

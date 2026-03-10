@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
-import { Plus_Jakarta_Sans } from "next/font/google";
+import { Inter } from "next/font/google";
 import type { ReactNode } from "react";
 import { AppProviders } from "@/components/layout/app-providers";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 import { getRequestLocale } from "@/lib/auth";
 import "./globals.css";
 
-const plusJakartaSans = Plus_Jakarta_Sans({
+const inter = Inter({
   subsets: ["latin"],
   variable: "--loom-font-sans"
 });
@@ -22,7 +22,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
 
   return (
     <html lang={locale}>
-      <body className={plusJakartaSans.className}>
+      <body className={inter.className}>
         <AppProviders locale={locale} dictionary={dictionary}>
           {children}
         </AppProviders>

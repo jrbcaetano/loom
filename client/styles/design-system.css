@@ -1,0 +1,201 @@
+:root {
+  --loom-shell-max-width: 1240px;
+  --loom-page-max-width: 1120px;
+  --loom-space-1: 0.25rem;
+  --loom-space-2: 0.5rem;
+  --loom-space-3: 0.75rem;
+  --loom-space-4: 1rem;
+  --loom-space-5: 1.25rem;
+  --loom-space-6: 1.5rem;
+  --loom-space-8: 2rem;
+  --loom-text-xs: 0.75rem;
+  --loom-text-sm: 0.875rem;
+  --loom-text-md: 1rem;
+  --loom-text-lg: 1.125rem;
+  --loom-text-xl: 1.5rem;
+  --loom-text-2xl: clamp(1.8rem, 1.2rem + 1.1vw, 2.3rem);
+}
+
+body {
+  font-weight: var(--loom-font-weight-regular);
+  letter-spacing: 0;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  letter-spacing: var(--loom-letter-tight);
+}
+
+.loom-main-inner {
+  max-width: var(--loom-shell-max-width);
+}
+
+.loom-main-body {
+  padding: var(--loom-space-4);
+}
+
+.loom-module-page {
+  width: 100%;
+  max-width: var(--loom-page-max-width);
+  margin: 0 auto;
+  gap: var(--loom-space-5);
+}
+
+.loom-module-title {
+  font-size: var(--loom-text-2xl);
+  font-weight: var(--loom-font-weight-medium);
+  line-height: 1.14;
+}
+
+.loom-module-subtitle {
+  font-size: var(--loom-text-sm);
+  font-weight: var(--loom-font-weight-regular);
+  color: #667085;
+}
+
+.loom-page-title {
+  font-size: 1.06rem;
+  font-weight: var(--loom-font-weight-semibold);
+}
+
+.loom-card {
+  border-radius: 18px;
+  border-color: #d9dee8;
+  box-shadow: none;
+}
+
+.loom-filter-card {
+  padding: var(--loom-space-4);
+}
+
+.loom-entity-title {
+  font-size: var(--loom-text-lg);
+  font-weight: var(--loom-font-weight-medium);
+}
+
+.loom-entity-meta {
+  font-size: var(--loom-text-sm);
+}
+
+.loom-form-stack {
+  gap: var(--loom-space-4);
+}
+
+.loom-form-actions {
+  gap: var(--loom-space-3);
+}
+
+input:not([type="checkbox"]):not([type="radio"]),
+select,
+textarea {
+  border-color: #d4dce8;
+  border-radius: 12px;
+  font-size: var(--loom-text-sm);
+  min-height: 2.6rem;
+}
+
+button,
+[role="button"] {
+  letter-spacing: 0;
+}
+
+.loom-nav-link {
+  font-size: 1.02rem;
+  font-weight: var(--loom-font-weight-regular);
+}
+
+.loom-nav-link.is-active {
+  font-weight: var(--loom-font-weight-medium);
+}
+
+.loom-nav-dot {
+  width: 1.6rem;
+  height: 1.6rem;
+  font-size: 1.06rem;
+}
+
+.loom-header-icon,
+.loom-header-avatar {
+  width: 2.25rem;
+  height: 2.25rem;
+}
+
+.loom-lists-page .loom-module-title {
+  font-size: 2.18rem;
+  font-weight: 500;
+}
+
+.loom-lists-page .loom-module-subtitle {
+  font-size: 1.06rem;
+  color: #667085;
+}
+
+.loom-lists-stat-value {
+  font-size: 2rem;
+  font-weight: var(--loom-font-weight-medium);
+}
+
+.loom-lists-stat-label {
+  font-size: 0.98rem;
+}
+
+.loom-lists-card-title {
+  font-size: 1.06rem;
+  font-weight: var(--loom-font-weight-medium);
+  line-height: 1.16;
+}
+
+.loom-lists-card-meta-row,
+.loom-lists-card-remaining {
+  font-size: 0.98rem;
+}
+
+.loom-lists-detail-title {
+  font-size: 1.68rem;
+  font-weight: var(--loom-font-weight-medium);
+}
+
+.loom-lists-detail-name {
+  font-size: 1rem;
+}
+
+@media (max-width: 959px) {
+  .loom-main {
+    max-width: 430px;
+  }
+
+  .loom-mobile-tabs {
+    max-width: 430px;
+  }
+
+  .loom-module-page {
+    max-width: 100%;
+    gap: var(--loom-space-4);
+  }
+
+  .loom-lists-page .loom-module-title {
+    font-size: 2rem;
+  }
+
+  .loom-lists-card-title {
+    font-size: 1.02rem;
+  }
+
+  .loom-lists-detail-title {
+    font-size: 1.44rem;
+  }
+}
+
+@media (min-width: 960px) {
+  .loom-page-header {
+    padding: 0.95rem var(--loom-space-6);
+  }
+
+  .loom-main-body {
+    padding: var(--loom-space-6);
+  }
+}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { useI18n } from "@/lib/i18n/context";
 
 type RewardsResponse = {
   balance: number;
@@ -15,6 +16,7 @@ async function fetchRewards() {
 }
 
 export function RewardsClient() {
+  const { t, locale } = useI18n();
   const query = useQuery({
     queryKey: ["rewards"],
     queryFn: fetchRewards
@@ -22,16 +24,16 @@ export function RewardsClient() {
 
   return (
     <section className="loom-card p-5">
-      <h2 className="loom-section-title">Rewards</h2>
-      {query.isPending ? <p className="loom-muted mt-3">Loading rewards...</p> : null}
+      <h2 className="loom-section-title">{t("nav.rewards", "Rewards")}</h2>
+      {query.isPending ? <p className="loom-muted mt-3">{t("rewards.loading", "Loading rewards...")}</p> : null}
       {query.error ? <p className="loom-feedback-error mt-3">{query.error.message}</p> : null}
       {query.data ? (
         <div className="loom-stack-sm mt-3">
-          <p className="m-0 text-xl font-semibold">{query.data.balance} points</p>
+          <p className="m-0 text-xl font-semibold">{query.data.balance} {t("home.points", "points")}</p>
           {(query.data.transactions ?? []).slice(0, 20).map((transaction) => (
             <p key={transaction.id} className="m-0 loom-muted small">
               {transaction.type === "earn" ? "+" : "-"}
-              {transaction.points} - {new Date(transaction.created_at).toLocaleString()}
+              {transaction.points} - {new Date(transaction.created_at).toLocaleString(locale === "pt" ? "pt-PT" : "en-US")}
             </p>
           ))}
         </div>

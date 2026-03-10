@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { useI18n } from "@/lib/i18n/context";
 
 const taskSchema = z.object({
   title: z.string().trim().min(1).max(180),
@@ -32,6 +34,27 @@ type MemberOption = {
   displayName: string;
 };
 
+function toLocalDateTimeValue(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
+function getDefaultStartAt() {
+  const start = new Date();
+  start.setHours(12, 0, 0, 0);
+  return toLocalDateTimeValue(start);
+}
+
+function getDefaultDueAt() {
+  const due = new Date();
+  due.setHours(23, 59, 0, 0);
+  return toLocalDateTimeValue(due);
+}
+
 export function TaskForm({
   familyId,
   members,
@@ -39,6 +62,8 @@ export function TaskForm({
   method,
   submitLabel,
   initialValues,
+  defaultAssigneeUserId,
+  cancelHref,
   redirectTo
 }: {
   familyId: string;
@@ -48,10 +73,13 @@ export function TaskForm({
   submitLabel: string;
   redirectTo: string;
   initialValues?: Partial<TaskValues>;
+  defaultAssigneeUserId?: string;
+  cancelHref?: string;
 }) {
   const [serverError, setServerError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
+  const { t } = useI18n();
 
   const form = useForm<TaskValues>({
     resolver: zodResolver(taskSchema),
@@ -60,10 +88,10 @@ export function TaskForm({
       description: initialValues?.description ?? "",
       status: initialValues?.status ?? "todo",
       priority: initialValues?.priority ?? "medium",
-      startAt: initialValues?.startAt ?? "",
-      dueAt: initialValues?.dueAt ?? "",
-      assignedToUserId: initialValues?.assignedToUserId ?? "",
-      visibility: initialValues?.visibility ?? "family"
+      startAt: initialValues?.startAt ?? getDefaultStartAt(),
+      dueAt: initialValues?.dueAt ?? getDefaultDueAt(),
+      assignedToUserId: initialValues?.assignedToUserId ?? defaultAssigneeUserId ?? "",
+      visibility: initialValues?.visibility ?? "private"
     }
   });
 
@@ -98,7 +126,7 @@ export function TaskForm({
     const payload = (await response.json().catch(() => null)) as { error?: string; taskId?: string } | null;
 
     if (!response.ok) {
-      setServerError(payload?.error ?? "Failed to save task");
+      setServerError(payload?.error ?? t("tasks.saveError", "Failed to save task"));
       setIsLoading(false);
       return;
     }
@@ -111,50 +139,50 @@ export function TaskForm({
   return (
     <form className="loom-form-stack" onSubmit={form.handleSubmit(onSubmit)}>
       <label className="loom-field">
-        <span>Title</span>
+        <span>{t("common.title", "Title")}</span>
         <input className="loom-input" type="text" {...form.register("title")} />
       </label>
 
       <label className="loom-field">
-        <span>Description</span>
+        <span>{t("common.description", "Description")}</span>
         <textarea className="loom-input loom-textarea" {...form.register("description")} />
       </label>
 
       <div className="loom-form-inline">
         <label className="loom-field">
-          <span>Status</span>
+          <span>{t("tasks.status", "Status")}</span>
           <select className="loom-input" {...form.register("status")}>
-            <option value="todo">To do</option>
-            <option value="doing">Doing</option>
-            <option value="done">Done</option>
+            <option value="todo">{t("tasks.statusTodo", "To do")}</option>
+            <option value="doing">{t("tasks.statusDoing", "Doing")}</option>
+            <option value="done">{t("tasks.statusDone", "Done")}</option>
           </select>
         </label>
 
         <label className="loom-field">
-          <span>Priority</span>
+          <span>{t("tasks.priority", "Priority")}</span>
           <select className="loom-input" {...form.register("priority")}>
-            <option value="low">Low</option>
-            <option value="medium">Medium</option>
-            <option value="high">High</option>
+            <option value="low">{t("tasks.priorityLow", "Low")}</option>
+            <option value="medium">{t("tasks.priorityMedium", "Medium")}</option>
+            <option value="high">{t("tasks.priorityHigh", "High")}</option>
           </select>
         </label>
       </div>
 
       <div className="loom-form-inline">
         <label className="loom-field">
-          <span>Start date</span>
+          <span>{t("tasks.startDate", "Start date")}</span>
           <input className="loom-input" type="datetime-local" {...form.register("startAt")} />
         </label>
 
         <label className="loom-field">
-          <span>Due date</span>
+          <span>{t("tasks.dueDate", "Due date")}</span>
           <input className="loom-input" type="datetime-local" {...form.register("dueAt")} />
         </label>
 
         <label className="loom-field">
-          <span>Assignee</span>
+          <span>{t("tasks.assignee", "Assignee")}</span>
           <select className="loom-input" {...form.register("assignedToUserId")}>
-            <option value="">Unassigned</option>
+            <option value="">{t("tasks.unassigned", "Unassigned")}</option>
             {members.map((member) => (
               <option key={member.userId} value={member.userId}>
                 {member.displayName}
@@ -165,17 +193,17 @@ export function TaskForm({
       </div>
 
       <label className="loom-field">
-        <span>Visibility</span>
+        <span>{t("common.visibility", "Visibility")}</span>
         <select className="loom-input" {...form.register("visibility")}>
-          <option value="private">Private</option>
-          <option value="family">Family</option>
-          <option value="selected_members">Selected members</option>
+          <option value="private">{t("visibility.private", "Private")}</option>
+          <option value="family">{t("visibility.family", "Family")}</option>
+          <option value="selected_members">{t("visibility.selected_members", "Selected members")}</option>
         </select>
       </label>
 
       {visibility === "selected_members" ? (
         <div className="loom-card soft p-4">
-          <p className="m-0 font-semibold">Select members</p>
+          <p className="m-0 font-semibold">{t("common.selectMembers", "Select members")}</p>
           <div className="loom-stack-sm mt-3">
             {members.map((member) => (
               <label key={member.userId} className="loom-checkbox-row">
@@ -187,9 +215,17 @@ export function TaskForm({
         </div>
       ) : null}
 
-      <button className="loom-button-primary" type="submit" disabled={isLoading}>
-        {isLoading ? "Saving..." : submitLabel}
-      </button>
+      <div className="loom-form-actions">
+        {cancelHref ? (
+          <Link href={cancelHref} className="loom-button-ghost">
+            {t("common.cancel", "Cancel")}
+          </Link>
+        ) : null}
+
+        <button className="loom-button-primary" type="submit" disabled={isLoading}>
+          {isLoading ? t("common.saving", "Saving...") : submitLabel}
+        </button>
+      </div>
 
       {serverError ? <p className="loom-feedback-error">{serverError}</p> : null}
     </form>

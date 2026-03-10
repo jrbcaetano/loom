@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { useI18n } from "@/lib/i18n/context";
 
 const documentFormSchema = z.object({
   title: z.string().trim().min(1).max(180),
@@ -31,6 +32,7 @@ export function DocumentForm({
   initialValues?: Partial<DocumentFormValues>;
 }) {
   const router = useRouter();
+  const { t } = useI18n();
   const [serverError, setServerError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -62,7 +64,7 @@ export function DocumentForm({
 
     const payload = (await response.json().catch(() => null)) as { documentId?: string; error?: string } | null;
     if (!response.ok) {
-      setServerError(payload?.error ?? "Failed to save document");
+      setServerError(payload?.error ?? t("documents.saveError", "Failed to save document"));
       setIsLoading(false);
       return;
     }
@@ -75,23 +77,23 @@ export function DocumentForm({
   return (
     <form className="loom-form-stack" onSubmit={form.handleSubmit(onSubmit)}>
       <label className="loom-field">
-        <span>Title</span>
+        <span>{t("common.title", "Title")}</span>
         <input className="loom-input" type="text" {...form.register("title")} />
       </label>
       <label className="loom-field">
-        <span>Category</span>
+        <span>{t("common.category", "Category")}</span>
         <input className="loom-input" type="text" {...form.register("category")} />
       </label>
       <label className="loom-field">
-        <span>Description</span>
+        <span>{t("common.description", "Description")}</span>
         <textarea className="loom-input loom-textarea" {...form.register("description")} />
       </label>
       <label className="loom-field">
-        <span>File URL (optional)</span>
+        <span>{t("documents.fileUrlOptional", "File URL (optional)")}</span>
         <input className="loom-input" type="url" {...form.register("fileUrl")} />
       </label>
       <button className="loom-button-primary" type="submit" disabled={isLoading}>
-        {isLoading ? "Saving..." : submitLabel}
+        {isLoading ? t("common.saving", "Saving...") : submitLabel}
       </button>
       {serverError ? <p className="loom-feedback-error">{serverError}</p> : null}
     </form>

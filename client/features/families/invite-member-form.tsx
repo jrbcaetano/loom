@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { useI18n } from "@/lib/i18n/context";
 
 const inviteSchema = z.object({
   email: z.string().email(),
@@ -14,6 +15,7 @@ const inviteSchema = z.object({
 type InviteValues = z.infer<typeof inviteSchema>;
 
 export function InviteMemberForm({ familyId }: { familyId: string }) {
+  const { t } = useI18n();
   const [serverError, setServerError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
@@ -36,7 +38,7 @@ export function InviteMemberForm({ familyId }: { familyId: string }) {
     const payload = (await response.json().catch(() => null)) as { error?: string } | null;
 
     if (!response.ok) {
-      setServerError(payload?.error ?? "Failed to invite member");
+      setServerError(payload?.error ?? t("family.inviteError", "Failed to invite member"));
       setIsLoading(false);
       return;
     }
@@ -48,14 +50,14 @@ export function InviteMemberForm({ familyId }: { familyId: string }) {
 
   return (
     <form className="loom-form-inline" onSubmit={form.handleSubmit(onSubmit)}>
-      <input className="loom-input" type="email" placeholder="Email" {...form.register("email")} />
+      <input className="loom-input" type="email" placeholder={t("auth.email", "Email")} {...form.register("email")} />
       <select className="loom-input" {...form.register("role")}>
-        <option value="adult">Adult</option>
-        <option value="child">Child</option>
-        <option value="admin">Admin</option>
+        <option value="adult">{t("family.roleAdult", "Adult")}</option>
+        <option value="child">{t("family.roleChild", "Child")}</option>
+        <option value="admin">{t("family.roleAdmin", "Admin")}</option>
       </select>
       <button className="loom-button-primary" type="submit" disabled={isLoading}>
-        {isLoading ? "Sending..." : "Invite"}
+        {isLoading ? t("common.sending", "Sending...") : t("family.invite", "Invite")}
       </button>
       {serverError ? <p className="loom-feedback-error">{serverError}</p> : null}
     </form>

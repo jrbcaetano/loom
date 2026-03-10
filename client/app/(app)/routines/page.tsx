@@ -2,22 +2,27 @@ import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { getActiveFamilyContext } from "@/features/families/context";
 import { RoutinesClient } from "@/features/routines/routines-client";
+import { getServerI18n } from "@/lib/i18n/server";
 
 export default async function RoutinesPage() {
   const user = await requireUser();
+  const { t } = await getServerI18n();
   const context = await getActiveFamilyContext(user.id);
   if (!context.activeFamilyId) {
-    return <p className="loom-muted">Create a family first.</p>;
+    return <p className="loom-muted">{t("onboarding.createFamilyFirst", "Create a family first.")}</p>;
   }
 
   return (
-    <div className="loom-stack">
-      <div className="loom-row-between">
-        <p className="loom-muted">Recurring checklists for daily and weekly household routines.</p>
+    <div className="loom-module-page">
+      <section className="loom-module-header">
+        <div className="loom-module-header-copy">
+          <h2 className="loom-module-title">{t("nav.routines", "Routines")}</h2>
+          <p className="loom-module-subtitle">{t("routines.subtitle", "Recurring checklists for daily and weekly household routines.")}</p>
+        </div>
         <Link href="/routines/new" className="loom-button-primary">
-          New routine
+          {t("routines.new", "New routine")}
         </Link>
-      </div>
+      </section>
       <RoutinesClient familyId={context.activeFamilyId} />
     </div>
   );

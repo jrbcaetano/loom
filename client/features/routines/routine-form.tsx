@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { useI18n } from "@/lib/i18n/context";
 
 const routineFormSchema = z.object({
   title: z.string().trim().min(1).max(180),
@@ -34,6 +35,7 @@ export function RoutineForm({
   initialValues?: Partial<RoutineFormValues>;
 }) {
   const router = useRouter();
+  const { t } = useI18n();
   const [serverError, setServerError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -67,7 +69,7 @@ export function RoutineForm({
 
     const payload = (await response.json().catch(() => null)) as { routineId?: string; error?: string } | null;
     if (!response.ok) {
-      setServerError(payload?.error ?? "Failed to save routine");
+      setServerError(payload?.error ?? t("routines.saveError", "Failed to save routine"));
       setIsLoading(false);
       return;
     }
@@ -80,14 +82,14 @@ export function RoutineForm({
   return (
     <form className="loom-form-stack" onSubmit={form.handleSubmit(onSubmit)}>
       <label className="loom-field">
-        <span>Title</span>
+        <span>{t("common.title", "Title")}</span>
         <input className="loom-input" type="text" {...form.register("title")} />
       </label>
       <div className="loom-form-inline">
         <label className="loom-field">
-          <span>Assigned to</span>
+          <span>{t("tasks.assignee", "Assignee")}</span>
           <select className="loom-input" {...form.register("assignedToUserId")}>
-            <option value="">Unassigned</option>
+            <option value="">{t("tasks.unassigned", "Unassigned")}</option>
             {members.map((member) => (
               <option key={member.userId} value={member.userId}>
                 {member.displayName}
@@ -96,19 +98,19 @@ export function RoutineForm({
           </select>
         </label>
         <label className="loom-field">
-          <span>Schedule</span>
+          <span>{t("routines.schedule", "Schedule")}</span>
           <select className="loom-input" {...form.register("scheduleType")}>
-            <option value="daily">Daily</option>
-            <option value="weekly">Weekly</option>
-            <option value="custom">Custom</option>
+            <option value="daily">{t("routines.daily", "Daily")}</option>
+            <option value="weekly">{t("routines.weekly", "Weekly")}</option>
+            <option value="custom">{t("routines.custom", "Custom")}</option>
           </select>
         </label>
       </div>
       <div className="loom-stack-sm">
         <div className="loom-row-between">
-          <h3 className="loom-section-title">Checklist steps</h3>
+          <h3 className="loom-section-title">{t("routines.checklistSteps", "Checklist steps")}</h3>
           <button type="button" className="loom-button-ghost" onClick={() => steps.append({ text: "" })}>
-            Add step
+            {t("routines.addStep", "Add step")}
           </button>
         </div>
         {steps.fields.map((field, index) => (
@@ -116,14 +118,14 @@ export function RoutineForm({
             <input className="loom-input" type="text" {...form.register(`steps.${index}.text`)} />
             {steps.fields.length > 1 ? (
               <button type="button" className="loom-button-ghost" onClick={() => steps.remove(index)}>
-                Remove
+                {t("common.remove", "Remove")}
               </button>
             ) : null}
           </div>
         ))}
       </div>
       <button className="loom-button-primary" type="submit" disabled={isLoading}>
-        {isLoading ? "Saving..." : submitLabel}
+        {isLoading ? t("common.saving", "Saving...") : submitLabel}
       </button>
       {serverError ? <p className="loom-feedback-error">{serverError}</p> : null}
     </form>

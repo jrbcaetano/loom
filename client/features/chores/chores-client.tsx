@@ -1,9 +1,10 @@
-"use client";
+﻿"use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
+import { useI18n } from "@/lib/i18n/context";
 
 type ChoreRow = {
   id: string;
@@ -11,6 +12,12 @@ type ChoreRow = {
   points: number;
   due_date: string | null;
   status: "todo" | "done";
+  assigned_to_user_id: string | null;
+};
+
+type MemberOption = {
+  userId: string;
+  displayName: string;
 };
 
 async function fetchChores(familyId: string) {
@@ -20,7 +27,8 @@ async function fetchChores(familyId: string) {
   return payload.chores ?? [];
 }
 
-export function ChoresClient({ familyId }: { familyId: string }) {
+export function ChoresClient({ familyId, members }: { familyId: string; members: MemberOption[] }) {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const query = useQuery({
     queryKey: ["chores", familyId],
@@ -31,7 +39,7 @@ export function ChoresClient({ familyId }: { familyId: string }) {
     mutationFn: async (choreId: string) => {
       const response = await fetch(`/api/chores/${choreId}/complete`, { method: "POST" });
       const payload = (await response.json()) as { error?: string };
-      if (!response.ok) throw new Error(payload.error ?? "Failed to complete chore");
+      if (!response.ok) throw new Error(payload.error ?? t("chores.completeError", "Failed to complete chore"));
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["chores", familyId] });
@@ -55,35 +63,87 @@ export function ChoresClient({ familyId }: { familyId: string }) {
     };
   }, [familyId, queryClient]);
 
+  const groupedByMember = useMemo(() => {
+    const chores = query.data ?? [];
+    const map = new Map<string, ChoreRow[]>();
+    for (const chore of chores) {
+      const key = chore.assigned_to_user_id ?? "unassigned";
+      const bucket = map.get(key) ?? [];
+      bucket.push(chore);
+      map.set(key, bucket);
+    }
+    return Array.from(map.entries()).map(([userId, chores]) => {
+      const member = members.find((item) => item.userId === userId);
+      const done = chores.filter((item) => item.status === "done").length;
+      const points = chores.filter((item) => item.status === "done").reduce((total, item) => total + item.points, 0);
+      return {
+        userId,
+        displayName: member?.displayName ?? (userId === "unassigned" ? t("tasks.unassigned", "Unassigned") : t("common.member", "Member")),
+        chores,
+        done,
+        points
+      };
+    });
+  }, [query.data, members]);
+
+  const leaderboard = [...groupedByMember].sort((a, b) => b.points - a.points);
+
   return (
-    <section className="loom-card p-5">
-      <h2 className="loom-section-title">Chores</h2>
-      {query.isPending ? <p className="loom-muted mt-3">Loading chores...</p> : null}
-      {query.error ? <p className="loom-feedback-error mt-3">{query.error.message}</p> : null}
-      <div className="loom-stack-sm mt-3">
-        {(query.data ?? []).map((chore) => (
-          <article key={chore.id} className="loom-card soft p-4">
+    <div className="loom-stack">
+      {query.isPending ? <p className="loom-muted">{t("chores.loading", "Loading chores...")}</p> : null}
+      {query.error ? <p className="loom-feedback-error">{query.error.message}</p> : null}
+
+      <section className="loom-grid-2">
+        {groupedByMember.map((member) => (
+          <article key={member.userId} className="loom-card p-5">
             <div className="loom-row-between">
               <div>
-                <Link href={`/chores/${chore.id}`} className="loom-link-strong">
-                  {chore.title}
-                </Link>
-                <p className="loom-muted small mt-1">
-                  {chore.points} points {chore.due_date ? `- due ${chore.due_date}` : ""}
-                </p>
+                <h3 className="m-0 font-semibold">{member.displayName}</h3>
+                <p className="loom-muted small m-0">{member.points} {t("home.points", "points")}</p>
               </div>
-              <button
-                type="button"
-                className="loom-button-ghost"
-                onClick={() => completeMutation.mutate(chore.id)}
-                disabled={chore.status === "done"}
-              >
-                {chore.status === "done" ? "Done" : "Complete"}
-              </button>
+              <span className="loom-home-pill">{member.done}/{member.chores.length} {t("tasks.statusDone", "done")}</span>
+            </div>
+
+            <div className="loom-stack-sm mt-3">
+              {member.chores.map((chore) => (
+                <div key={chore.id} className="loom-soft-row">
+                  <div className="loom-row-between">
+                    <div>
+                      <Link href={`/chores/${chore.id}`} className="loom-link-strong">
+                        {chore.title}
+                      </Link>
+                      <p className="loom-muted small m-0">{chore.points} {t("home.points", "points")} {chore.due_date ? `- ${t("tasks.due", "due").toLowerCase()} ${chore.due_date}` : ""}</p>
+                    </div>
+                    <button
+                      type="button"
+                      className="loom-button-ghost"
+                      onClick={() => completeMutation.mutate(chore.id)}
+                      disabled={chore.status === "done"}
+                    >
+                      {chore.status === "done" ? t("tasks.statusDone", "Done") : t("common.complete", "Complete")}
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           </article>
         ))}
-      </div>
-    </section>
+      </section>
+
+      <section className="loom-card p-5">
+        <h3 className="loom-section-title">{t("chores.leaderboardMonth", "Leaderboard - This month")}</h3>
+        <div className="loom-stack-sm mt-3">
+          {leaderboard.map((entry, index) => (
+            <div key={entry.userId} className="loom-soft-row">
+              <div className="loom-row-between">
+                <p className="m-0">#{index + 1} {entry.displayName}</p>
+                <p className="m-0 font-semibold">{entry.points} pts</p>
+              </div>
+            </div>
+          ))}
+          {leaderboard.length === 0 ? <p className="loom-muted">{t("chores.noPoints", "No chore points yet.")}</p> : null}
+        </div>
+      </section>
+    </div>
   );
 }

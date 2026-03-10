@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useI18n } from "@/lib/i18n/context";
 
 type ListOption = {
   id: string;
@@ -8,6 +9,7 @@ type ListOption = {
 };
 
 export function AddIngredientsForm({ recipeId, lists }: { recipeId: string; lists: ListOption[] }) {
+  const { t } = useI18n();
   const [listId, setListId] = useState(lists[0]?.id ?? "");
   const [feedback, setFeedback] = useState<string | null>(null);
   const [errorText, setErrorText] = useState<string | null>(null);
@@ -29,17 +31,17 @@ export function AddIngredientsForm({ recipeId, lists }: { recipeId: string; list
     setIsLoading(false);
 
     if (!response.ok) {
-      setErrorText(payload.error ?? "Failed to add ingredients");
+      setErrorText(payload.error ?? t("recipes.addIngredientsError", "Failed to add ingredients"));
       return;
     }
 
-    setFeedback(`Added ${payload.addedCount ?? 0} ingredients to the selected list.`);
+    setFeedback(`${t("recipes.added", "Added")} ${payload.addedCount ?? 0} ${t("recipes.ingredients", "ingredients")} ${t("recipes.toSelectedList", "to the selected list.")}`);
   }
 
   return (
     <div className="loom-form-inline">
       <label className="loom-field">
-        <span>Target shopping list</span>
+        <span>{t("recipes.targetShoppingList", "Target shopping list")}</span>
         <select className="loom-input" value={listId} onChange={(event) => setListId(event.target.value)}>
           {lists.map((list) => (
             <option key={list.id} value={list.id}>
@@ -49,7 +51,7 @@ export function AddIngredientsForm({ recipeId, lists }: { recipeId: string; list
         </select>
       </label>
       <button className="loom-button-primary" type="button" disabled={!listId || isLoading} onClick={onSubmit}>
-        {isLoading ? "Adding..." : "Add ingredients"}
+        {isLoading ? t("recipes.adding", "Adding...") : t("recipes.addIngredients", "Add ingredients")}
       </button>
       {feedback ? <p className="loom-feedback-success">{feedback}</p> : null}
       {errorText ? <p className="loom-feedback-error">{errorText}</p> : null}

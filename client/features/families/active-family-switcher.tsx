@@ -2,6 +2,7 @@
 
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useI18n } from "@/lib/i18n/context";
 
 type FamilyOption = {
   id: string;
@@ -11,10 +12,11 @@ type FamilyOption = {
 export function ActiveFamilySwitcher({ families, activeFamilyId }: { families: FamilyOption[]; activeFamilyId: string | null }) {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
+  const { t } = useI18n();
 
   return (
     <label className="loom-field">
-      <span>Active family</span>
+      <span>{t("settings.activeFamily", "Active family")}</span>
       <select
         className="loom-input"
         defaultValue={activeFamilyId ?? ""}

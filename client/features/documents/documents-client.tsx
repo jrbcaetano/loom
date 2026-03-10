@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
+import { useI18n } from "@/lib/i18n/context";
 
 type DocumentRow = {
   id: string;
@@ -23,6 +24,7 @@ async function fetchDocuments(familyId: string, search: string) {
 }
 
 export function DocumentsClient({ familyId }: { familyId: string }) {
+  const { t, locale } = useI18n();
   const [search, setSearch] = useState("");
   const query = useQuery({
     queryKey: ["documents", familyId, search],
@@ -31,24 +33,31 @@ export function DocumentsClient({ familyId }: { familyId: string }) {
 
   return (
     <div className="loom-stack">
-      <section className="loom-card p-5">
-        <label className="loom-field">
-          <span>Search</span>
-          <input className="loom-input" type="search" placeholder="Search documents by title" value={search} onChange={(event) => setSearch(event.target.value)} />
-        </label>
+      <section className="loom-card loom-filter-card">
+        <div className="loom-filter-row">
+          <label className="loom-field">
+            <span>{t("common.search", "Search")}</span>
+            <input className="loom-input" type="search" placeholder={t("documents.searchPlaceholder", "Search documents by title")} value={search} onChange={(event) => setSearch(event.target.value)} />
+          </label>
+        </div>
       </section>
 
-      <section className="loom-card p-5">
-        <h2 className="loom-section-title">Documents</h2>
-        {query.isPending ? <p className="loom-muted mt-3">Loading documents...</p> : null}
+      <section className="loom-card">
+        {query.isPending ? <p className="loom-muted mt-3">{t("documents.loading", "Loading documents...")}</p> : null}
         {query.error ? <p className="loom-feedback-error mt-3">{query.error.message}</p> : null}
-        <div className="loom-stack-sm mt-3">
+        <div className="loom-entity-list p-3">
           {(query.data ?? []).map((document) => (
-            <article key={document.id} className="loom-card soft p-4">
-              <Link href={`/documents/${document.id}`} className="loom-link-strong">
-                {document.title}
-              </Link>
-              <p className="loom-muted small mt-1">{document.category ?? "Uncategorized"}</p>
+            <article key={document.id} className="loom-conversation-row">
+              <div>
+                <Link href={`/documents/${document.id}`} className="loom-link-strong">
+                  {document.title}
+                </Link>
+                <p className="loom-entity-meta">{document.category ?? t("common.uncategorized", "Uncategorized")}</p>
+              </div>
+              <div className="loom-inline-actions">
+                {document.file_url ? <span className="loom-badge">{t("documents.attachment", "Attachment")}</span> : null}
+                <p className="loom-muted small">{new Date(document.created_at).toLocaleDateString(locale === "pt" ? "pt-PT" : "en-US")}</p>
+              </div>
             </article>
           ))}
         </div>

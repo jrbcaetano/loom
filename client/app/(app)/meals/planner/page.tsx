@@ -2,24 +2,34 @@ import { requireUser } from "@/lib/auth";
 import { getActiveFamilyContext } from "@/features/families/context";
 import { getRecipes } from "@/features/meals/server";
 import { MealPlannerClient } from "@/features/meals/meal-planner-client";
+import { getServerI18n } from "@/lib/i18n/server";
 
 export default async function MealPlannerPage() {
   const user = await requireUser();
+  const { t } = await getServerI18n();
   const context = await getActiveFamilyContext(user.id);
 
   if (!context.activeFamilyId) {
-    return <p className="loom-muted">Create a family first.</p>;
+    return <p className="loom-muted">{t("onboarding.createFamilyFirst", "Create a family first.")}</p>;
   }
 
   const recipes = await getRecipes(context.activeFamilyId);
 
   return (
-    <MealPlannerClient
-      familyId={context.activeFamilyId}
-      recipes={recipes.map((recipe) => ({
-        id: recipe.id,
-        title: recipe.title
-      }))}
-    />
+    <div className="loom-module-page">
+      <section className="loom-module-header">
+        <div className="loom-module-header-copy">
+          <h2 className="loom-module-title">{t("meals.weeklyTitle", "Weekly Meals")}</h2>
+          <p className="loom-module-subtitle">{t("meals.weeklySubtitle", "Build your meal plan and manage day-by-day meals.")}</p>
+        </div>
+      </section>
+      <MealPlannerClient
+        familyId={context.activeFamilyId}
+        recipes={recipes.map((recipe) => ({
+          id: recipe.id,
+          title: recipe.title
+        }))}
+      />
+    </div>
   );
 }

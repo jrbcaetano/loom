@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { useI18n } from "@/lib/i18n/context";
 
 const choreFormSchema = z.object({
   title: z.string().trim().min(1).max(180),
@@ -36,6 +37,7 @@ export function ChoreForm({
   initialValues?: Partial<ChoreFormValues>;
 }) {
   const router = useRouter();
+  const { t } = useI18n();
   const [serverError, setServerError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -70,7 +72,7 @@ export function ChoreForm({
 
     const payload = (await response.json().catch(() => null)) as { choreId?: string; error?: string } | null;
     if (!response.ok) {
-      setServerError(payload?.error ?? "Failed to save chore");
+      setServerError(payload?.error ?? t("chores.saveError", "Failed to save chore"));
       setIsLoading(false);
       return;
     }
@@ -83,18 +85,18 @@ export function ChoreForm({
   return (
     <form className="loom-form-stack" onSubmit={form.handleSubmit(onSubmit)}>
       <label className="loom-field">
-        <span>Title</span>
+        <span>{t("common.title", "Title")}</span>
         <input className="loom-input" type="text" {...form.register("title")} />
       </label>
       <label className="loom-field">
-        <span>Description</span>
+        <span>{t("common.description", "Description")}</span>
         <textarea className="loom-input loom-textarea" {...form.register("description")} />
       </label>
       <div className="loom-form-inline">
         <label className="loom-field">
-          <span>Assigned to</span>
+          <span>{t("tasks.assignee", "Assignee")}</span>
           <select className="loom-input" {...form.register("assignedToUserId")}>
-            <option value="">Unassigned</option>
+            <option value="">{t("tasks.unassigned", "Unassigned")}</option>
             {members.map((member) => (
               <option key={member.userId} value={member.userId}>
                 {member.displayName}
@@ -103,25 +105,25 @@ export function ChoreForm({
           </select>
         </label>
         <label className="loom-field">
-          <span>Points</span>
+          <span>{t("chores.points", "Points")}</span>
           <input className="loom-input" type="number" min={0} {...form.register("points", { valueAsNumber: true })} />
         </label>
       </div>
       <div className="loom-form-inline">
         <label className="loom-field">
-          <span>Due date</span>
+          <span>{t("tasks.due", "Due")} {t("common.date", "date").toLowerCase()}</span>
           <input className="loom-input" type="date" {...form.register("dueDate")} />
         </label>
         <label className="loom-field">
-          <span>Status</span>
+          <span>{t("tasks.status", "Status")}</span>
           <select className="loom-input" {...form.register("status")}>
-            <option value="todo">To do</option>
-            <option value="done">Done</option>
+            <option value="todo">{t("tasks.statusTodo", "To do")}</option>
+            <option value="done">{t("tasks.statusDone", "Done")}</option>
           </select>
         </label>
       </div>
       <button className="loom-button-primary" type="submit" disabled={isLoading}>
-        {isLoading ? "Saving..." : submitLabel}
+        {isLoading ? t("common.saving", "Saving...") : submitLabel}
       </button>
       {serverError ? <p className="loom-feedback-error">{serverError}</p> : null}
     </form>

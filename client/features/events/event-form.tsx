@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { useI18n } from "@/lib/i18n/context";
 
 const eventSchema = z
   .object({
@@ -48,6 +49,7 @@ export function EventForm({
   const [serverError, setServerError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
+  const { t } = useI18n();
 
   const form = useForm<EventValues>({
     resolver: zodResolver(eventSchema),
@@ -92,7 +94,7 @@ export function EventForm({
     const payload = (await response.json().catch(() => null)) as { error?: string; eventId?: string } | null;
 
     if (!response.ok) {
-      setServerError(payload?.error ?? "Failed to save event");
+      setServerError(payload?.error ?? t("calendar.saveError", "Failed to save event"));
       setIsLoading(false);
       return;
     }
@@ -105,49 +107,49 @@ export function EventForm({
   return (
     <form className="loom-form-stack" onSubmit={form.handleSubmit(onSubmit)}>
       <label className="loom-field">
-        <span>Title</span>
+        <span>{t("common.title", "Title")}</span>
         <input className="loom-input" type="text" {...form.register("title")} />
       </label>
 
       <label className="loom-field">
-        <span>Description</span>
+        <span>{t("common.description", "Description")}</span>
         <textarea className="loom-input loom-textarea" {...form.register("description")} />
       </label>
 
       <div className="loom-form-inline">
         <label className="loom-field">
-          <span>Start</span>
+          <span>{t("calendar.starts", "Starts")}</span>
           <input className="loom-input" type="datetime-local" {...form.register("startAt")} />
         </label>
 
         <label className="loom-field">
-          <span>End</span>
+          <span>{t("calendar.ends", "Ends")}</span>
           <input className="loom-input" type="datetime-local" {...form.register("endAt")} />
         </label>
       </div>
 
       <label className="loom-field">
-        <span>Location</span>
+        <span>{t("common.location", "Location")}</span>
         <input className="loom-input" type="text" {...form.register("location")} />
       </label>
 
       <label className="loom-field">
-        <span>Visibility</span>
+        <span>{t("common.visibility", "Visibility")}</span>
         <select className="loom-input" {...form.register("visibility")}>
-          <option value="private">Private</option>
-          <option value="family">Family</option>
-          <option value="selected_members">Selected members</option>
+          <option value="private">{t("visibility.private", "Private")}</option>
+          <option value="family">{t("visibility.family", "Family")}</option>
+          <option value="selected_members">{t("visibility.selected_members", "Selected members")}</option>
         </select>
       </label>
 
       <label className="loom-checkbox-row">
         <input type="checkbox" {...form.register("allDay")} />
-        <span>All day event</span>
+        <span>{t("calendar.allDayEvent", "All day event")}</span>
       </label>
 
       {visibility === "selected_members" ? (
         <div className="loom-card soft p-4">
-          <p className="m-0 font-semibold">Select members</p>
+          <p className="m-0 font-semibold">{t("common.selectMembers", "Select members")}</p>
           <div className="loom-stack-sm mt-3">
             {members.map((member) => (
               <label key={member.userId} className="loom-checkbox-row">
@@ -160,7 +162,7 @@ export function EventForm({
       ) : null}
 
       <button className="loom-button-primary" type="submit" disabled={isLoading}>
-        {isLoading ? "Saving..." : submitLabel}
+        {isLoading ? t("common.saving", "Saving...") : submitLabel}
       </button>
 
       {serverError ? <p className="loom-feedback-error">{serverError}</p> : null}

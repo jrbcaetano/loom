@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { useI18n } from "@/lib/i18n/context";
 
 const noteFormSchema = z.object({
   title: z.string().trim().min(1).max(180),
@@ -30,6 +31,7 @@ export function NoteForm({
   initialValues?: Partial<NoteFormValues>;
 }) {
   const router = useRouter();
+  const { t } = useI18n();
   const [serverError, setServerError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -58,7 +60,7 @@ export function NoteForm({
 
     const payload = (await response.json().catch(() => null)) as { noteId?: string; error?: string } | null;
     if (!response.ok) {
-      setServerError(payload?.error ?? "Failed to save note");
+      setServerError(payload?.error ?? t("notes.saveError", "Failed to save note"));
       setIsLoading(false);
       return;
     }
@@ -71,19 +73,19 @@ export function NoteForm({
   return (
     <form className="loom-form-stack" onSubmit={form.handleSubmit(onSubmit)}>
       <label className="loom-field">
-        <span>Title</span>
+        <span>{t("common.title", "Title")}</span>
         <input className="loom-input" type="text" {...form.register("title")} />
       </label>
       <label className="loom-field">
-        <span>Category</span>
+        <span>{t("common.category", "Category")}</span>
         <input className="loom-input" type="text" {...form.register("category")} />
       </label>
       <label className="loom-field">
-        <span>Content</span>
+        <span>{t("notes.content", "Content")}</span>
         <textarea className="loom-input loom-textarea" {...form.register("content")} />
       </label>
       <button className="loom-button-primary" type="submit" disabled={isLoading}>
-        {isLoading ? "Saving..." : submitLabel}
+        {isLoading ? t("common.saving", "Saving...") : submitLabel}
       </button>
       {serverError ? <p className="loom-feedback-error">{serverError}</p> : null}
     </form>

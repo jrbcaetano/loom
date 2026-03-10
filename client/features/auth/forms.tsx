@@ -7,6 +7,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/client";
+import { useI18n } from "@/lib/i18n/context";
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -33,6 +34,7 @@ export function LoginForm() {
   const [serverError, setServerError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
+  const { t } = useI18n();
   const form = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: { email: "", password: "" }
@@ -57,26 +59,26 @@ export function LoginForm() {
   return (
     <form onSubmit={form.handleSubmit(onSubmit)} className="loom-form-stack">
       <label className="loom-field">
-        <span>Email</span>
+        <span>{t("auth.email")}</span>
         <input className="loom-input" type="email" {...form.register("email")} />
         {form.formState.errors.email ? <p className="loom-feedback-error">{form.formState.errors.email.message}</p> : null}
       </label>
 
       <label className="loom-field">
-        <span>Password</span>
+        <span>{t("auth.password")}</span>
         <input className="loom-input" type="password" {...form.register("password")} />
         {form.formState.errors.password ? <p className="loom-feedback-error">{form.formState.errors.password.message}</p> : null}
       </label>
 
       <button type="submit" className="loom-button-primary" disabled={isLoading}>
-        {isLoading ? "Logging in..." : "Log in"}
+        {isLoading ? t("auth.loggingIn") : t("auth.login")}
       </button>
 
       {serverError ? <p className="loom-feedback-error">{serverError}</p> : null}
 
       <div className="loom-inline-links">
-        <Link href="/register">Create account</Link>
-        <Link href="/forgot-password">Forgot password?</Link>
+        <Link href="/register">{t("auth.register")}</Link>
+        <Link href="/forgot-password">{t("auth.forgotPrompt")}</Link>
       </div>
     </form>
   );
@@ -86,6 +88,7 @@ export function RegisterForm() {
   const [serverError, setServerError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const { t } = useI18n();
   const form = useForm<RegisterValues>({
     resolver: zodResolver(registerSchema),
     defaultValues: { fullName: "", email: "", password: "" }
@@ -113,7 +116,7 @@ export function RegisterForm() {
       return;
     }
 
-    setSuccess("Account created. Check your email if confirmation is required.");
+    setSuccess(t("auth.registerSuccess"));
     setIsLoading(false);
     form.reset();
   }
@@ -121,32 +124,32 @@ export function RegisterForm() {
   return (
     <form onSubmit={form.handleSubmit(onSubmit)} className="loom-form-stack">
       <label className="loom-field">
-        <span>Full name</span>
+        <span>{t("auth.fullName")}</span>
         <input className="loom-input" type="text" {...form.register("fullName")} />
         {form.formState.errors.fullName ? <p className="loom-feedback-error">{form.formState.errors.fullName.message}</p> : null}
       </label>
 
       <label className="loom-field">
-        <span>Email</span>
+        <span>{t("auth.email")}</span>
         <input className="loom-input" type="email" {...form.register("email")} />
         {form.formState.errors.email ? <p className="loom-feedback-error">{form.formState.errors.email.message}</p> : null}
       </label>
 
       <label className="loom-field">
-        <span>Password</span>
+        <span>{t("auth.password")}</span>
         <input className="loom-input" type="password" {...form.register("password")} />
         {form.formState.errors.password ? <p className="loom-feedback-error">{form.formState.errors.password.message}</p> : null}
       </label>
 
       <button type="submit" className="loom-button-primary" disabled={isLoading}>
-        {isLoading ? "Creating account..." : "Create account"}
+        {isLoading ? t("auth.creatingAccount") : t("auth.register")}
       </button>
 
       {serverError ? <p className="loom-feedback-error">{serverError}</p> : null}
       {success ? <p className="loom-feedback-success">{success}</p> : null}
 
       <div className="loom-inline-links">
-        <Link href="/login">Already have an account? Log in</Link>
+        <Link href="/login">{t("auth.hasAccount")}</Link>
       </div>
     </form>
   );
@@ -156,6 +159,7 @@ export function ForgotPasswordForm() {
   const [serverError, setServerError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const { t } = useI18n();
   const form = useForm<ForgotValues>({
     resolver: zodResolver(forgotSchema),
     defaultValues: { email: "" }
@@ -177,27 +181,27 @@ export function ForgotPasswordForm() {
       return;
     }
 
-    setSuccess("Reset instructions sent if the account exists.");
+    setSuccess(t("auth.resetSent"));
     setIsLoading(false);
   }
 
   return (
     <form onSubmit={form.handleSubmit(onSubmit)} className="loom-form-stack">
       <label className="loom-field">
-        <span>Email</span>
+        <span>{t("auth.email")}</span>
         <input className="loom-input" type="email" {...form.register("email")} />
         {form.formState.errors.email ? <p className="loom-feedback-error">{form.formState.errors.email.message}</p> : null}
       </label>
 
       <button type="submit" className="loom-button-primary" disabled={isLoading}>
-        {isLoading ? "Sending..." : "Send reset link"}
+        {isLoading ? t("common.sending") : t("auth.sendReset")}
       </button>
 
       {serverError ? <p className="loom-feedback-error">{serverError}</p> : null}
       {success ? <p className="loom-feedback-success">{success}</p> : null}
 
       <div className="loom-inline-links">
-        <Link href="/login">Back to login</Link>
+        <Link href="/login">{t("auth.backToLogin")}</Link>
       </div>
     </form>
   );

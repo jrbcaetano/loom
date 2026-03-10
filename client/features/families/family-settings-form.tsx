@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { useI18n } from "@/lib/i18n/context";
 
 const familySettingsSchema = z.object({
   name: z.string().trim().min(1).max(120)
@@ -13,6 +14,7 @@ const familySettingsSchema = z.object({
 type FamilySettingsValues = z.infer<typeof familySettingsSchema>;
 
 export function FamilySettingsForm({ familyId, defaultName }: { familyId: string; defaultName: string }) {
+  const { t } = useI18n();
   const [serverError, setServerError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
@@ -35,7 +37,7 @@ export function FamilySettingsForm({ familyId, defaultName }: { familyId: string
     const payload = (await response.json().catch(() => null)) as { error?: string } | null;
 
     if (!response.ok) {
-      setServerError(payload?.error ?? "Failed to update family");
+      setServerError(payload?.error ?? t("family.updateError", "Failed to update family"));
       setIsLoading(false);
       return;
     }
@@ -47,13 +49,13 @@ export function FamilySettingsForm({ familyId, defaultName }: { familyId: string
   return (
     <form className="loom-form-stack" onSubmit={form.handleSubmit(onSubmit)}>
       <label className="loom-field">
-        <span>Family name</span>
+        <span>{t("family.name", "Family name")}</span>
         <input className="loom-input" type="text" {...form.register("name")} />
         {form.formState.errors.name ? <p className="loom-feedback-error">{form.formState.errors.name.message}</p> : null}
       </label>
 
       <button className="loom-button-primary" type="submit" disabled={isLoading}>
-        {isLoading ? "Saving..." : "Save changes"}
+        {isLoading ? t("common.saving", "Saving...") : t("common.saveChanges", "Save changes")}
       </button>
 
       {serverError ? <p className="loom-feedback-error">{serverError}</p> : null}
