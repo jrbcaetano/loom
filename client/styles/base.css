@@ -5,20 +5,24 @@
 html,
 body {
   margin: 0;
+  height: 100%;
   min-height: 100%;
 }
 
 html {
   font-size: 16px;
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
   min-height: 100vh;
+  min-height: 100dvh;
   color: var(--loom-color-text);
   background: var(--loom-color-bg);
   font-synthesis-weight: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
 }
 
 a {
@@ -42,11 +46,14 @@ img {
 .loom-brand {
   margin: 0;
   font-size: 1.25rem;
-  font-weight: 600;
+  font-family: var(--loom-font-brand), var(--loom-font-sans), sans-serif;
+  font-weight: 400;
+  line-height: 1;
   letter-spacing: 0;
   color: var(--loom-color-text);
   display: inline-flex;
   align-items: center;
+  gap: 0.55rem;
 }
 
 .loom-section-title {
@@ -114,6 +121,7 @@ img {
 
 .loom-auth-page {
   min-height: 100vh;
+  min-height: 100dvh;
   display: grid;
   place-items: center;
   padding: 1rem;

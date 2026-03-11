@@ -11,3 +11,11 @@ export type AccessInvite = {
   invitedByLabel: string | null;
   acceptedByLabel: string | null;
 };
+
+export type ProductFeatureFlag = {
+  featureKey: string;
+  isEnabled: boolean;
+  updatedAt: string | null;
+  updatedByUserId: string | null;
+  updatedByLabel: string | null;
+};

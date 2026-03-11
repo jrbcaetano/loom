@@ -1,5 +1,6 @@
 .loom-shell {
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   background: var(--loom-color-bg);
 }
@@ -17,7 +18,7 @@
 .loom-main {
   width: 100%;
   min-width: 0;
-  padding: 0 0 5rem;
+  padding: 0 0 calc(5rem + env(safe-area-inset-bottom, 0px));
   max-width: 390px;
   margin: 0 auto;
 }
@@ -40,7 +41,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.65rem;
-  padding: 0.6rem 1rem;
+  padding: calc(0.6rem + env(safe-area-inset-top, 0px)) 1rem 0.6rem;
 }
 
 .loom-mobile-brand {
@@ -48,7 +49,9 @@
   align-items: center;
   gap: 0.55rem;
   font-size: 2rem;
-  font-weight: var(--loom-font-weight-medium);
+  font-family: var(--loom-font-brand), var(--loom-font-sans), sans-serif;
+  font-weight: 400;
+  line-height: 1;
 }
 
 .loom-mobile-header-actions {
@@ -134,6 +137,7 @@
   grid-template-columns: repeat(4, minmax(0, 1fr));
   border-top: 1px solid var(--loom-color-border);
   background: var(--loom-color-surface);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 .loom-mobile-tab {
@@ -188,7 +192,7 @@
   border-left: 1px solid var(--loom-color-border);
   background: var(--loom-color-surface);
   z-index: 55;
-  padding: 1rem;
+  padding: calc(1rem + env(safe-area-inset-top, 0px)) 1rem calc(1rem + env(safe-area-inset-bottom, 0px));
   overflow-y: auto;
   display: flex;
   flex-direction: column;

@@ -1,5 +1,6 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { resolveProductFeatureKeyFromPathname } from "@/lib/product-features";
 import { getSupabaseAnonKey, getSupabaseUrl } from "./env";
 
 type CookieToSet = {
@@ -27,7 +28,32 @@ export async function updateSession(request: NextRequest) {
     }
   });
 
-  await supabase.auth.getUser();
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
 
-  return response;
+  const featureKey = resolveProductFeatureKeyFromPathname(request.nextUrl.pathname);
+  if (!user || !featureKey) {
+    return response;
+  }
+
+  const { data, error } = await supabase
+    .from("product_feature_flags")
+    .select("is_enabled")
+    .eq("feature_key", featureKey)
+    .maybeSingle();
+
+  if (error || !data || data.is_enabled) {
+    return response;
+  }
+
+  const redirectUrl = request.nextUrl.clone();
+  redirectUrl.pathname = "/home";
+  redirectUrl.search = "";
+  const redirectResponse = NextResponse.redirect(redirectUrl);
+  for (const cookie of response.cookies.getAll()) {
+    redirectResponse.cookies.set(cookie);
+  }
+
+  return redirectResponse;
 }

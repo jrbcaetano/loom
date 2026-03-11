@@ -72,6 +72,18 @@
       "loadError": "Failed to load access invites",
       "createError": "Failed to create access invite",
       "revokeError": "Failed to revoke access invite"
+    },
+    "features": {
+      "title": "Feature availability",
+      "subtitle": "Disable modules that are not ready. Disabled modules are hidden from navigation and blocked on direct URL access.",
+      "statusEnabled": "Enabled",
+      "statusDisabled": "Disabled",
+      "updatedAt": "Updated at",
+      "updatedBy": "Updated by",
+      "updating": "Updating...",
+      "empty": "No configurable features found.",
+      "loadError": "Failed to load feature settings",
+      "updateError": "Failed to update feature setting"
     }
   },
   "visibility": {
@@ -149,6 +161,7 @@
     "points": "points",
     "noRewardBalances": "No reward balances yet.",
     "moreEventsThisWeek": "more events this week",
+    "moreUpcomingEvents": "more upcoming events",
     "moreItems": "more items",
     "moreTasks": "more tasks",
     "noMealPlanned": "No meal planned"
@@ -233,6 +246,7 @@
     "eventSettings": "Event settings",
     "starts": "Starts",
     "ends": "Ends",
+    "duration": "Duration (minutes)",
     "allDay": "all day",
     "scheduled": "scheduled",
     "allDayEvent": "All day event",
@@ -242,6 +256,9 @@
     "noUpcomingItems": "No upcoming items.",
     "events": "Events",
     "today": "Today",
+    "groupToday": "Today",
+    "groupThisWeek": "This Week",
+    "groupFollowing": "Following",
     "tomorrow": "Tomorrow",
     "monday": "Monday",
     "tuesday": "Tuesday",

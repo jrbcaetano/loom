@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type TouchEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type TouchEvent as ReactTouchEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -43,6 +43,14 @@ type ListItem = {
 type ListCategory = {
   value: string;
   label: string;
+};
+
+type CategoryGroupRow = {
+  key: string;
+  label: string;
+  standaloneValue: string | null;
+  standaloneLabel: string | null;
+  childOptions: Array<{ value: string; label: string }>;
 };
 
 async function fetchListItems(listId: string) {
@@ -138,6 +146,9 @@ export function ListItemsClient({
   const router = useRouter();
   const { t, locale } = useI18n();
   const [showComposer, setShowComposer] = useState(false);
+  const [categoryQuery, setCategoryQuery] = useState("");
+  const [isCategoryMenuOpen, setIsCategoryMenuOpen] = useState(false);
+  const [isMobileCategoryPicker, setIsMobileCategoryPicker] = useState(false);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [swipePreview, setSwipePreview] = useState<{ itemId: string; offset: number } | null>(null);
   const [touchTracking, setTouchTracking] = useState<{
@@ -159,6 +170,7 @@ export function ListItemsClient({
   });
 
   const queryKey = ["list-items", listId] as const;
+  const categoryPickerRef = useRef<HTMLDivElement | null>(null);
 
   const { data: items, isPending, error } = useQuery({
     queryKey,
@@ -180,6 +192,8 @@ export function ListItemsClient({
     },
     onSuccess: () => {
       form.reset({ text: "", quantity: "", category: "" });
+      setCategoryQuery("");
+      setIsCategoryMenuOpen(false);
       setShowComposer(false);
       queryClient.invalidateQueries({ queryKey });
     }
@@ -289,6 +303,59 @@ export function ListItemsClient({
     };
   }, [listId, queryClient]);
 
+  useEffect(() => {
+    if (!showComposer) {
+      setCategoryQuery("");
+      setIsCategoryMenuOpen(false);
+    }
+  }, [showComposer]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const mediaQuery = window.matchMedia("(max-width: 959px)");
+    const updateIsMobilePicker = () => setIsMobileCategoryPicker(mediaQuery.matches);
+
+    updateIsMobilePicker();
+
+    if (typeof mediaQuery.addEventListener === "function") {
+      mediaQuery.addEventListener("change", updateIsMobilePicker);
+      return () => mediaQuery.removeEventListener("change", updateIsMobilePicker);
+    }
+
+    mediaQuery.addListener(updateIsMobilePicker);
+    return () => mediaQuery.removeListener(updateIsMobilePicker);
+  }, []);
+
+  useEffect(() => {
+    if (!isCategoryMenuOpen) {
+      return;
+    }
+
+    const handlePointerDown = (event: MouseEvent | globalThis.TouchEvent) => {
+      if (!categoryPickerRef.current) {
+        return;
+      }
+
+      const target = event.target;
+      if (target instanceof Node && categoryPickerRef.current.contains(target)) {
+        return;
+      }
+
+      setIsCategoryMenuOpen(false);
+    };
+
+    window.addEventListener("mousedown", handlePointerDown);
+    window.addEventListener("touchstart", handlePointerDown);
+
+    return () => {
+      window.removeEventListener("mousedown", handlePointerDown);
+      window.removeEventListener("touchstart", handlePointerDown);
+    };
+  }, [isCategoryMenuOpen]);
+
   const activeItems = (items ?? []).filter((item) => !item.isCompleted);
   const completedItems = (items ?? []).filter((item) => item.isCompleted);
   const categoryLabelMap = useMemo(() => new Map(categories.map((category) => [category.value.toLowerCase(), category.label])), [categories]);
@@ -296,6 +363,80 @@ export function ListItemsClient({
     const values = [...categories.map((category) => category.value), ...(items ?? []).map((item) => item.category ?? "")];
     return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
   }, [categories, items]);
+  const categoryGroups = useMemo(() => {
+    const groups = new Map<string, CategoryGroupRow>();
+
+    for (const value of categoryOptions) {
+      const rawLevels = splitCategoryLevels(value);
+      const displayValue = categoryLabelMap.get(value.toLowerCase()) ?? value;
+      const displayLevels = splitCategoryLevels(displayValue);
+      const level1Value = rawLevels.level1 ?? value;
+      const level1Label = displayLevels.level1 ?? level1Value;
+      const key = level1Value.toLocaleLowerCase();
+      const existing = groups.get(key) ?? {
+        key,
+        label: level1Label,
+        standaloneValue: null,
+        standaloneLabel: null,
+        childOptions: []
+      };
+
+      if (rawLevels.level2) {
+        existing.childOptions.push({
+          value,
+          label: displayLevels.level2 ?? rawLevels.level2
+        });
+      } else {
+        existing.standaloneValue = value;
+        existing.standaloneLabel = level1Label;
+      }
+
+      groups.set(key, existing);
+    }
+
+    return Array.from(groups.values())
+      .map((group) => ({
+        ...group,
+        childOptions: group.childOptions.sort((left, right) => left.label.localeCompare(right.label))
+      }))
+      .sort((left, right) => left.label.localeCompare(right.label));
+  }, [categoryLabelMap, categoryOptions]);
+
+  const filteredCategoryGroups = useMemo(() => {
+    const normalizedFilter = categoryQuery.trim().toLocaleLowerCase();
+
+    if (!normalizedFilter) {
+      return categoryGroups;
+    }
+
+    return categoryGroups
+      .map((group) => {
+        const headingMatches = group.label.toLocaleLowerCase().includes(normalizedFilter);
+        const filteredChildren = group.childOptions.filter((child) => {
+          const fullLabel = `${group.label} ${child.label}`.toLocaleLowerCase();
+          return child.label.toLocaleLowerCase().includes(normalizedFilter) || fullLabel.includes(normalizedFilter);
+        });
+
+        if (group.childOptions.length > 0) {
+          if (headingMatches) {
+            return group;
+          }
+
+          if (filteredChildren.length > 0) {
+            return {
+              ...group,
+              childOptions: filteredChildren
+            };
+          }
+
+          return null;
+        }
+
+        const standaloneMatches = (group.standaloneLabel ?? "").toLocaleLowerCase().includes(normalizedFilter);
+        return headingMatches || standaloneMatches ? group : null;
+      })
+      .filter((group): group is CategoryGroupRow => Boolean(group));
+  }, [categoryGroups, categoryQuery]);
 
   const groupedActive = useMemo(() => {
     if (!isSystemShoppingList) {
@@ -351,6 +492,7 @@ export function ListItemsClient({
 
     if (suggestedCategory && categoryOptions.some((value) => value.toLowerCase() === suggestedCategory.toLowerCase()) && !currentCategory) {
       form.setValue("category", suggestedCategory, { shouldDirty: true });
+      setCategoryQuery(categoryLabelMap.get(suggestedCategory.toLowerCase()) ?? suggestedCategory);
       return suggestedCategory;
     }
 
@@ -441,7 +583,7 @@ export function ListItemsClient({
     return date.toLocaleString(locale);
   }
 
-  function handleRowTouchStart(event: TouchEvent<HTMLDivElement>, itemId: string, isCompletedSection: boolean) {
+  function handleRowTouchStart(event: ReactTouchEvent<HTMLDivElement>, itemId: string, isCompletedSection: boolean) {
     if (shouldIgnoreSwipeTarget(event.target) || editingItemId === itemId) {
       return;
     }
@@ -461,7 +603,7 @@ export function ListItemsClient({
     });
   }
 
-  function handleRowTouchMove(event: TouchEvent<HTMLDivElement>) {
+  function handleRowTouchMove(event: ReactTouchEvent<HTMLDivElement>) {
     setTouchTracking((current) => {
       if (!current) {
         return current;
@@ -704,14 +846,107 @@ export function ListItemsClient({
                 }}
               />
               <input className="loom-input" type="text" placeholder={t("lists.form.quantity")} {...form.register("quantity")} />
-              <select className="loom-input" {...form.register("category")}>
-                <option value="">{t("lists.form.noCategory")}</option>
-                {categoryOptions.map((category) => (
-                  <option key={category} value={category}>
-                    {categoryLabelMap.get(category.toLowerCase()) ?? category}
-                  </option>
-                ))}
-              </select>
+              {isMobileCategoryPicker ? (
+                <select
+                  className="loom-input"
+                  {...form.register("category")}
+                  onChange={(event) => {
+                    form.setValue("category", event.target.value, { shouldDirty: true });
+                  }}
+                >
+                  <option value="">{t("lists.form.noCategory")}</option>
+                  {categoryGroups.map((group) => {
+                    if (group.childOptions.length === 0 && group.standaloneValue) {
+                      return (
+                        <option key={group.standaloneValue} value={group.standaloneValue}>
+                          {group.standaloneLabel ?? group.label}
+                        </option>
+                      );
+                    }
+
+                    return (
+                      <optgroup key={group.key} label={group.label}>
+                        {group.childOptions.map((category) => (
+                          <option key={category.value} value={category.value}>
+                            {category.label}
+                          </option>
+                        ))}
+                      </optgroup>
+                    );
+                  })}
+                </select>
+              ) : (
+                <div className="loom-category-picker" ref={categoryPickerRef}>
+                  <input
+                    className="loom-input"
+                    type="text"
+                    value={categoryQuery}
+                    placeholder={`${t("common.category", "Category")}...`}
+                    onFocus={() => setIsCategoryMenuOpen(true)}
+                    onChange={(event) => {
+                      setCategoryQuery(event.target.value);
+                      form.setValue("category", "", { shouldDirty: true });
+                      setIsCategoryMenuOpen(true);
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === "Escape") {
+                        setIsCategoryMenuOpen(false);
+                      }
+                    }}
+                  />
+                  {isCategoryMenuOpen ? (
+                    <div className="loom-category-picker-menu">
+                      <button
+                        type="button"
+                        className="loom-category-picker-option is-clear"
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => {
+                          form.setValue("category", "", { shouldDirty: true });
+                          setCategoryQuery("");
+                          setIsCategoryMenuOpen(false);
+                        }}
+                      >
+                        {t("lists.form.noCategory")}
+                      </button>
+                      {filteredCategoryGroups.map((group) => (
+                        <div key={group.key} className="loom-category-picker-group">
+                          {group.childOptions.length > 0 ? <p className="loom-category-picker-heading">{group.label}</p> : null}
+                          {group.childOptions.length === 0 && group.standaloneValue ? (
+                            <button
+                              type="button"
+                              className="loom-category-picker-option"
+                              onMouseDown={(event) => event.preventDefault()}
+                              onClick={() => {
+                                form.setValue("category", group.standaloneValue!, { shouldDirty: true });
+                                setCategoryQuery(group.standaloneLabel ?? group.label);
+                                setIsCategoryMenuOpen(false);
+                              }}
+                            >
+                              {group.standaloneLabel ?? group.label}
+                            </button>
+                          ) : null}
+                          {group.childOptions.map((category) => (
+                            <button
+                              key={category.value}
+                              type="button"
+                              className="loom-category-picker-option is-child"
+                              onMouseDown={(event) => event.preventDefault()}
+                              onClick={() => {
+                                form.setValue("category", category.value, { shouldDirty: true });
+                                setCategoryQuery(`${group.label} - ${category.label}`);
+                                setIsCategoryMenuOpen(false);
+                              }}
+                            >
+                              {category.label}
+                            </button>
+                          ))}
+                        </div>
+                      ))}
+                      {filteredCategoryGroups.length === 0 ? <p className="loom-muted small m-0 p-2">{t("common.none", "None")}</p> : null}
+                    </div>
+                  ) : null}
+                </div>
+              )}
               {categoryOptions.length === 0 ? <p className="loom-muted small m-0">{t("lists.noCategoriesConfigured")}</p> : null}
               <button className="loom-button-primary" type="submit" disabled={addMutation.isPending}>
                 {t("lists.saveItem")}

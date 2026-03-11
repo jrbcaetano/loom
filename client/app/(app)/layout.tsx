@@ -5,16 +5,17 @@ import { getAuthAvatarUrl, getAuthDisplayName } from "@/lib/auth-user";
 import { getActiveFamilyContext } from "@/features/families/context";
 import { getMyProfile } from "@/features/profile/server";
 import { AppShell } from "@/components/layout/app-shell";
-import { isProductAdminByUserId } from "@/features/admin/server";
+import { getProductFeatureAvailability, isProductAdminByUserId } from "@/features/admin/server";
 import { getUnreadNotificationsCount } from "@/features/notifications/server";
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const user = await requireUser();
-  const [profile, context, isProductAdmin, unreadNotificationsCount] = await Promise.all([
+  const [profile, context, isProductAdmin, unreadNotificationsCount, featureAvailability] = await Promise.all([
     getMyProfile(),
     getActiveFamilyContext(user.id),
     isProductAdminByUserId(user.id),
-    getUnreadNotificationsCount()
+    getUnreadNotificationsCount(),
+    getProductFeatureAvailability()
   ]);
 
   if (context.families.length === 0) {
@@ -31,6 +32,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       activeFamilyName={activeFamily?.name ?? null}
       isProductAdmin={isProductAdmin}
       unreadNotificationsCount={unreadNotificationsCount}
+      featureAvailability={featureAvailability}
     >
       {children}
     </AppShell>

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { getActiveFamilyContext } from "@/features/families/context";
 import { getHomeSnapshot } from "@/features/home/server";
+import { getProductFeatureAvailability } from "@/features/admin/server";
 import { getServerI18n } from "@/lib/i18n/server";
 import { resolveDateLocale } from "@/lib/date";
 
@@ -27,7 +28,11 @@ export default async function HomePage() {
     return <p className="loom-muted">{t("onboarding.createFamilyFirst", "Create a family first.")}</p>;
   }
 
-  const snapshot = await getHomeSnapshot(context.activeFamilyId, user.id);
+  const [snapshot, featureAvailability] = await Promise.all([
+    getHomeSnapshot(context.activeFamilyId, user.id),
+    getProductFeatureAvailability()
+  ]);
+  const showChoresRewards = featureAvailability.chores || featureAvailability.rewards;
   const firstName = (user.user_metadata?.full_name as string | undefined)?.split(" ")[0] ?? t("home.greetingFallbackName", "there");
   const dateLocale = resolveDateLocale(locale);
   const todayLabel = new Intl.DateTimeFormat(dateLocale, { weekday: "long", month: "long", day: "numeric" }).format(new Date());
@@ -36,9 +41,26 @@ export default async function HomePage() {
   todayStart.setHours(0, 0, 0, 0);
   const todayEnd = new Date(now);
   todayEnd.setHours(23, 59, 59, 999);
+  const weekEnd = getWeekStartMonday(now);
+  weekEnd.setDate(weekEnd.getDate() + 6);
+  weekEnd.setHours(23, 59, 59, 999);
 
-  const eventsPreview = snapshot.upcomingEvents.slice(0, 7);
-  const extraEvents = Math.max(0, snapshot.upcomingEvents.length - eventsPreview.length);
+  const upcomingEventsPreview = snapshot.upcomingEvents.slice(0, 7);
+  const extraEvents = Math.max(0, snapshot.upcomingEvents.length - upcomingEventsPreview.length);
+  const groupedUpcomingEvents = {
+    today: upcomingEventsPreview.filter((event) => {
+      const eventDate = new Date(event.start_at);
+      return eventDate >= todayStart && eventDate <= todayEnd;
+    }),
+    thisWeek: upcomingEventsPreview.filter((event) => {
+      const eventDate = new Date(event.start_at);
+      return eventDate > todayEnd && eventDate <= weekEnd;
+    }),
+    following: upcomingEventsPreview.filter((event) => {
+      const eventDate = new Date(event.start_at);
+      return eventDate > weekEnd;
+    })
+  };
   const tasksPreview = snapshot.myTasks.slice(0, 4);
   const extraTasks = Math.max(0, snapshot.myTasks.length - tasksPreview.length);
   const shoppingPreview = snapshot.shopping.items.slice(0, 3);
@@ -78,22 +100,43 @@ export default async function HomePage() {
             </Link>
           </div>
           <div className="loom-stack-sm mt-3">
-            {eventsPreview.length === 0 ? <p className="loom-muted">{t("calendar.noUpcomingItems", "No upcoming items.")}</p> : null}
-            {eventsPreview.map((event) => {
+            {upcomingEventsPreview.length === 0 ? <p className="loom-muted">{t("calendar.noUpcomingItems", "No upcoming items.")}</p> : null}
+            {groupedUpcomingEvents.today.length > 0 ? <p className="loom-lists-group-title">{t("calendar.groupToday", "Today")}</p> : null}
+            {groupedUpcomingEvents.today.map((event) => {
               const eventDate = new Date(event.start_at);
-              const isToday = eventDate >= todayStart && eventDate <= todayEnd;
-
               return (
-                <Link key={event.id} href={`/calendar/${event.id}`} className={`loom-home-row ${isToday ? "is-today" : ""}`}>
+                <Link key={event.id} href={`/calendar/${event.id}`} className="loom-home-row is-today">
+                  <span className="loom-home-time">{eventDate.toLocaleTimeString(dateLocale, { hour: "numeric", minute: "2-digit" })}</span>
+                  <span className="loom-home-text">{event.title}</span>
+                  <span>{t("calendar.today", "Today")}</span>
+                </Link>
+              );
+            })}
+            {groupedUpcomingEvents.thisWeek.length > 0 ? <p className="loom-lists-group-title">{t("calendar.groupThisWeek", "This Week")}</p> : null}
+            {groupedUpcomingEvents.thisWeek.map((event) => {
+              const eventDate = new Date(event.start_at);
+              return (
+                <Link key={event.id} href={`/calendar/${event.id}`} className="loom-home-row">
                   <span className="loom-home-time">{eventDate.toLocaleString(dateLocale, { weekday: "short", hour: "numeric", minute: "2-digit" })}</span>
                   <span className="loom-home-text">{event.title}</span>
-                  <span>{isToday ? t("calendar.today", "Today") : ">"}</span>
+                  <span>&gt;</span>
+                </Link>
+              );
+            })}
+            {groupedUpcomingEvents.following.length > 0 ? <p className="loom-lists-group-title">{t("calendar.groupFollowing", "Following")}</p> : null}
+            {groupedUpcomingEvents.following.map((event) => {
+              const eventDate = new Date(event.start_at);
+              return (
+                <Link key={event.id} href={`/calendar/${event.id}`} className="loom-home-row">
+                  <span className="loom-home-time">{eventDate.toLocaleString(dateLocale, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span>
+                  <span className="loom-home-text">{event.title}</span>
+                  <span>&gt;</span>
                 </Link>
               );
             })}
             {extraEvents > 0 ? (
               <Link href="/calendar" className="loom-subtle-link">
-                + {extraEvents} {t("home.moreEventsThisWeek", "more events this week")} &gt;
+                + {extraEvents} {t("home.moreUpcomingEvents", "more upcoming events")} &gt;
               </Link>
             ) : null}
           </div>
@@ -188,32 +231,34 @@ export default async function HomePage() {
           </div>
         </article>
 
-        <article className="loom-card p-4 loom-home-layout-chores">
-          <div className="loom-row-between">
-            <h3 className="loom-section-title">{t("nav.chores", "Chores & Rewards")}</h3>
-            <Link href="/chores" className="loom-subtle-link">
-              {t("common.viewAll", "View all")}
-            </Link>
-          </div>
-          <p className="loom-home-statline mt-3">
-            <span>{t("home.quickStatsPendingChores", "Pending Chores")}</span>
-            <strong>{snapshot.quickStats.pendingChores}</strong>
-          </p>
-          <div className="loom-home-grid-bottom mt-3">
-            {rewardsPreview.map((member) => (
-              <article key={member.userId} className="loom-home-reward">
-                <p className="m-0 font-semibold">{member.name}</p>
-                <p className="m-0 loom-muted small">
-                  {member.points}/100 {t("home.points", "points")}
-                </p>
-                <div className="loom-home-progress mt-3">
-                  <div style={{ width: `${Math.max(8, Math.min(100, member.points))}%` }} />
-                </div>
-              </article>
-            ))}
-            {rewardsPreview.length === 0 ? <p className="loom-muted">{t("home.noRewardBalances", "No reward balances yet.")}</p> : null}
-          </div>
-        </article>
+        {showChoresRewards ? (
+          <article className="loom-card p-4 loom-home-layout-chores">
+            <div className="loom-row-between">
+              <h3 className="loom-section-title">{t("nav.chores", "Chores & Rewards")}</h3>
+              <Link href="/chores" className="loom-subtle-link">
+                {t("common.viewAll", "View all")}
+              </Link>
+            </div>
+            <p className="loom-home-statline mt-3">
+              <span>{t("home.quickStatsPendingChores", "Pending Chores")}</span>
+              <strong>{snapshot.quickStats.pendingChores}</strong>
+            </p>
+            <div className="loom-home-grid-bottom mt-3">
+              {rewardsPreview.map((member) => (
+                <article key={member.userId} className="loom-home-reward">
+                  <p className="m-0 font-semibold">{member.name}</p>
+                  <p className="m-0 loom-muted small">
+                    {member.points}/100 {t("home.points", "points")}
+                  </p>
+                  <div className="loom-home-progress mt-3">
+                    <div style={{ width: `${Math.max(8, Math.min(100, member.points))}%` }} />
+                  </div>
+                </article>
+              ))}
+              {rewardsPreview.length === 0 ? <p className="loom-muted">{t("home.noRewardBalances", "No reward balances yet.")}</p> : null}
+            </div>
+          </article>
+        ) : null}
       </section>
     </div>
   );

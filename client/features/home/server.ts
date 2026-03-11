@@ -12,9 +12,6 @@ export async function getHomeSnapshot(familyId: string, userId: string) {
   const dayOfWeek = weekStart.getDay();
   const daysFromMonday = (dayOfWeek + 6) % 7;
   weekStart.setDate(weekStart.getDate() - daysFromMonday);
-  const weekEnd = new Date(weekStart);
-  weekEnd.setDate(weekEnd.getDate() + 6);
-  weekEnd.setHours(23, 59, 59, 999);
   const workWeekEnd = new Date(weekStart);
   workWeekEnd.setDate(workWeekEnd.getDate() + 4);
 
@@ -38,9 +35,8 @@ export async function getHomeSnapshot(familyId: string, userId: string) {
       .eq("family_id", familyId)
       .eq("archived", false)
       .gte("start_at", todayStart.toISOString())
-      .lte("start_at", weekEnd.toISOString())
       .order("start_at", { ascending: true })
-      .limit(40),
+      .limit(80),
     supabase
       .from("lists")
       .select("id, title, visibility, updated_at")

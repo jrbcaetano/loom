@@ -71,16 +71,11 @@
 }
 
 .loom-brand-badge {
-  width: 2rem;
-  height: 2rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 10px;
-  background: linear-gradient(135deg, #6c93f8 0%, #4f7df3 100%);
-  color: #fff;
-  margin-right: 0.55rem;
-  font-size: 1rem;
+  width: 50px;
+  height: 50px;
+  display: block;
+  object-fit: contain;
+  flex: 0 0 auto;
 }
 
 .loom-header-actions {
@@ -657,7 +652,7 @@
   border: 1px solid var(--loom-color-border);
   background: var(--loom-color-surface);
   padding: 0.6rem 0.72rem;
-  font-size: 0.9rem;
+  font-size: 1rem;
   color: var(--loom-color-text);
 }
 
@@ -911,6 +906,7 @@
 
 .loom-auth-shell {
   min-height: 100vh;
+  min-height: 100dvh;
   display: grid;
   place-items: center;
   padding: 1rem;
@@ -1113,6 +1109,39 @@
   border: 1px solid #eceff3;
   background: #fff;
   padding: 0.8rem;
+}
+
+.loom-calendar-upcoming-link {
+  color: inherit;
+  text-decoration: none;
+  transition: border-color 140ms ease, background-color 140ms ease;
+}
+
+.loom-calendar-upcoming-link:hover {
+  border-color: #d6dbe6;
+  background: #fafbff;
+}
+
+.loom-calendar-event-avatar {
+  width: 1.8rem;
+  height: 1.8rem;
+  border-radius: 999px;
+  background: #e6ebf7;
+  color: #42517b;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+  flex: 0 0 auto;
+}
+
+.loom-calendar-event-avatar.has-image {
+  background-color: #dbe3f5;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: cover;
+  color: transparent;
 }
 
 .loom-calendar-stripe {
@@ -1970,6 +1999,63 @@
   font-weight: 600;
 }
 
+.loom-category-picker {
+  position: relative;
+}
+
+.loom-category-picker-menu {
+  position: absolute;
+  top: calc(100% + 0.25rem);
+  left: 0;
+  right: 0;
+  border: 1px solid var(--loom-color-border);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: var(--loom-shadow-md);
+  z-index: 35;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.loom-category-picker-group + .loom-category-picker-group {
+  border-top: 1px solid #edf0f4;
+}
+
+.loom-category-picker-heading {
+  margin: 0;
+  padding: 0.42rem 0.68rem;
+  color: var(--loom-color-text-muted);
+  font-size: 0.74rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.loom-category-picker-option {
+  width: 100%;
+  border: 0;
+  background: #fff;
+  color: var(--loom-color-text);
+  min-height: 36px;
+  padding: 0.45rem 0.68rem;
+  text-align: left;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.loom-category-picker-option:hover {
+  background: #f8f9fc;
+}
+
+.loom-category-picker-option.is-clear {
+  color: var(--loom-color-text-muted);
+  border-bottom: 1px solid #edf0f4;
+}
+
+.loom-category-picker-option.is-child {
+  padding-left: 1.05rem;
+}
+
 .loom-lists-inline-edit {
   display: flex;
   flex-direction: column;
@@ -2084,5 +2170,12 @@
   .loom-lists-action-delete,
   .loom-lists-create-button {
     font-size: 1.05rem;
+  }
+
+  .loom-input,
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    font-size: 16px;
   }
 }

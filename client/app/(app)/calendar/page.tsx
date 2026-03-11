@@ -5,10 +5,16 @@ import { getTasksForFamily } from "@/features/tasks/server";
 import { CalendarView } from "@/features/events/calendar-view";
 import { getServerI18n } from "@/lib/i18n/server";
 
-export default async function CalendarPage() {
+type CalendarPageProps = {
+  searchParams: Promise<{ date?: string }>;
+};
+
+export default async function CalendarPage({ searchParams }: CalendarPageProps) {
   const user = await requireUser();
   const { t } = await getServerI18n();
   const context = await getActiveFamilyContext(user.id);
+  const query = await searchParams;
+  const selectedDate = typeof query.date === "string" ? query.date : undefined;
 
   if (!context.activeFamilyId) {
     return <p className="loom-muted">{t("calendar.createFamilyFirst", "Create a family to use calendar.")}</p>;
@@ -51,13 +57,16 @@ export default async function CalendarPage() {
       </section>
       <CalendarView
         currentUserId={user.id}
+        selectedDate={selectedDate}
         events={events.map((event) => ({
           id: event.id,
           title: event.title,
           startAt: event.startAt,
           endAt: event.endAt,
           location: event.location,
-          visibility: event.visibility
+          visibility: event.visibility,
+          createdByName: event.createdByName,
+          createdByAvatarUrl: event.createdByAvatarUrl
         }))}
         tasks={tasks.map((task) => ({
           id: task.id,

@@ -72,6 +72,18 @@
       "loadError": "Falha ao carregar convites de acesso",
       "createError": "Falha ao criar convite de acesso",
       "revokeError": "Falha ao revogar convite de acesso"
+    },
+    "features": {
+      "title": "Disponibilidade de funcionalidades",
+      "subtitle": "Desative modulos que ainda nao estao prontos. Modulos desativados saem do menu e bloqueiam acesso direto por URL.",
+      "statusEnabled": "Ativado",
+      "statusDisabled": "Desativado",
+      "updatedAt": "Atualizado em",
+      "updatedBy": "Atualizado por",
+      "updating": "A atualizar...",
+      "empty": "Nao existem funcionalidades configuraveis.",
+      "loadError": "Falha ao carregar configuracoes de funcionalidades",
+      "updateError": "Falha ao atualizar configuracao de funcionalidade"
     }
   },
   "visibility": {
@@ -149,6 +161,7 @@
     "points": "pontos",
     "noRewardBalances": "Sem saldos de recompensa.",
     "moreEventsThisWeek": "mais eventos esta semana",
+    "moreUpcomingEvents": "mais proximos eventos",
     "moreItems": "mais itens",
     "moreTasks": "mais tarefas",
     "noMealPlanned": "Sem refeicao planeada"
@@ -233,6 +246,7 @@
     "eventSettings": "Definicoes do evento",
     "starts": "Inicio",
     "ends": "Fim",
+    "duration": "Duracao (minutos)",
     "allDay": "todo o dia",
     "scheduled": "agendado",
     "allDayEvent": "Evento de dia inteiro",
@@ -242,6 +256,9 @@
     "noUpcomingItems": "Sem itens futuros.",
     "events": "Eventos",
     "today": "Hoje",
+    "groupToday": "Hoje",
+    "groupThisWeek": "Esta semana",
+    "groupFollowing": "A seguir",
     "tomorrow": "Amanha",
     "monday": "Segunda",
     "tuesday": "Terca",

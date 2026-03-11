@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -13,6 +13,7 @@ const eventSchema = z
     description: z.string().trim().max(5000).optional(),
     startAt: z.string().min(1),
     endAt: z.string().min(1),
+    durationMinutes: z.number().int().min(0).max(10080),
     location: z.string().trim().max(240).optional(),
     allDay: z.boolean(),
     visibility: z.enum(["private", "family", "selected_members"])
@@ -29,6 +30,96 @@ type MemberOption = {
   displayName: string;
 };
 
+function parseLocalDateTime(value: string) {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  return parsed;
+}
+
+function toDateTimeLocalValue(value: Date) {
+  const local = new Date(value.getTime() - value.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 16);
+}
+
+function getDurationMinutes(startAt: string, endAt: string) {
+  const start = parseLocalDateTime(startAt);
+  const end = parseLocalDateTime(endAt);
+  if (!start || !end) {
+    return 60;
+  }
+
+  return Math.max(0, Math.round((end.getTime() - start.getTime()) / 60_000));
+}
+
+function buildEndFromDuration(startAt: string, durationMinutes: number) {
+  const start = parseLocalDateTime(startAt);
+  if (!start) {
+    return "";
+  }
+
+  const end = new Date(start.getTime() + Math.max(0, durationMinutes) * 60_000);
+  return toDateTimeLocalValue(end);
+}
+
+function parseDateOnly(value: string | undefined) {
+  if (!value) {
+    return null;
+  }
+
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) {
+    return null;
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const parsed = new Date(year, month - 1, day, 0, 0, 0, 0);
+
+  if (parsed.getFullYear() !== year || parsed.getMonth() !== month - 1 || parsed.getDate() !== day) {
+    return null;
+  }
+
+  return parsed;
+}
+
+function getNextHalfHour(reference: Date) {
+  const result = new Date(reference);
+  result.setSeconds(0, 0);
+
+  if (result.getMinutes() < 30) {
+    result.setMinutes(30, 0, 0);
+    return result;
+  }
+
+  result.setHours(result.getHours() + 1, 0, 0, 0);
+  return result;
+}
+
+function getDefaultEventTimes(defaultDate: string | undefined) {
+  const nextSlot = getNextHalfHour(new Date());
+  const selectedDate = parseDateOnly(defaultDate);
+
+  const start = selectedDate
+    ? new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate(), nextSlot.getHours(), nextSlot.getMinutes(), 0, 0)
+    : nextSlot;
+
+  const end = new Date(start.getTime() + 60 * 60_000);
+
+  return {
+    startAt: toDateTimeLocalValue(start),
+    endAt: toDateTimeLocalValue(end),
+    durationMinutes: 60
+  };
+}
+
 export function EventForm({
   familyId,
   members,
@@ -36,7 +127,8 @@ export function EventForm({
   method,
   submitLabel,
   redirectTo,
-  initialValues
+  initialValues,
+  defaultDate
 }: {
   familyId: string;
   members: MemberOption[];
@@ -45,19 +137,26 @@ export function EventForm({
   submitLabel: string;
   redirectTo: string;
   initialValues?: Partial<EventValues>;
+  defaultDate?: string;
 }) {
   const [serverError, setServerError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [timeInputMode, setTimeInputMode] = useState<"duration" | "endAt">("duration");
   const router = useRouter();
   const { t } = useI18n();
+  const timingDefaults = useMemo(() => getDefaultEventTimes(defaultDate), [defaultDate]);
+  const defaultStartAt = initialValues?.startAt ?? timingDefaults.startAt;
+  const defaultEndAt = initialValues?.endAt ?? timingDefaults.endAt;
+  const defaultDurationMinutes = initialValues?.durationMinutes ?? getDurationMinutes(defaultStartAt, defaultEndAt);
 
   const form = useForm<EventValues>({
     resolver: zodResolver(eventSchema),
     defaultValues: {
       title: initialValues?.title ?? "",
       description: initialValues?.description ?? "",
-      startAt: initialValues?.startAt ?? "",
-      endAt: initialValues?.endAt ?? "",
+      startAt: defaultStartAt,
+      endAt: defaultEndAt,
+      durationMinutes: defaultDurationMinutes,
       location: initialValues?.location ?? "",
       allDay: initialValues?.allDay ?? false,
       visibility: initialValues?.visibility ?? "family"
@@ -65,6 +164,46 @@ export function EventForm({
   });
 
   const visibility = form.watch("visibility");
+  const startAtValue = form.watch("startAt");
+  const endAtValue = form.watch("endAt");
+  const durationMinutesValue = form.watch("durationMinutes");
+
+  const startAtRegistration = form.register("startAt", {
+    onChange: (event) => {
+      const nextStartAt = String(event.target.value ?? "");
+      const nextDuration = Number(form.getValues("durationMinutes") ?? 60);
+      const currentEndAt = String(form.getValues("endAt") ?? "");
+
+      if (timeInputMode === "endAt") {
+        form.setValue("durationMinutes", getDurationMinutes(nextStartAt, currentEndAt), { shouldDirty: true, shouldValidate: true });
+        return;
+      }
+
+      form.setValue("endAt", buildEndFromDuration(nextStartAt, nextDuration), { shouldDirty: true, shouldValidate: true });
+    }
+  });
+
+  const endAtRegistration = form.register("endAt", {
+    onChange: (event) => {
+      const nextEndAt = String(event.target.value ?? "");
+      const currentStartAt = String(form.getValues("startAt") ?? "");
+      setTimeInputMode("endAt");
+      form.setValue("durationMinutes", getDurationMinutes(currentStartAt, nextEndAt), { shouldDirty: true, shouldValidate: true });
+    }
+  });
+
+  const durationRegistration = form.register("durationMinutes", {
+    valueAsNumber: true,
+    onChange: (event) => {
+      const parsed = Number(event.target.value);
+      const safeDuration = Number.isFinite(parsed) ? Math.max(0, Math.round(parsed)) : 0;
+      const currentStartAt = String(form.getValues("startAt") ?? "");
+
+      setTimeInputMode("duration");
+      form.setValue("durationMinutes", safeDuration, { shouldDirty: true, shouldValidate: true });
+      form.setValue("endAt", buildEndFromDuration(currentStartAt, safeDuration), { shouldDirty: true, shouldValidate: true });
+    }
+  });
 
   async function onSubmit(values: EventValues) {
     setServerError(null);
@@ -99,7 +238,12 @@ export function EventForm({
       return;
     }
 
-    const destination = payload?.eventId ? `/calendar/${payload.eventId}` : redirectTo;
+    const destination =
+      method === "POST"
+        ? `${redirectTo}?date=${encodeURIComponent(values.startAt.slice(0, 10))}`
+        : payload?.eventId
+          ? `/calendar/${payload.eventId}`
+          : redirectTo;
     router.push(destination);
     router.refresh();
   }
@@ -119,12 +263,17 @@ export function EventForm({
       <div className="loom-form-inline">
         <label className="loom-field">
           <span>{t("calendar.starts", "Starts")}</span>
-          <input className="loom-input" type="datetime-local" {...form.register("startAt")} />
+          <input className="loom-input" type="datetime-local" {...startAtRegistration} value={startAtValue} />
+        </label>
+
+        <label className="loom-field">
+          <span>{t("calendar.duration", "Duration (minutes)")}</span>
+          <input className="loom-input" type="number" min={0} step={15} {...durationRegistration} value={durationMinutesValue} />
         </label>
 
         <label className="loom-field">
           <span>{t("calendar.ends", "Ends")}</span>
-          <input className="loom-input" type="datetime-local" {...form.register("endAt")} />
+          <input className="loom-input" type="datetime-local" {...endAtRegistration} value={endAtValue} />
         </label>
       </div>
 

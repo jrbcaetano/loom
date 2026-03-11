@@ -1,5 +1,6 @@
 import { getServerI18n } from "@/lib/i18n/server";
 import { AccessControlClient } from "@/features/admin/access-control-client";
+import { FeatureFlagsClient } from "@/features/admin/feature-flags-client";
 import { requireProductAdminUser } from "@/features/admin/server";
 
 export default async function AdminPage() {
@@ -30,6 +31,7 @@ export default async function AdminPage() {
         </p>
       </section>
 
+      <FeatureFlagsClient />
       <AccessControlClient />
     </div>
   );

@@ -12,6 +12,9 @@ export type EventRow = {
   location: string | null;
   allDay: boolean;
   visibility: "private" | "family" | "selected_members";
+  createdByUserId: string;
+  createdByName: string | null;
+  createdByAvatarUrl: string | null;
 };
 
 const eventSchemaBase = z.object({
@@ -64,7 +67,9 @@ export async function getEventsForFamily(familyId: string): Promise<EventRow[]> 
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("events")
-    .select("id, family_id, title, description, start_at, end_at, location, all_day, visibility")
+    .select(
+      "id, family_id, title, description, start_at, end_at, location, all_day, visibility, created_by, profiles!events_created_by_fkey(full_name, avatar_url)"
+    )
     .eq("family_id", familyId)
     .eq("archived", false)
     .order("start_at", { ascending: true });
@@ -73,24 +78,32 @@ export async function getEventsForFamily(familyId: string): Promise<EventRow[]> 
     throw new Error(error.message);
   }
 
-  return (data ?? []).map((row) => ({
-    id: row.id,
-    familyId: row.family_id,
-    title: row.title,
-    description: row.description,
-    startAt: row.start_at,
-    endAt: row.end_at,
-    location: row.location,
-    allDay: row.all_day,
-    visibility: row.visibility
-  }));
+  return (data ?? []).map((row) => {
+    const profile = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
+    return {
+      id: row.id,
+      familyId: row.family_id,
+      title: row.title,
+      description: row.description,
+      startAt: row.start_at,
+      endAt: row.end_at,
+      location: row.location,
+      allDay: row.all_day,
+      visibility: row.visibility,
+      createdByUserId: row.created_by,
+      createdByName: profile?.full_name ?? null,
+      createdByAvatarUrl: profile?.avatar_url ?? null
+    };
+  });
 }
 
 export async function getEventById(eventId: string): Promise<EventRow | null> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("events")
-    .select("id, family_id, title, description, start_at, end_at, location, all_day, visibility")
+    .select(
+      "id, family_id, title, description, start_at, end_at, location, all_day, visibility, created_by, profiles!events_created_by_fkey(full_name, avatar_url)"
+    )
     .eq("id", eventId)
     .maybeSingle();
 
@@ -102,6 +115,8 @@ export async function getEventById(eventId: string): Promise<EventRow | null> {
     return null;
   }
 
+  const profile = Array.isArray(data.profiles) ? data.profiles[0] : data.profiles;
+
   return {
     id: data.id,
     familyId: data.family_id,
@@ -111,7 +126,10 @@ export async function getEventById(eventId: string): Promise<EventRow | null> {
     endAt: data.end_at,
     location: data.location,
     allDay: data.all_day,
-    visibility: data.visibility
+    visibility: data.visibility,
+    createdByUserId: data.created_by,
+    createdByName: profile?.full_name ?? null,
+    createdByAvatarUrl: profile?.avatar_url ?? null
   };
 }
 

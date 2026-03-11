@@ -4,10 +4,16 @@ import { getFamilyMembers } from "@/features/families/server";
 import { EventForm } from "@/features/events/event-form";
 import { getServerI18n } from "@/lib/i18n/server";
 
-export default async function NewEventPage() {
+type NewEventPageProps = {
+  searchParams: Promise<{ date?: string }>;
+};
+
+export default async function NewEventPage({ searchParams }: NewEventPageProps) {
   const user = await requireUser();
   const { t } = await getServerI18n();
   const context = await getActiveFamilyContext(user.id);
+  const query = await searchParams;
+  const selectedDate = typeof query.date === "string" ? query.date : undefined;
 
   if (!context.activeFamilyId) {
     return <p className="loom-muted">{t("onboarding.createFamilyFirst", "Create a family first.")}</p>;
@@ -33,6 +39,7 @@ export default async function NewEventPage() {
           method="POST"
           submitLabel={t("calendar.createTitle", "Create event")}
           redirectTo="/calendar"
+          defaultDate={selectedDate}
         />
       </section>
     </div>
