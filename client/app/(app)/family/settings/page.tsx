@@ -1,5 +1,6 @@
 import { requireUser } from "@/lib/auth";
 import { getActiveFamilyContext } from "@/features/families/context";
+import { getFamilyExternalCalendars } from "@/features/families/server";
 import { FamilySettingsForm } from "@/features/families/family-settings-form";
 import { getServerI18n } from "@/lib/i18n/server";
 
@@ -18,6 +19,8 @@ export default async function FamilySettingsPage() {
     return <p className="loom-muted">{t("family.noActiveFamily", "No active family selected.")}</p>;
   }
 
+  const externalCalendars = await getFamilyExternalCalendars(activeFamily.id);
+
   return (
     <div className="loom-module-page">
       <section className="loom-module-header">
@@ -27,7 +30,7 @@ export default async function FamilySettingsPage() {
         </div>
       </section>
       <section className="loom-card p-5">
-        <FamilySettingsForm familyId={activeFamily.id} defaultName={activeFamily.name} />
+        <FamilySettingsForm familyId={activeFamily.id} defaultName={activeFamily.name} defaultExternalCalendars={externalCalendars} />
       </section>
     </div>
   );

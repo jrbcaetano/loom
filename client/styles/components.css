@@ -1095,6 +1095,10 @@
   background: #ef5d95;
 }
 
+.loom-calendar-dot.is-external {
+  background: #0f766e;
+}
+
 .loom-calendar-side {
   display: flex;
   flex-direction: column;
@@ -1162,6 +1166,10 @@
 
 .loom-calendar-stripe.is-private {
   background: #ef5d95;
+}
+
+.loom-calendar-stripe.is-external {
+  background: #0f766e;
 }
 
 .loom-calendar-add {

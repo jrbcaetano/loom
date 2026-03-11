@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { z } from "zod";
 import { nonEmptyTextSchema, visibilitySchema } from "@/features/shared/validation";
+import { sanitizeRecurrenceRule, type EventRecurrenceRule } from "@/features/events/recurrence";
 
 export type EventRow = {
   id: string;
@@ -15,7 +16,22 @@ export type EventRow = {
   createdByUserId: string;
   createdByName: string | null;
   createdByAvatarUrl: string | null;
+  recurrenceRule: EventRecurrenceRule | null;
 };
+
+const recurrenceRuleSchema = z
+  .object({
+    frequency: z.enum(["daily", "weekly", "monthly", "yearly"]),
+    interval: z.number().int().min(1).max(365),
+    byWeekdays: z.array(z.number().int().min(0).max(6)).optional(),
+    byMonthDay: z.number().int().min(1).max(31).optional(),
+    byMonth: z.number().int().min(1).max(12).optional(),
+    bySetPos: z.number().int().min(-5).max(5).refine((value) => value !== 0).optional(),
+    count: z.number().int().min(1).max(5000).optional(),
+    until: z.iso.datetime().optional()
+  })
+  .nullable()
+  .optional();
 
 const eventSchemaBase = z.object({
   familyId: z.string().uuid(),
@@ -26,7 +42,8 @@ const eventSchemaBase = z.object({
   location: z.string().trim().max(240).optional().nullable(),
   allDay: z.boolean().default(false),
   visibility: visibilitySchema,
-  selectedMemberIds: z.array(z.string().uuid()).optional().default([])
+  selectedMemberIds: z.array(z.string().uuid()).optional().default([]),
+  recurrenceRule: recurrenceRuleSchema
 });
 
 const createEventSchema = eventSchemaBase.refine((value) => new Date(value.endAt).getTime() >= new Date(value.startAt).getTime(), {
@@ -68,7 +85,7 @@ export async function getEventsForFamily(familyId: string): Promise<EventRow[]> 
   const { data, error } = await supabase
     .from("events")
     .select(
-      "id, family_id, title, description, start_at, end_at, location, all_day, visibility, created_by, profiles!events_created_by_fkey(full_name, avatar_url)"
+      "id, family_id, title, description, start_at, end_at, location, all_day, visibility, recurrence_rule, created_by, profiles!events_created_by_fkey(full_name, avatar_url)"
     )
     .eq("family_id", familyId)
     .eq("archived", false)
@@ -92,7 +109,8 @@ export async function getEventsForFamily(familyId: string): Promise<EventRow[]> 
       visibility: row.visibility,
       createdByUserId: row.created_by,
       createdByName: profile?.full_name ?? null,
-      createdByAvatarUrl: profile?.avatar_url ?? null
+      createdByAvatarUrl: profile?.avatar_url ?? null,
+      recurrenceRule: sanitizeRecurrenceRule(row.recurrence_rule)
     };
   });
 }
@@ -102,7 +120,7 @@ export async function getEventById(eventId: string): Promise<EventRow | null> {
   const { data, error } = await supabase
     .from("events")
     .select(
-      "id, family_id, title, description, start_at, end_at, location, all_day, visibility, created_by, profiles!events_created_by_fkey(full_name, avatar_url)"
+      "id, family_id, title, description, start_at, end_at, location, all_day, visibility, recurrence_rule, created_by, profiles!events_created_by_fkey(full_name, avatar_url)"
     )
     .eq("id", eventId)
     .maybeSingle();
@@ -129,12 +147,14 @@ export async function getEventById(eventId: string): Promise<EventRow | null> {
     visibility: data.visibility,
     createdByUserId: data.created_by,
     createdByName: profile?.full_name ?? null,
-    createdByAvatarUrl: profile?.avatar_url ?? null
+    createdByAvatarUrl: profile?.avatar_url ?? null,
+    recurrenceRule: sanitizeRecurrenceRule(data.recurrence_rule)
   };
 }
 
 export async function createEvent(input: unknown) {
   const parsed = createEventSchema.parse(input);
+  const recurrenceRule = sanitizeRecurrenceRule(parsed.recurrenceRule);
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("create_event_with_shares", {
     target_family_id: parsed.familyId,
@@ -145,6 +165,7 @@ export async function createEvent(input: unknown) {
     event_location: parsed.location ?? null,
     event_all_day: parsed.allDay,
     event_visibility: parsed.visibility,
+    event_recurrence: recurrenceRule,
     selected_member_ids: parsed.visibility === "selected_members" ? parsed.selectedMemberIds : []
   });
 
@@ -176,6 +197,7 @@ export async function updateEvent(eventId: string, input: unknown) {
   if (parsed.location !== undefined) updatePayload.location = parsed.location ?? null;
   if (parsed.allDay !== undefined) updatePayload.all_day = parsed.allDay;
   if (parsed.visibility !== undefined) updatePayload.visibility = parsed.visibility;
+  if (parsed.recurrenceRule !== undefined) updatePayload.recurrence_rule = sanitizeRecurrenceRule(parsed.recurrenceRule);
 
   const { error } = await supabase
     .from("events")

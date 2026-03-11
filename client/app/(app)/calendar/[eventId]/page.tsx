@@ -6,6 +6,7 @@ import { EventForm } from "@/features/events/event-form";
 import { VisibilityBadge } from "@/components/common/visibility-badge";
 import { getServerI18n } from "@/lib/i18n/server";
 import { resolveDateLocale } from "@/lib/date";
+import { describeRecurrenceRule } from "@/features/events/recurrence";
 
 type EventDetailPageProps = {
   params: Promise<{ eventId: string }>;
@@ -32,6 +33,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
   const members = (await getFamilyMembers(event.familyId))
     .filter((member) => member.userId)
     .map((member) => ({ userId: member.userId!, displayName: member.fullName ?? member.email ?? t("common.member", "Member") }));
+  const recurrenceSummary = describeRecurrenceRule(event.recurrenceRule, event.startAt, locale);
 
   return (
     <div className="loom-module-page">
@@ -69,6 +71,10 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
             <p className="loom-info-label">{t("common.location", "Location")}</p>
             <p className="loom-info-value">{event.location ?? t("common.notSet", "Not set")}</p>
           </article>
+          <article className="loom-info-item">
+            <p className="loom-info-label">{t("calendar.repeat", "Repeat")}</p>
+            <p className="loom-info-value">{recurrenceSummary ?? t("calendar.noRecurrence", "Does not repeat")}</p>
+          </article>
         </div>
         <div className="mt-4">
           <p className="loom-info-label">{t("common.description", "Description")}</p>
@@ -98,7 +104,8 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
                 endAt: formatDateTimeLocal(event.endAt),
                 location: event.location ?? "",
                 allDay: event.allDay,
-                visibility: event.visibility
+                visibility: event.visibility,
+                recurrenceRule: event.recurrenceRule
               }}
             />
           </div>

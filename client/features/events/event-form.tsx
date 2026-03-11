@@ -6,6 +6,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useI18n } from "@/lib/i18n/context";
+import { sanitizeRecurrenceRule, type EventRecurrenceRule } from "@/features/events/recurrence";
 
 const eventSchema = z
   .object({
@@ -25,9 +26,27 @@ const eventSchema = z
 
 type EventValues = z.infer<typeof eventSchema>;
 
+type EventInitialValues = Partial<EventValues> & {
+  recurrenceRule?: EventRecurrenceRule | null;
+};
+
 type MemberOption = {
   userId: string;
   displayName: string;
+};
+
+type RecurrencePreset = "none" | "daily" | "weekly" | "monthly" | "yearly" | "weekdays" | "custom";
+type RecurrenceUnit = "day" | "week" | "month" | "year";
+type RecurrenceEndMode = "never" | "on" | "after";
+
+type RecurrenceState = {
+  enabled: boolean;
+  preset: RecurrencePreset;
+  customInterval: number;
+  customUnit: RecurrenceUnit;
+  customEndMode: RecurrenceEndMode;
+  customUntilDate: string;
+  customCount: number;
 };
 
 function parseLocalDateTime(value: string) {
@@ -46,6 +65,11 @@ function parseLocalDateTime(value: string) {
 function toDateTimeLocalValue(value: Date) {
   const local = new Date(value.getTime() - value.getTimezoneOffset() * 60_000);
   return local.toISOString().slice(0, 16);
+}
+
+function toDateOnlyLocalValue(value: Date) {
+  const local = new Date(value.getTime() - value.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 10);
 }
 
 function getDurationMinutes(startAt: string, endAt: string) {
@@ -120,6 +144,159 @@ function getDefaultEventTimes(defaultDate: string | undefined) {
   };
 }
 
+function getNthWeekdayInMonth(date: Date) {
+  return Math.floor((date.getDate() - 1) / 7) + 1;
+}
+
+function getOrdinalLabel(value: number, locale: string) {
+  if (locale.startsWith("pt")) {
+    return `${value}.o`;
+  }
+
+  const mod10 = value % 10;
+  const mod100 = value % 100;
+  if (mod10 === 1 && mod100 !== 11) return `${value}st`;
+  if (mod10 === 2 && mod100 !== 12) return `${value}nd`;
+  if (mod10 === 3 && mod100 !== 13) return `${value}rd`;
+  return `${value}th`;
+}
+
+function weekdaysEqual(left: number[] | undefined, right: number[]) {
+  if (!left) {
+    return false;
+  }
+
+  const normalizedLeft = [...left].sort((a, b) => a - b);
+  const normalizedRight = [...right].sort((a, b) => a - b);
+  if (normalizedLeft.length !== normalizedRight.length) {
+    return false;
+  }
+
+  return normalizedLeft.every((value, index) => value === normalizedRight[index]);
+}
+
+function detectRecurrencePreset(rule: EventRecurrenceRule, startAt: Date): RecurrencePreset {
+  const startWeekday = startAt.getDay();
+
+  if (rule.frequency === "daily" && rule.interval === 1 && !rule.count && !rule.until) {
+    return "daily";
+  }
+
+  if (rule.frequency === "weekly" && rule.interval === 1 && weekdaysEqual(rule.byWeekdays, [1, 2, 3, 4, 5])) {
+    return "weekdays";
+  }
+
+  if (rule.frequency === "weekly" && rule.interval === 1 && weekdaysEqual(rule.byWeekdays, [startWeekday])) {
+    return "weekly";
+  }
+
+  if (rule.frequency === "monthly" && rule.interval === 1) {
+    return "monthly";
+  }
+
+  if (rule.frequency === "yearly" && rule.interval === 1) {
+    return "yearly";
+  }
+
+  return "custom";
+}
+
+function getInitialRecurrenceState(startAtValue: string, recurrenceRule: EventRecurrenceRule | null | undefined): RecurrenceState {
+  const startAt = parseLocalDateTime(startAtValue) ?? new Date();
+  const normalized = sanitizeRecurrenceRule(recurrenceRule);
+
+  if (!normalized) {
+    return {
+      enabled: false,
+      preset: "none",
+      customInterval: 1,
+      customUnit: "week",
+      customEndMode: "never",
+      customUntilDate: toDateOnlyLocalValue(new Date(startAt.getTime() + 30 * 24 * 60 * 60 * 1000)),
+      customCount: 10
+    };
+  }
+
+  const customUnit: RecurrenceUnit =
+    normalized.frequency === "daily"
+      ? "day"
+      : normalized.frequency === "weekly"
+        ? "week"
+        : normalized.frequency === "monthly"
+          ? "month"
+          : "year";
+
+  let customEndMode: RecurrenceEndMode = "never";
+  if (normalized.until) {
+    customEndMode = "on";
+  }
+  if (normalized.count) {
+    customEndMode = "after";
+  }
+
+  return {
+    enabled: true,
+    preset: detectRecurrencePreset(normalized, startAt),
+    customInterval: normalized.interval,
+    customUnit,
+    customEndMode,
+    customUntilDate: normalized.until ? toDateOnlyLocalValue(new Date(normalized.until)) : toDateOnlyLocalValue(new Date(startAt.getTime() + 30 * 24 * 60 * 60 * 1000)),
+    customCount: normalized.count ?? 10
+  };
+}
+
+function untilDateToIso(value: string) {
+  const date = parseDateOnly(value);
+  if (!date) {
+    return undefined;
+  }
+
+  date.setHours(23, 59, 59, 999);
+  return date.toISOString();
+}
+
+function buildRecurrenceRule(state: RecurrenceState, startAtValue: string): EventRecurrenceRule | null {
+  if (!state.enabled || state.preset === "none") {
+    return null;
+  }
+
+  const startAt = parseLocalDateTime(startAtValue);
+  if (!startAt) {
+    return null;
+  }
+
+  const startWeekday = startAt.getDay();
+  const nthWeekday = getNthWeekdayInMonth(startAt);
+  const customInterval = Math.max(1, Math.min(365, Math.round(state.customInterval || 1)));
+
+  const baseRule =
+    state.preset === "daily"
+      ? { frequency: "daily", interval: 1 }
+      : state.preset === "weekly"
+        ? { frequency: "weekly", interval: 1, byWeekdays: [startWeekday] }
+        : state.preset === "monthly"
+          ? { frequency: "monthly", interval: 1, byWeekdays: [startWeekday], bySetPos: nthWeekday }
+          : state.preset === "yearly"
+            ? { frequency: "yearly", interval: 1, byMonth: startAt.getMonth() + 1, byMonthDay: startAt.getDate() }
+            : state.preset === "weekdays"
+              ? { frequency: "weekly", interval: 1, byWeekdays: [1, 2, 3, 4, 5] }
+              : state.customUnit === "day"
+                ? { frequency: "daily", interval: customInterval }
+                : state.customUnit === "week"
+                  ? { frequency: "weekly", interval: customInterval, byWeekdays: [startWeekday] }
+                  : state.customUnit === "month"
+                    ? { frequency: "monthly", interval: customInterval, byWeekdays: [startWeekday], bySetPos: nthWeekday }
+                    : { frequency: "yearly", interval: customInterval, byMonth: startAt.getMonth() + 1, byMonthDay: startAt.getDate() };
+
+  const withEnd = {
+    ...baseRule,
+    until: state.preset === "custom" && state.customEndMode === "on" ? untilDateToIso(state.customUntilDate) : undefined,
+    count: state.preset === "custom" && state.customEndMode === "after" ? Math.max(1, Math.min(5000, Math.round(state.customCount || 1))) : undefined
+  };
+
+  return sanitizeRecurrenceRule(withEnd);
+}
+
 export function EventForm({
   familyId,
   members,
@@ -136,18 +313,21 @@ export function EventForm({
   method: "POST" | "PATCH";
   submitLabel: string;
   redirectTo: string;
-  initialValues?: Partial<EventValues>;
+  initialValues?: EventInitialValues;
   defaultDate?: string;
 }) {
   const [serverError, setServerError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [timeInputMode, setTimeInputMode] = useState<"duration" | "endAt">("duration");
   const router = useRouter();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const timingDefaults = useMemo(() => getDefaultEventTimes(defaultDate), [defaultDate]);
   const defaultStartAt = initialValues?.startAt ?? timingDefaults.startAt;
   const defaultEndAt = initialValues?.endAt ?? timingDefaults.endAt;
   const defaultDurationMinutes = initialValues?.durationMinutes ?? getDurationMinutes(defaultStartAt, defaultEndAt);
+  const recurrenceDefaults = useMemo(() => getInitialRecurrenceState(defaultStartAt, initialValues?.recurrenceRule), [defaultStartAt, initialValues?.recurrenceRule]);
+
+  const [recurrence, setRecurrence] = useState<RecurrenceState>(recurrenceDefaults);
 
   const form = useForm<EventValues>({
     resolver: zodResolver(eventSchema),
@@ -167,6 +347,11 @@ export function EventForm({
   const startAtValue = form.watch("startAt");
   const endAtValue = form.watch("endAt");
   const durationMinutesValue = form.watch("durationMinutes");
+
+  const startAtDate = parseLocalDateTime(startAtValue) ?? new Date();
+  const startWeekdayLabel = new Intl.DateTimeFormat(locale === "pt" ? "pt-PT" : "en-GB", { weekday: "long" }).format(startAtDate);
+  const startMonthDayLabel = new Intl.DateTimeFormat(locale === "pt" ? "pt-PT" : "en-GB", { month: "long", day: "numeric" }).format(startAtDate);
+  const startOrdinal = getOrdinalLabel(getNthWeekdayInMonth(startAtDate), locale);
 
   const startAtRegistration = form.register("startAt", {
     onChange: (event) => {
@@ -226,7 +411,8 @@ export function EventForm({
         location: values.location || null,
         allDay: values.allDay,
         visibility: values.visibility,
-        selectedMemberIds
+        selectedMemberIds,
+        recurrenceRule: buildRecurrenceRule(recurrence, values.startAt)
       })
     });
 
@@ -277,6 +463,144 @@ export function EventForm({
         </label>
       </div>
 
+      <div className="loom-soft-row">
+        <div className="loom-row-between">
+          <p className="m-0 font-semibold">{t("calendar.repeat", "Repeat")}</p>
+          {!recurrence.enabled ? (
+            <button
+              type="button"
+              className="loom-button-ghost"
+              onClick={() => setRecurrence((current) => ({ ...current, enabled: true, preset: current.preset === "none" ? "weekly" : current.preset }))}
+            >
+              {t("calendar.configureRecurrence", "Set recurrence")}
+            </button>
+          ) : null}
+        </div>
+
+        {recurrence.enabled ? (
+          <div className="loom-stack-sm mt-3">
+            <label className="loom-field">
+              <span>{t("calendar.recurrenceType", "Recurrence")}</span>
+              <select
+                className="loom-input"
+                value={recurrence.preset}
+                onChange={(event) => {
+                  const nextPreset = event.target.value as RecurrencePreset;
+                  if (nextPreset === "none") {
+                    setRecurrence((current) => ({ ...current, enabled: false, preset: "none" }));
+                    return;
+                  }
+                  setRecurrence((current) => ({ ...current, enabled: true, preset: nextPreset }));
+                }}
+              >
+                <option value="none">{t("calendar.noRecurrence", "Does not repeat")}</option>
+                <option value="daily">{t("calendar.repeatDaily", "Daily")}</option>
+                <option value="weekly">{`${t("calendar.repeatWeeklyOn", "Weekly on")} ${startWeekdayLabel}`}</option>
+                <option value="monthly">{`${t("calendar.repeatMonthlyOn", "Monthly on the")} ${startOrdinal} ${startWeekdayLabel}`}</option>
+                <option value="yearly">{`${t("calendar.repeatYearlyOn", "Annually on")} ${startMonthDayLabel}`}</option>
+                <option value="weekdays">{t("calendar.repeatWeekdays", "Every weekday (Monday to Friday)")}</option>
+                <option value="custom">{t("calendar.repeatCustom", "Custom...")}</option>
+              </select>
+            </label>
+
+            {recurrence.preset === "custom" ? (
+              <div className="loom-stack-sm">
+                <div className="loom-form-inline">
+                  <label className="loom-field">
+                    <span>{t("calendar.customRepeatEvery", "Repeat every")}</span>
+                    <input
+                      className="loom-input"
+                      type="number"
+                      min={1}
+                      max={365}
+                      value={recurrence.customInterval}
+                      onChange={(event) =>
+                        setRecurrence((current) => ({
+                          ...current,
+                          customInterval: Math.max(1, Math.min(365, Math.round(Number(event.target.value) || 1)))
+                        }))
+                      }
+                    />
+                  </label>
+
+                  <label className="loom-field">
+                    <span>{t("calendar.customUnit", "Unit")}</span>
+                    <select
+                      className="loom-input"
+                      value={recurrence.customUnit}
+                      onChange={(event) => setRecurrence((current) => ({ ...current, customUnit: event.target.value as RecurrenceUnit }))}
+                    >
+                      <option value="day">{t("calendar.unitDay", "Day")}</option>
+                      <option value="week">{t("calendar.unitWeek", "Week")}</option>
+                      <option value="month">{t("calendar.unitMonth", "Month")}</option>
+                      <option value="year">{t("calendar.unitYear", "Year")}</option>
+                    </select>
+                  </label>
+                </div>
+
+                <div className="loom-stack-sm">
+                  <p className="m-0 font-semibold">{t("calendar.customEnds", "Ends")}</p>
+
+                  <label className="loom-checkbox-row">
+                    <input
+                      type="radio"
+                      name="event-recurrence-ends"
+                      checked={recurrence.customEndMode === "never"}
+                      onChange={() => setRecurrence((current) => ({ ...current, customEndMode: "never" }))}
+                    />
+                    <span>{t("calendar.endsNever", "Never")}</span>
+                  </label>
+
+                  <label className="loom-checkbox-row">
+                    <input
+                      type="radio"
+                      name="event-recurrence-ends"
+                      checked={recurrence.customEndMode === "on"}
+                      onChange={() => setRecurrence((current) => ({ ...current, customEndMode: "on" }))}
+                    />
+                    <span>{t("calendar.endsOn", "On")}</span>
+                    <input
+                      className="loom-input"
+                      type="date"
+                      value={recurrence.customUntilDate}
+                      disabled={recurrence.customEndMode !== "on"}
+                      onChange={(event) => setRecurrence((current) => ({ ...current, customUntilDate: event.target.value }))}
+                    />
+                  </label>
+
+                  <label className="loom-checkbox-row">
+                    <input
+                      type="radio"
+                      name="event-recurrence-ends"
+                      checked={recurrence.customEndMode === "after"}
+                      onChange={() => setRecurrence((current) => ({ ...current, customEndMode: "after" }))}
+                    />
+                    <span>{t("calendar.endsAfter", "After")}</span>
+                    <input
+                      className="loom-input"
+                      type="number"
+                      min={1}
+                      max={5000}
+                      value={recurrence.customCount}
+                      disabled={recurrence.customEndMode !== "after"}
+                      onChange={(event) =>
+                        setRecurrence((current) => ({
+                          ...current,
+                          customCount: Math.max(1, Math.min(5000, Math.round(Number(event.target.value) || 1)))
+                        }))
+                      }
+                    />
+                    <span>{t("calendar.occurrences", "occurrences")}</span>
+                  </label>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        ) : (
+          <p className="m-0 loom-muted small mt-3">{t("calendar.noRecurrence", "Does not repeat")}</p>
+        )}
+      </div>
+
       <label className="loom-field">
         <span>{t("common.location", "Location")}</span>
         <input className="loom-input" type="text" {...form.register("location")} />
@@ -318,3 +642,4 @@ export function EventForm({
     </form>
   );
 }
+
