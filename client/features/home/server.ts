@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { isSystemShoppingListTitle } from "@/features/lists/display";
 
 export async function getHomeSnapshot(familyId: string, userId: string) {
   const supabase = await createClient();
@@ -7,8 +8,15 @@ export async function getHomeSnapshot(familyId: string, userId: string) {
   todayStart.setHours(0, 0, 0, 0);
   const todayEnd = new Date(now);
   todayEnd.setHours(23, 59, 59, 999);
-  const nextWeek = new Date(now);
-  nextWeek.setDate(nextWeek.getDate() + 7);
+  const weekStart = new Date(todayStart);
+  const dayOfWeek = weekStart.getDay();
+  const daysFromMonday = (dayOfWeek + 6) % 7;
+  weekStart.setDate(weekStart.getDate() - daysFromMonday);
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekEnd.getDate() + 6);
+  weekEnd.setHours(23, 59, 59, 999);
+  const workWeekEnd = new Date(weekStart);
+  workWeekEnd.setDate(workWeekEnd.getDate() + 4);
 
   const [myTasksResult, familyOpenTasksResult, eventsResult, listsResult, choresResult, shoppingItemsResult, mealsResult, membersResult, rewardBalancesResult] = await Promise.all([
     supabase
@@ -30,9 +38,9 @@ export async function getHomeSnapshot(familyId: string, userId: string) {
       .eq("family_id", familyId)
       .eq("archived", false)
       .gte("start_at", todayStart.toISOString())
-      .lte("start_at", todayEnd.toISOString())
+      .lte("start_at", weekEnd.toISOString())
       .order("start_at", { ascending: true })
-      .limit(6),
+      .limit(40),
     supabase
       .from("lists")
       .select("id, title, visibility, updated_at")
@@ -52,10 +60,10 @@ export async function getHomeSnapshot(familyId: string, userId: string) {
       .from("meal_plan_entries")
       .select("id, date, meal_type, recipes(title)")
       .eq("family_id", familyId)
-      .gte("date", todayStart.toISOString().slice(0, 10))
-      .lte("date", nextWeek.toISOString().slice(0, 10))
+      .gte("date", weekStart.toISOString().slice(0, 10))
+      .lte("date", workWeekEnd.toISOString().slice(0, 10))
       .order("date", { ascending: true })
-      .limit(3),
+      .limit(20),
     supabase
       .from("family_members")
       .select("user_id, profiles!family_members_user_id_fkey(full_name, email)")
@@ -85,11 +93,19 @@ export async function getHomeSnapshot(familyId: string, userId: string) {
 
   const familyListIds = new Set((listsResult.data ?? []).map((list) => list.id));
   const shoppingItemsCount = (shoppingItemsResult.data ?? []).filter((item) => familyListIds.has(item.list_id) && item.is_completed === false).length;
-  const selectedList = (listsResult.data ?? []).find((list) => list.visibility === "family") ?? (listsResult.data ?? [])[0] ?? null;
+  const selectedList =
+    (listsResult.data ?? []).find((list) => isSystemShoppingListTitle(list.title)) ??
+    (listsResult.data ?? []).find((list) => list.visibility === "family") ??
+    (listsResult.data ?? [])[0] ??
+    null;
+
+  const allSelectedListItems = (shoppingItemsResult.data ?? [])
+    .filter((item) => selectedList && item.list_id === selectedList.id && item.is_completed === false)
+    .sort((a, b) => a.sort_order - b.sort_order);
   const selectedListItems = (shoppingItemsResult.data ?? [])
-    .filter((item) => selectedList && item.list_id === selectedList.id)
+    .filter((item) => selectedList && item.list_id === selectedList.id && item.is_completed === false)
     .sort((a, b) => a.sort_order - b.sort_order)
-    .slice(0, 6);
+    .slice(0, 8);
 
   const memberNameById = new Map<string, string>();
   for (const row of membersResult.data ?? []) {
@@ -134,6 +150,7 @@ export async function getHomeSnapshot(familyId: string, userId: string) {
       listId: selectedList?.id ?? null,
       listTitle: selectedList?.title ?? null,
       listVisibility: selectedList?.visibility ?? null,
+      totalItems: allSelectedListItems.length,
       items: selectedListItems.map((item) => ({
         id: item.id,
         text: item.text,

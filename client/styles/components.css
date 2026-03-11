@@ -316,11 +316,16 @@
   white-space: nowrap;
 }
 
+.loom-home-layout,
 .loom-home-grid-top,
 .loom-home-grid-mid,
 .loom-home-grid-bottom {
   display: grid;
   gap: 1rem;
+}
+
+.loom-home-layout {
+  grid-template-columns: 1fr;
 }
 
 .loom-home-grid-top,
@@ -341,6 +346,11 @@
   background: #f4f5f7;
   border: 1px solid #eceff3;
   padding: 0.68rem 0.72rem;
+}
+
+.loom-home-row.is-today {
+  border-color: #c6d8ff;
+  background: #eef4ff;
 }
 
 .loom-home-time {
@@ -1512,6 +1522,39 @@
 }
 
 @media (min-width: 1100px) {
+  .loom-home-layout {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-areas:
+      "upcoming quick shopping"
+      "upcoming tasks meals"
+      "chores chores chores";
+    align-items: start;
+  }
+
+  .loom-home-layout-upcoming {
+    grid-area: upcoming;
+  }
+
+  .loom-home-layout-quick {
+    grid-area: quick;
+  }
+
+  .loom-home-layout-shopping {
+    grid-area: shopping;
+  }
+
+  .loom-home-layout-tasks {
+    grid-area: tasks;
+  }
+
+  .loom-home-layout-meals {
+    grid-area: meals;
+  }
+
+  .loom-home-layout-chores {
+    grid-area: chores;
+  }
+
   .loom-home-grid-top {
     grid-template-columns: 2fr 1fr;
   }

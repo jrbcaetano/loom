@@ -14,21 +14,38 @@ export type EventRow = {
   visibility: "private" | "family" | "selected_members";
 };
 
-const eventSchema = z
-  .object({
-    familyId: z.string().uuid(),
-    title: nonEmptyTextSchema.max(180),
-    description: z.string().trim().max(5000).optional().nullable(),
-    startAt: z.iso.datetime(),
-    endAt: z.iso.datetime(),
-    location: z.string().trim().max(240).optional().nullable(),
-    allDay: z.boolean().default(false),
-    visibility: visibilitySchema,
-    selectedMemberIds: z.array(z.string().uuid()).optional().default([])
-  })
-  .refine((value) => new Date(value.endAt).getTime() >= new Date(value.startAt).getTime(), {
-    message: "End date must be after start date",
-    path: ["endAt"]
+const eventSchemaBase = z.object({
+  familyId: z.string().uuid(),
+  title: nonEmptyTextSchema.max(180),
+  description: z.string().trim().max(5000).optional().nullable(),
+  startAt: z.iso.datetime(),
+  endAt: z.iso.datetime(),
+  location: z.string().trim().max(240).optional().nullable(),
+  allDay: z.boolean().default(false),
+  visibility: visibilitySchema,
+  selectedMemberIds: z.array(z.string().uuid()).optional().default([])
+});
+
+const createEventSchema = eventSchemaBase.refine((value) => new Date(value.endAt).getTime() >= new Date(value.startAt).getTime(), {
+  message: "End date must be after start date",
+  path: ["endAt"]
+});
+
+const updateEventSchema = eventSchemaBase
+  .omit({ familyId: true })
+  .partial()
+  .superRefine((value, context) => {
+    if (!value.startAt || !value.endAt) {
+      return;
+    }
+
+    if (new Date(value.endAt).getTime() < new Date(value.startAt).getTime()) {
+      context.addIssue({
+        code: "custom",
+        message: "End date must be after start date",
+        path: ["endAt"]
+      });
+    }
   });
 
 async function currentUserId(supabase: Awaited<ReturnType<typeof createClient>>) {
@@ -99,7 +116,7 @@ export async function getEventById(eventId: string): Promise<EventRow | null> {
 }
 
 export async function createEvent(input: unknown) {
-  const parsed = eventSchema.parse(input);
+  const parsed = createEventSchema.parse(input);
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("create_event_with_shares", {
     target_family_id: parsed.familyId,
@@ -124,37 +141,45 @@ export async function createEvent(input: unknown) {
 }
 
 export async function updateEvent(eventId: string, input: unknown) {
-  const parsed = eventSchema.partial({ familyId: true }).parse(input);
+  const parsed = updateEventSchema.parse(input);
   const supabase = await createClient();
   const userId = await currentUserId(supabase);
 
-  const { data: existing, error: existingError } = await supabase.from("events").select("id, family_id").eq("id", eventId).single();
+  const { data: existing, error: existingError } = await supabase.from("events").select("id, family_id, visibility").eq("id", eventId).single();
   if (existingError) {
     throw new Error(existingError.message);
   }
 
+  const updatePayload: Record<string, unknown> = { updated_by: userId };
+  if (parsed.title !== undefined) updatePayload.title = parsed.title;
+  if (parsed.description !== undefined) updatePayload.description = parsed.description ?? null;
+  if (parsed.startAt !== undefined) updatePayload.start_at = parsed.startAt;
+  if (parsed.endAt !== undefined) updatePayload.end_at = parsed.endAt;
+  if (parsed.location !== undefined) updatePayload.location = parsed.location ?? null;
+  if (parsed.allDay !== undefined) updatePayload.all_day = parsed.allDay;
+  if (parsed.visibility !== undefined) updatePayload.visibility = parsed.visibility;
+
   const { error } = await supabase
     .from("events")
-    .update({
-      title: parsed.title,
-      description: parsed.description ?? null,
-      start_at: parsed.startAt,
-      end_at: parsed.endAt,
-      location: parsed.location ?? null,
-      all_day: parsed.allDay,
-      visibility: parsed.visibility,
-      updated_by: userId
-    })
+    .update(updatePayload)
     .eq("id", eventId);
 
   if (error) {
     throw new Error(error.message);
   }
 
+  const shouldUpdateShares = parsed.visibility !== undefined || parsed.selectedMemberIds !== undefined;
+  if (!shouldUpdateShares) {
+    return;
+  }
+
   await supabase.from("entity_shares").delete().eq("entity_type", "event").eq("entity_id", eventId);
 
-  if (parsed.visibility === "selected_members" && parsed.selectedMemberIds && parsed.selectedMemberIds.length > 0) {
-    const rows = parsed.selectedMemberIds.map((memberId) => ({
+  const effectiveVisibility = parsed.visibility ?? existing.visibility;
+  const selectedMemberIds = parsed.selectedMemberIds ?? [];
+
+  if (effectiveVisibility === "selected_members" && selectedMemberIds.length > 0) {
+    const rows = selectedMemberIds.map((memberId) => ({
       family_id: existing.family_id,
       entity_type: "event" as const,
       entity_id: eventId,

@@ -70,6 +70,10 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
             <p className="loom-info-value">{event.location ?? t("common.notSet", "Not set")}</p>
           </article>
         </div>
+        <div className="mt-4">
+          <p className="loom-info-label">{t("common.description", "Description")}</p>
+          <p className="m-0 mt-2">{event.description ?? t("common.noDescription", "No description.")}</p>
+        </div>
       </section>
 
       <section className="loom-card p-5">

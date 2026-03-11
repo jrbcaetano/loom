@@ -147,7 +147,11 @@
     "thisWeeksMeals": "Refeicoes desta semana",
     "sampleFamilyBreakfast": "Pequeno-almoco em familia",
     "points": "pontos",
-    "noRewardBalances": "Sem saldos de recompensa."
+    "noRewardBalances": "Sem saldos de recompensa.",
+    "moreEventsThisWeek": "mais eventos esta semana",
+    "moreItems": "mais itens",
+    "moreTasks": "mais tarefas",
+    "noMealPlanned": "Sem refeicao planeada"
   },
   "lists": {
     "back": "Voltar as Listas",

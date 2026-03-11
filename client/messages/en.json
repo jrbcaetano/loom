@@ -147,7 +147,11 @@
     "thisWeeksMeals": "This Week's Meals",
     "sampleFamilyBreakfast": "Family breakfast",
     "points": "points",
-    "noRewardBalances": "No reward balances yet."
+    "noRewardBalances": "No reward balances yet.",
+    "moreEventsThisWeek": "more events this week",
+    "moreItems": "more items",
+    "moreTasks": "more tasks",
+    "noMealPlanned": "No meal planned"
   },
   "lists": {
     "back": "Back to Lists",
