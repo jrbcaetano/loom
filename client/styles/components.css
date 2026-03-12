@@ -4,11 +4,11 @@
   gap: 0.35rem;
 }
 
-.loom-nav-section-title {
-  margin: 0.25rem 0;
+.loom-nav-group.is-separated {
+  margin-top: -0.75rem;
+  padding-top: 0.25rem;
+  padding-bottom: 0.25rem;
   border-top: 1px solid var(--loom-color-border);
-  height: 1px;
-  font-size: 0;
 }
 
 .loom-nav-link {
@@ -47,20 +47,26 @@
 }
 
 .loom-nav-dot {
-  width: 1.55rem;
-  height: 1.55rem;
-  border-radius: 999px;
-  background: var(--loom-icon-bg, #e8edf8);
-  color: var(--loom-icon-fg, #5f6d8b);
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 0;
+  background: transparent;
+  color: currentColor;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   line-height: 1;
-  font-size: 1.02rem;
+  font-size: 1rem;
+  flex: 0 0 auto;
+}
+
+.loom-nav-glyph {
+  width: 1.75rem;
+  height: 1.75rem;
+  display: block;
 }
 
 .loom-nav-link.is-active .loom-nav-dot {
-  background: rgb(255 255 255 / 0.2);
   color: #fff;
 }
 
@@ -233,6 +239,81 @@
 
 .loom-signout-danger {
   color: var(--loom-color-danger);
+}
+
+.loom-action-feedback {
+  position: fixed;
+  top: calc(0.8rem + env(safe-area-inset-top, 0px));
+  right: 0.8rem;
+  z-index: 90;
+  border: 1px solid var(--loom-color-border);
+  border-radius: 999px;
+  background: var(--loom-color-surface);
+  color: var(--loom-color-text);
+  box-shadow: var(--loom-shadow-md);
+  min-height: 2rem;
+  padding: 0.35rem 0.65rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.loom-action-feedback-spinner {
+  width: 0.78rem;
+  height: 0.78rem;
+  border-radius: 999px;
+  border: 2px solid #c7d4ea;
+  border-top-color: var(--loom-color-primary);
+  animation: loom-spin 0.8s linear infinite;
+}
+
+@keyframes loom-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.loom-loading-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.loom-loading-block {
+  border-radius: 10px;
+  background: linear-gradient(90deg, #eef1f6 25%, #f6f8fc 37%, #eef1f6 63%);
+  background-size: 400% 100%;
+  animation: loom-shimmer 1.2s ease-in-out infinite;
+}
+
+.loom-loading-title {
+  width: min(240px, 72%);
+  height: 2.1rem;
+}
+
+.loom-loading-subtitle {
+  width: min(360px, 88%);
+  height: 0.92rem;
+}
+
+.loom-loading-line {
+  width: 100%;
+  height: 0.96rem;
+}
+
+.loom-loading-line.is-short {
+  width: 72%;
+}
+
+@keyframes loom-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: 0 0;
+  }
 }
 
 @media (min-width: 960px) {

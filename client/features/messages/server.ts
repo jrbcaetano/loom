@@ -25,6 +25,7 @@ export type MessageRow = {
   id: string;
   conversationId: string;
   senderUserId: string;
+  senderName: string;
   content: string;
   createdAt: string;
   readAt: string | null;
@@ -147,10 +148,25 @@ export async function getMessages(conversationId: string): Promise<MessageRow[]>
     throw new Error(error.message);
   }
 
+  const senderIds = Array.from(new Set((data ?? []).map((message) => message.sender_user_id)));
+  const { data: profiles, error: profilesError } = senderIds.length
+    ? await supabase.from("profiles").select("id, full_name, email").in("id", senderIds)
+    : { data: [], error: null };
+
+  if (profilesError) {
+    throw new Error(profilesError.message);
+  }
+
+  const senderNames = new Map<string, string>();
+  for (const profile of profiles ?? []) {
+    senderNames.set(profile.id, profile.full_name ?? profile.email ?? "Member");
+  }
+
   return (data ?? []).map((message) => ({
     id: message.id,
     conversationId: message.conversation_id,
     senderUserId: message.sender_user_id,
+    senderName: senderNames.get(message.sender_user_id) ?? "Member",
     content: message.content,
     createdAt: message.created_at,
     readAt: message.read_at
@@ -188,4 +204,36 @@ export async function markConversationRead(conversationId: string) {
   if (error) {
     throw new Error(error.message);
   }
+}
+
+export async function getUnreadMessagesCount(familyId: string): Promise<number> {
+  const supabase = await createClient();
+  const currentUserId = await getCurrentUserId(supabase);
+
+  const { data: conversations, error: conversationsError } = await supabase
+    .from("conversations")
+    .select("id")
+    .eq("family_id", familyId);
+
+  if (conversationsError) {
+    throw new Error(conversationsError.message);
+  }
+
+  const conversationIds = (conversations ?? []).map((conversation) => conversation.id);
+  if (conversationIds.length === 0) {
+    return 0;
+  }
+
+  const { count, error } = await supabase
+    .from("messages")
+    .select("id", { count: "exact", head: true })
+    .in("conversation_id", conversationIds)
+    .neq("sender_user_id", currentUserId)
+    .is("read_at", null);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return count ?? 0;
 }

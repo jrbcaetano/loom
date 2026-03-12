@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import { useI18n } from "@/lib/i18n/context";
@@ -10,6 +10,7 @@ type MessageRow = {
   id: string;
   conversationId: string;
   senderUserId: string;
+  senderName: string;
   content: string;
   createdAt: string;
   readAt: string | null;
@@ -28,15 +29,70 @@ export function MessageThreadClient({ conversationId, currentUserId }: { convers
   const [content, setContent] = useState("");
   const [serverError, setServerError] = useState<string | null>(null);
   const queryClient = useQueryClient();
+  const threadListRef = useRef<HTMLDivElement | null>(null);
+  const firstUnreadMessageRef = useRef<HTMLElement | null>(null);
+  const hasInitialScrollRef = useRef(false);
+  const shouldScrollToBottomOnNextDataRef = useRef(false);
 
   const { data, isPending, error } = useQuery({
     queryKey: ["messages", conversationId],
     queryFn: () => fetchMessages(conversationId)
   });
 
+  const scrollToBottom = () => {
+    const listEl = threadListRef.current;
+    if (!listEl) return;
+    listEl.scrollTop = listEl.scrollHeight;
+  };
+
   useEffect(() => {
     fetch(`/api/messages/${conversationId}/read`, { method: "POST" }).catch(() => null);
   }, [conversationId]);
+
+  useEffect(() => {
+    hasInitialScrollRef.current = false;
+    firstUnreadMessageRef.current = null;
+  }, [conversationId]);
+
+  useEffect(() => {
+    if (!data || hasInitialScrollRef.current) {
+      return;
+    }
+
+    const listEl = threadListRef.current;
+    if (!listEl) {
+      return;
+    }
+
+    const unreadIndex = data.findIndex(
+      (message) => message.senderUserId !== currentUserId && message.readAt === null
+    );
+
+    const scroll = () => {
+      if (unreadIndex >= 0 && firstUnreadMessageRef.current) {
+        firstUnreadMessageRef.current.scrollIntoView({ block: "start", behavior: "auto" });
+      } else {
+        listEl.scrollTop = listEl.scrollHeight;
+      }
+      hasInitialScrollRef.current = true;
+    };
+
+    const raf = window.requestAnimationFrame(scroll);
+    return () => window.cancelAnimationFrame(raf);
+  }, [currentUserId, data]);
+
+  useEffect(() => {
+    if (!data || !shouldScrollToBottomOnNextDataRef.current) {
+      return;
+    }
+
+    const raf = window.requestAnimationFrame(() => {
+      scrollToBottom();
+      shouldScrollToBottomOnNextDataRef.current = false;
+    });
+
+    return () => window.cancelAnimationFrame(raf);
+  }, [data]);
 
   useEffect(() => {
     const supabase = createClient();
@@ -45,12 +101,13 @@ export function MessageThreadClient({ conversationId, currentUserId }: { convers
       .on(
         "postgres_changes",
         {
-          event: "*",
+          event: "INSERT",
           schema: "public",
           table: "messages",
           filter: `conversation_id=eq.${conversationId}`
         },
         () => {
+          shouldScrollToBottomOnNextDataRef.current = true;
           queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
           void fetch(`/api/messages/${conversationId}/read`, { method: "POST" });
         }
@@ -75,6 +132,7 @@ export function MessageThreadClient({ conversationId, currentUserId }: { convers
     onSuccess: () => {
       setContent("");
       setServerError(null);
+      shouldScrollToBottomOnNextDataRef.current = true;
       queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
     },
     onError: (mutationError) => {
@@ -96,18 +154,24 @@ export function MessageThreadClient({ conversationId, currentUserId }: { convers
         {isPending ? <p className="loom-muted mt-3">{t("messages.loadingMessages", "Loading messages...")}</p> : null}
         {error ? <p className="loom-feedback-error mt-3">{error.message}</p> : null}
 
-        <div className="loom-thread-list mt-3">
-          {(data ?? []).map((message) => (
-            <article key={message.id} className={`loom-thread-message ${message.senderUserId === currentUserId ? "is-mine" : ""}`}>
+        <div ref={threadListRef} className="loom-thread-list mt-3">
+          {(data ?? []).map((message) => {
+            const isUnreadIncoming = message.senderUserId !== currentUserId && message.readAt === null;
+            return (
+            <article
+              key={message.id}
+              ref={isUnreadIncoming && !firstUnreadMessageRef.current ? firstUnreadMessageRef : undefined}
+              className={`loom-thread-message ${message.senderUserId === currentUserId ? "is-mine" : ""}`}
+            >
               <div className="loom-thread-bubble">
                 <div className="loom-row-between">
-                  <p className="m-0 text-sm font-semibold">{message.senderUserId === currentUserId ? t("messages.you", "You") : t("messages.familyMember", "Family member")}</p>
+                  <p className="m-0 text-sm font-semibold">{message.senderName}</p>
                   <p className="m-0 loom-muted small">{new Date(message.createdAt).toLocaleTimeString(dateLocale, { hour: "numeric", minute: "2-digit" })}</p>
                 </div>
                 <p className="m-0 mt-2">{message.content}</p>
               </div>
             </article>
-          ))}
+          )})}
         </div>
       </section>
 
