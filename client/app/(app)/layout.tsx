@@ -5,19 +5,24 @@ import { getAuthAvatarUrl, getAuthDisplayName } from "@/lib/auth-user";
 import { getActiveFamilyContext } from "@/features/families/context";
 import { getMyProfile } from "@/features/profile/server";
 import { AppShell } from "@/components/layout/app-shell";
-import { getProductFeatureAvailability, isProductAdminByUserId } from "@/features/admin/server";
+import { getProductFeatureAvailability, hasAppAccessByUserId, isProductAdminByUserId } from "@/features/admin/server";
 import { getUnreadNotificationsCount } from "@/features/notifications/server";
 import { getUnreadMessagesCount } from "@/features/messages/server";
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const user = await requireUser();
-  const [profile, context, isProductAdmin, unreadNotificationsCount, featureAvailability] = await Promise.all([
+  const [profile, context, isProductAdmin, hasAppAccess, unreadNotificationsCount, featureAvailability] = await Promise.all([
     getMyProfile(),
     getActiveFamilyContext(user.id),
     isProductAdminByUserId(user.id),
+    hasAppAccessByUserId(user.id),
     getUnreadNotificationsCount(),
     getProductFeatureAvailability()
   ]);
+
+  if (!isProductAdmin && !hasAppAccess) {
+    redirect("/access-pending");
+  }
 
   if (context.families.length === 0) {
     redirect("/onboarding");

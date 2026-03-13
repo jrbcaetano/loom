@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { z } from "zod";
+import { sendPushToConversationMembers } from "@/features/push/server";
 
 const sendMessageSchema = z.object({
   conversationId: z.string().uuid(),
@@ -191,6 +192,20 @@ export async function sendMessage(input: unknown) {
   if (error) {
     throw new Error(error.message);
   }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("full_name, email")
+    .eq("id", currentUserId)
+    .maybeSingle();
+  const senderName = profile?.full_name ?? profile?.email ?? "Family member";
+
+  void sendPushToConversationMembers(parsed.conversationId, {
+    title: "New message",
+    body: `${senderName}: ${parsed.content.slice(0, 120)}`,
+    url: `/messages/${parsed.conversationId}`,
+    tag: `message-${parsed.conversationId}`
+  }).catch(() => null);
 
   return data.id;
 }

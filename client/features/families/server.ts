@@ -74,6 +74,39 @@ export async function inviteFamilyMember(input: unknown) {
   if (error) {
     throw new Error(error.message);
   }
+
+  const { error: accessError } = await supabase.rpc("upsert_app_access_invite_from_family", {
+    target_family_id: parsed.familyId,
+    target_email: parsed.email
+  });
+
+  if (accessError) {
+    if (accessError.code === "42883") {
+      throw new Error("Access invite migration not found. Re-run latest migration.");
+    }
+    throw new Error(accessError.message);
+  }
+}
+
+const removeInviteSchema = z.object({
+  familyId: z.string().uuid(),
+  memberId: z.string().uuid()
+});
+
+export async function removeFamilyInvite(input: unknown) {
+  const parsed = removeInviteSchema.parse(input);
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("family_members")
+    .delete()
+    .eq("family_id", parsed.familyId)
+    .eq("id", parsed.memberId)
+    .eq("status", "invited")
+    .is("user_id", null);
+
+  if (error) {
+    throw new Error(error.message);
+  }
 }
 
 export async function updateFamily(input: unknown) {

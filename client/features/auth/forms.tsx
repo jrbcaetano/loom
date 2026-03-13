@@ -169,7 +169,12 @@ export function RegisterForm() {
       return;
     }
 
-    setSuccess(t("auth.registerSuccess"));
+    setSuccess(
+      t(
+        "auth.registerSuccess",
+        "Account created. If your access is pending approval, a Product Admin must activate it before you can enter the app."
+      )
+    );
     setIsLoading(false);
     form.reset();
   }

@@ -508,6 +508,11 @@
   gap: 0.45rem;
 }
 
+.loom-admin-subnav {
+  overflow-x: auto;
+  padding-bottom: 0.1rem;
+}
+
 .loom-task-tab {
   border: 1px solid var(--loom-color-border);
   border-radius: 10px;

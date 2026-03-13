@@ -4,6 +4,7 @@ import { LanguageSwitcher } from "@/components/common/language-switcher";
 import { ActiveFamilySwitcher } from "@/features/families/active-family-switcher";
 import Link from "next/link";
 import { getServerI18n } from "@/lib/i18n/server";
+import { PushSettingsClient } from "@/features/push/push-settings-client";
 
 export default async function SettingsPage() {
   const user = await requireUser();
@@ -34,6 +35,13 @@ export default async function SettingsPage() {
             families={context.families.map((family) => ({ id: family.id, name: family.name }))}
             activeFamilyId={context.activeFamilyId}
           />
+        </div>
+      </section>
+
+      <section className="loom-card p-5">
+        <h2 className="loom-section-title">{t("settings.pushNotifications", "Push notifications")}</h2>
+        <div className="mt-3">
+          <PushSettingsClient />
         </div>
       </section>
 

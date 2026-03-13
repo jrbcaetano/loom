@@ -30,6 +30,7 @@ type EventRow = {
   title: string;
   startAt: string;
   endAt: string;
+  allDay: boolean;
   location: string | null;
   visibility: "private" | "family" | "selected_members";
   createdByName: string | null;
@@ -54,6 +55,7 @@ type CalendarItem = {
   title: string;
   startAt: string;
   endAt: string;
+  allDay?: boolean;
   visibility: "private" | "family" | "selected_members";
   kind: "event" | "task";
   isExternal?: boolean;
@@ -83,13 +85,27 @@ function parseDateOnly(value: string | undefined) {
 }
 
 function occursOnDay(item: CalendarItem, day: Date) {
+  if (item.kind === "event" && item.allDay && item.isExternal) {
+    const start = new Date(item.startAt);
+    const end = new Date(item.endAt);
+
+    const dayStartUtc = Date.UTC(day.getFullYear(), day.getMonth(), day.getDate(), 0, 0, 0, 0);
+    const dayEndUtc = Date.UTC(day.getFullYear(), day.getMonth(), day.getDate(), 23, 59, 59, 999);
+    const startUtc = Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate(), 0, 0, 0, 0);
+    const endUtc = Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate(), 0, 0, 0, 0);
+    const effectiveEndUtc = endUtc === startUtc ? endUtc + 1 : endUtc;
+
+    return startUtc <= dayEndUtc && effectiveEndUtc > dayStartUtc;
+  }
+
   const dayStart = new Date(day);
   dayStart.setHours(0, 0, 0, 0);
   const dayEnd = new Date(day);
   dayEnd.setHours(23, 59, 59, 999);
   const start = new Date(item.startAt);
   const end = new Date(item.endAt);
-  return start <= dayEnd && end >= dayStart;
+  const effectiveEnd = end.getTime() === start.getTime() ? new Date(end.getTime() + 1) : end;
+  return start <= dayEnd && effectiveEnd > dayStart;
 }
 
 function itemColorClass(item: CalendarItem) {
@@ -189,6 +205,7 @@ export function CalendarView({ events, tasks, selectedDate }: { events: EventRow
       title: event.title,
       startAt: event.startAt,
       endAt: event.endAt,
+      allDay: event.allDay,
       visibility: event.visibility,
       kind: "event",
       isExternal: event.isExternal
@@ -202,6 +219,7 @@ export function CalendarView({ events, tasks, selectedDate }: { events: EventRow
         title: task.title,
         startAt: task.startAt ?? task.dueAt!,
         endAt: task.dueAt ?? task.startAt!,
+        allDay: false,
         visibility: task.visibility,
         kind: "task",
         assignedToUserId: task.assignedToUserId
@@ -248,14 +266,21 @@ export function CalendarView({ events, tasks, selectedDate }: { events: EventRow
       return [] as EventRow[];
     }
 
-    const dayStart = startOfDay(selectedDay);
-    const dayEnd = endOfDay(selectedDay);
-
     return expandedEvents
       .filter((event) => {
-        const eventStart = parseISO(event.startAt);
-        const eventEnd = parseISO(event.endAt);
-        return eventStart <= dayEnd && eventEnd >= dayStart;
+        return occursOnDay(
+          {
+            id: event.id,
+            title: event.title,
+            startAt: event.startAt,
+            endAt: event.endAt,
+            allDay: event.allDay,
+            visibility: event.visibility,
+            kind: "event",
+            isExternal: event.isExternal
+          },
+          selectedDay
+        );
       })
       .sort((a, b) => parseISO(a.startAt).getTime() - parseISO(b.startAt).getTime());
   }, [expandedEvents, selectedDay]);

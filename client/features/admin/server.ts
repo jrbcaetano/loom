@@ -13,10 +13,20 @@ import type { AccessInvite, ProductFeatureFlag } from "@/features/admin/types";
 
 const createAccessInviteSchema = z.object({
   email: z.string().email().trim().max(320),
-  expiresAt: z.string().datetime().nullable().optional()
+  expiresAt: z.string().datetime().nullable().optional(),
+  isActive: z.boolean().optional().default(true)
 });
 
 const revokeAccessInviteSchema = z.object({
+  inviteId: z.string().uuid()
+});
+
+const setAccessInviteActiveSchema = z.object({
+  inviteId: z.string().uuid(),
+  isActive: z.boolean()
+});
+
+const deleteAccessInviteSchema = z.object({
   inviteId: z.string().uuid()
 });
 
@@ -174,17 +184,76 @@ export async function getAccessInvites(): Promise<AccessInvite[]> {
   const supabase = await createClient();
   const { data: rows, error } = await supabase
     .from("app_access_invites")
-    .select("id, email, status, created_at, updated_at, expires_at, accepted_at, invited_by, accepted_by")
+    .select(
+      "id, email, status, is_active, created_at, updated_at, expires_at, accepted_at, activated_at, invited_by, accepted_by, activated_by, source_type, source_family_id, source_created_by"
+    )
     .order("updated_at", { ascending: false });
 
   if (error) {
-    throw new Error(error.message);
+    if (error.code !== "42703") {
+      throw new Error(error.message);
+    }
+
+    const { data: fallbackRows, error: fallbackError } = await supabase
+      .from("app_access_invites")
+      .select("id, email, status, created_at, updated_at, expires_at, accepted_at, invited_by, accepted_by")
+      .order("updated_at", { ascending: false });
+
+    if (fallbackError) {
+      throw new Error(fallbackError.message);
+    }
+
+    const fallbackActorIds = Array.from(
+      new Set(
+        (fallbackRows ?? [])
+          .flatMap((row) => [row.invited_by, row.accepted_by])
+          .filter((value): value is string => Boolean(value))
+      )
+    );
+
+    const fallbackProfileMap = new Map<string, { full_name: string | null; email: string | null }>();
+    if (fallbackActorIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, full_name, email")
+        .in("id", fallbackActorIds);
+
+      for (const profile of profiles ?? []) {
+        fallbackProfileMap.set(profile.id, {
+          full_name: profile.full_name,
+          email: profile.email
+        });
+      }
+    }
+
+    return (fallbackRows ?? []).map((row) => ({
+      id: row.id,
+      email: row.email,
+      status: row.status,
+      isActive: row.status !== "revoked",
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      expiresAt: row.expires_at,
+      acceptedAt: row.accepted_at,
+      activatedAt: null,
+      invitedByUserId: row.invited_by,
+      acceptedByUserId: row.accepted_by,
+      activatedByUserId: null,
+      sourceType: "product_admin" as const,
+      sourceFamilyId: null,
+      sourceFamilyName: null,
+      sourceCreatedByUserId: row.invited_by,
+      sourceCreatedByLabel: toDisplayName(row.invited_by ? fallbackProfileMap.get(row.invited_by) : undefined),
+      invitedByLabel: toDisplayName(row.invited_by ? fallbackProfileMap.get(row.invited_by) : undefined),
+      acceptedByLabel: toDisplayName(row.accepted_by ? fallbackProfileMap.get(row.accepted_by) : undefined),
+      activatedByLabel: null
+    }));
   }
 
   const actorIds = Array.from(
     new Set(
       (rows ?? [])
-        .flatMap((row) => [row.invited_by, row.accepted_by])
+        .flatMap((row) => [row.invited_by, row.accepted_by, row.activated_by, row.source_created_by])
         .filter((value): value is string => Boolean(value))
     )
   );
@@ -204,18 +273,40 @@ export async function getAccessInvites(): Promise<AccessInvite[]> {
     }
   }
 
+  const familyIds = Array.from(new Set((rows ?? []).map((row) => row.source_family_id).filter((value): value is string => Boolean(value))));
+  const familyMap = new Map<string, string>();
+  if (familyIds.length > 0) {
+    const { data: families } = await supabase
+      .from("families")
+      .select("id, name")
+      .in("id", familyIds);
+
+    for (const family of families ?? []) {
+      familyMap.set(family.id, family.name);
+    }
+  }
+
   return (rows ?? []).map((row) => ({
     id: row.id,
     email: row.email,
     status: row.status,
+    isActive: Boolean(row.is_active),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     expiresAt: row.expires_at,
     acceptedAt: row.accepted_at,
+    activatedAt: row.activated_at,
     invitedByUserId: row.invited_by,
     acceptedByUserId: row.accepted_by,
+    activatedByUserId: row.activated_by,
+    sourceType: row.source_type,
+    sourceFamilyId: row.source_family_id,
+    sourceFamilyName: row.source_family_id ? (familyMap.get(row.source_family_id) ?? null) : null,
+    sourceCreatedByUserId: row.source_created_by,
+    sourceCreatedByLabel: toDisplayName(row.source_created_by ? profileMap.get(row.source_created_by) : undefined),
     invitedByLabel: toDisplayName(row.invited_by ? profileMap.get(row.invited_by) : undefined),
-    acceptedByLabel: toDisplayName(row.accepted_by ? profileMap.get(row.accepted_by) : undefined)
+    acceptedByLabel: toDisplayName(row.accepted_by ? profileMap.get(row.accepted_by) : undefined),
+    activatedByLabel: toDisplayName(row.activated_by ? profileMap.get(row.activated_by) : undefined)
   }));
 }
 
@@ -233,6 +324,17 @@ export async function createAccessInvite(input: unknown) {
     throw new Error(error.message);
   }
 
+  if (parsed.isActive === false) {
+    const { error: activateError } = await supabase.rpc("set_app_access_invite_active", {
+      target_invite_id: data,
+      target_is_active: false
+    });
+
+    if (activateError) {
+      throw new Error(activateError.message);
+    }
+  }
+
   return data as string;
 }
 
@@ -248,6 +350,49 @@ export async function revokeAccessInvite(input: unknown) {
   if (error) {
     throw new Error(error.message);
   }
+}
+
+export async function setAccessInviteActive(input: unknown) {
+  const parsed = setAccessInviteActiveSchema.parse(input);
+  await assertProductAdmin();
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("set_app_access_invite_active", {
+    target_invite_id: parsed.inviteId,
+    target_is_active: parsed.isActive
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+export async function deleteAccessInvite(input: unknown) {
+  const parsed = deleteAccessInviteSchema.parse(input);
+  await assertProductAdmin();
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("delete_app_access_invite", {
+    target_invite_id: parsed.inviteId
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+export async function hasAppAccessByUserId(userId: string): Promise<boolean> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("has_app_access", {
+    target_user_id: userId
+  });
+
+  if (error) {
+    if (error.code === "42883") {
+      return true;
+    }
+    throw new Error(error.message);
+  }
+
+  return Boolean(data);
 }
 
 export async function updateProductFeatureFlag(input: unknown) {

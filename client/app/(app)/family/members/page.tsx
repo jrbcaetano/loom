@@ -2,6 +2,7 @@ import { requireUser } from "@/lib/auth";
 import { getActiveFamilyContext } from "@/features/families/context";
 import { getFamilyMembers } from "@/features/families/server";
 import { InviteMemberForm } from "@/features/families/invite-member-form";
+import { FamilyMembersList } from "@/features/families/family-members-list";
 import { getServerI18n } from "@/lib/i18n/server";
 
 export default async function FamilyMembersPage() {
@@ -26,7 +27,9 @@ export default async function FamilyMembersPage() {
 
       <section className="loom-card p-5">
         <h2 className="loom-section-title">{t("family.inviteTitle", "Invite member")}</h2>
-        <p className="loom-muted mt-1">{t("family.inviteSubtitle", "Invite by email. Access is granted when they log in with that email.")}</p>
+        <p className="loom-muted mt-1">
+          {t("family.inviteSubtitle", "Invite by email. A Product Admin must activate app access before they can use Loom.")}
+        </p>
         <div className="mt-4">
           <InviteMemberForm familyId={context.activeFamilyId} />
         </div>
@@ -34,17 +37,7 @@ export default async function FamilyMembersPage() {
 
       <section className="loom-card p-5">
         <h2 className="loom-section-title">{t("family.membersSectionTitle", "Members")}</h2>
-        <div className="loom-stack-sm mt-3">
-          {members.map((member) => (
-            <article key={member.id} className="loom-row-between border-b border-slate-100 pb-3">
-              <div>
-                <p className="m-0 font-semibold">{member.fullName ?? member.email ?? t("family.pendingInvite", "Pending invite")}</p>
-                <p className="loom-muted small mt-1">{member.status}</p>
-              </div>
-              <p className="loom-muted small">{member.role}</p>
-            </article>
-          ))}
-        </div>
+        <FamilyMembersList familyId={context.activeFamilyId} members={members} />
       </section>
     </div>
   );
