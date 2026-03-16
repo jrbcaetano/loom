@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
-import { getListById } from "@/features/lists/server";
+import { notFound, redirect } from "next/navigation";
+import { getListById, getShoppingListIdForFamily, isMultipleListsEnabledForFamily } from "@/features/lists/server";
 import { ListItemsClient } from "@/features/lists/list-items-client";
 import { getFamilyMembers } from "@/features/families/server";
 import { ListForm } from "@/features/lists/list-form";
@@ -49,6 +49,14 @@ export default async function ListDetailPage({ params, searchParams }: ListDetai
     notFound();
   }
 
+  const allowMultipleLists = await isMultipleListsEnabledForFamily(list.familyId);
+  if (!allowMultipleLists && !list.isSystemShoppingList) {
+    const shoppingListId = await getShoppingListIdForFamily(list.familyId);
+    if (shoppingListId) {
+      redirect(`/lists/${shoppingListId}`);
+    }
+  }
+
   const members = (await getFamilyMembers(list.familyId))
     .filter((member) => member.userId)
     .map((member) => ({ userId: member.userId!, displayName: member.fullName ?? member.email ?? "Member" }));
@@ -89,27 +97,35 @@ export default async function ListDetailPage({ params, searchParams }: ListDetai
       />
 
       {query.edit === "1" ? (
-        <section className="loom-card p-5">
-          <h3 className="loom-section-title">{t("lists.editList")}</h3>
-          <div className="mt-3">
-            <ListForm
-              familyId={list.familyId}
-              members={members}
-              redirectTo={`/lists/${list.id}`}
-              endpoint={`/api/lists/${list.id}`}
-              method="PATCH"
-              submitLabel={t("common.save")}
-              cancelHref={`/lists/${list.id}`}
-              lockSystemFields={list.isSystemShoppingList}
-              initialValues={{
-                title: list.title,
-                description: list.description ?? "",
-                visibility: list.visibility,
-                categoriesText: list.categories.map(serializeCategoryLine).join("\n")
-              }}
-            />
-          </div>
-        </section>
+        <div className="loom-drawer-overlay" role="presentation">
+          <Link href={`/lists/${list.id}`} className="loom-drawer-backdrop" aria-label={t("common.close", "Close")} />
+          <aside className="loom-drawer-panel" role="dialog" aria-modal="true" aria-label={t("lists.editList")}>
+            <header className="loom-drawer-header">
+              <h3 className="loom-section-title m-0">{t("lists.editList")}</h3>
+              <Link href={`/lists/${list.id}`} className="loom-button-ghost">
+                {t("common.close", "Close")}
+              </Link>
+            </header>
+            <div className="loom-drawer-content">
+              <ListForm
+                familyId={list.familyId}
+                members={members}
+                redirectTo={`/lists/${list.id}`}
+                endpoint={`/api/lists/${list.id}`}
+                method="PATCH"
+                submitLabel={t("common.save")}
+                cancelHref={`/lists/${list.id}`}
+                lockSystemFields={list.isSystemShoppingList}
+                initialValues={{
+                  title: list.title,
+                  description: list.description ?? "",
+                  visibility: list.visibility,
+                  categoriesText: list.categories.map(serializeCategoryLine).join("\n")
+                }}
+              />
+            </div>
+          </aside>
+        </div>
       ) : null}
     </div>
   );

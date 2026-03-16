@@ -23,6 +23,10 @@ export type FamilyExternalCalendar = {
   updatedAt: string;
 };
 
+export type FamilySettings = {
+  allowMultipleLists: boolean;
+};
+
 const createFamilySchema = z.object({
   name: nonEmptyTextSchema.max(120)
 });
@@ -36,6 +40,7 @@ const inviteSchema = z.object({
 const updateFamilySchema = z.object({
   familyId: z.string().uuid(),
   name: nonEmptyTextSchema.max(120),
+  allowMultipleLists: z.boolean().optional(),
   externalCalendars: z
     .array(
       z.object({
@@ -125,7 +130,13 @@ export async function updateFamily(input: unknown) {
     throw new Error("Not authenticated");
   }
 
-  const { error } = await supabase.from("families").update({ name: parsed.name }).eq("id", parsed.familyId);
+  const { error } = await supabase
+    .from("families")
+    .update({
+      name: parsed.name,
+      allow_multiple_lists: parsed.allowMultipleLists ?? true
+    })
+    .eq("id", parsed.familyId);
 
   if (error) {
     throw new Error(error.message);
@@ -174,6 +185,19 @@ export async function updateFamily(input: unknown) {
   if (insertError) {
     throw new Error(insertError.message);
   }
+}
+
+export async function getFamilySettings(familyId: string): Promise<FamilySettings> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("families").select("allow_multiple_lists").eq("id", familyId).maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return {
+    allowMultipleLists: data?.allow_multiple_lists ?? true
+  };
 }
 
 export async function getFamilyExternalCalendars(familyId: string): Promise<FamilyExternalCalendar[]> {

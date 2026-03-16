@@ -15,6 +15,7 @@ const externalCalendarSchema = z.object({
 
 const familySettingsSchema = z.object({
   name: z.string().trim().min(1).max(120),
+  allowMultipleLists: z.boolean(),
   externalCalendars: z.array(externalCalendarSchema).max(20)
 });
 
@@ -23,6 +24,7 @@ type FamilySettingsValues = z.infer<typeof familySettingsSchema>;
 type FamilySettingsFormProps = {
   familyId: string;
   defaultName: string;
+  defaultAllowMultipleLists: boolean;
   defaultExternalCalendars: Array<{
     id: string;
     displayName: string | null;
@@ -31,7 +33,7 @@ type FamilySettingsFormProps = {
   }>;
 };
 
-export function FamilySettingsForm({ familyId, defaultName, defaultExternalCalendars }: FamilySettingsFormProps) {
+export function FamilySettingsForm({ familyId, defaultName, defaultAllowMultipleLists, defaultExternalCalendars }: FamilySettingsFormProps) {
   const { t } = useI18n();
   const [serverError, setServerError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -41,6 +43,7 @@ export function FamilySettingsForm({ familyId, defaultName, defaultExternalCalen
     resolver: zodResolver(familySettingsSchema),
     defaultValues: {
       name: defaultName,
+      allowMultipleLists: defaultAllowMultipleLists,
       externalCalendars: defaultExternalCalendars.map((entry) => ({
         displayName: entry.displayName ?? "",
         sourceUrl: entry.sourceUrl,
@@ -64,6 +67,7 @@ export function FamilySettingsForm({ familyId, defaultName, defaultExternalCalen
       body: JSON.stringify({
         familyId,
         name: values.name,
+        allowMultipleLists: values.allowMultipleLists,
         externalCalendars: values.externalCalendars.map((entry) => ({
           displayName: entry.displayName?.trim() || null,
           sourceUrl: entry.sourceUrl.trim(),
@@ -91,6 +95,14 @@ export function FamilySettingsForm({ familyId, defaultName, defaultExternalCalen
         <input className="loom-input" type="text" {...form.register("name")} />
         {form.formState.errors.name ? <p className="loom-feedback-error">{form.formState.errors.name.message}</p> : null}
       </label>
+
+      <label className="loom-checkbox-row">
+        <input type="checkbox" {...form.register("allowMultipleLists")} />
+        <span>{t("family.allowMultipleLists", "Allow multiple lists")}</span>
+      </label>
+      <p className="loom-muted small m-0">
+        {t("family.allowMultipleListsHint", "When disabled, users can only use the Shopping List and list navigation redirects there.")}
+      </p>
 
       <div className="loom-stack-sm">
         <div className="loom-row-between">

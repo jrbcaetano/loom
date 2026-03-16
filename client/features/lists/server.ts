@@ -94,6 +94,10 @@ const listItemUpdateSchema = z.object({
   sortOrder: z.number().int().min(0).optional()
 });
 
+function normalizeListItemText(value: string) {
+  return value.trim().toLocaleLowerCase();
+}
+
 async function currentUserId(supabase: Awaited<ReturnType<typeof createClient>>) {
   const {
     data: { user }
@@ -280,9 +284,32 @@ async function ensureShoppingListExists(supabase: Awaited<ReturnType<typeof crea
   }
 }
 
+async function getFamilyAllowMultipleLists(supabase: Awaited<ReturnType<typeof createClient>>, familyId: string) {
+  const { data, error } = await supabase.from("families").select("allow_multiple_lists").eq("id", familyId).maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data?.allow_multiple_lists ?? true;
+}
+
+export async function getShoppingListIdForFamily(familyId: string): Promise<string | null> {
+  const supabase = await createClient();
+  await ensureShoppingListExists(supabase, familyId);
+  const lists = await getListsForFamily(familyId);
+  return lists.find((list) => list.isSystemShoppingList)?.id ?? null;
+}
+
+export async function isMultipleListsEnabledForFamily(familyId: string): Promise<boolean> {
+  const supabase = await createClient();
+  return getFamilyAllowMultipleLists(supabase, familyId);
+}
+
 export async function getListsForFamily(familyId: string): Promise<ListSummary[]> {
   const supabase = await createClient();
   await ensureShoppingListExists(supabase, familyId);
+  const allowMultipleLists = await getFamilyAllowMultipleLists(supabase, familyId);
 
   const { data, error } = await supabase
     .from("lists")
@@ -306,7 +333,9 @@ export async function getListsForFamily(familyId: string): Promise<ListSummary[]
     isSystemShoppingList: isSystemShoppingListTitle(row.title)
   }));
 
-  return mapped.sort((left, right) => {
+  const visibleLists = allowMultipleLists ? mapped : mapped.filter((list) => list.isSystemShoppingList);
+
+  return visibleLists.sort((left, right) => {
     if (left.isSystemShoppingList && !right.isSystemShoppingList) return -1;
     if (!left.isSystemShoppingList && right.isSystemShoppingList) return 1;
     return new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime();
@@ -479,6 +508,10 @@ export async function createList(input: unknown) {
   const parsed = listSchema.parse(input);
   const supabase = await createClient();
   const userId = await currentUserId(supabase);
+  const allowMultipleLists = await getFamilyAllowMultipleLists(supabase, parsed.familyId);
+  if (!allowMultipleLists) {
+    throw new Error("Multiple lists are disabled for this family.");
+  }
   const { data, error } = await supabase.rpc("create_list_with_shares", {
     target_family_id: parsed.familyId,
     list_title: parsed.title,
@@ -588,6 +621,37 @@ export async function addListItem(input: unknown) {
   const supabase = await createClient();
   const userId = await currentUserId(supabase);
   const category = await resolveAllowedCategory(supabase, parsed.listId, parsed.category ?? null);
+  const normalizedTargetText = normalizeListItemText(parsed.text);
+
+  const { data: existingItems, error: existingItemsError } = await supabase
+    .from("list_items")
+    .select("id, text")
+    .eq("list_id", parsed.listId);
+
+  if (existingItemsError) {
+    throw new Error(existingItemsError.message);
+  }
+
+  const matchingItem = (existingItems ?? []).find((item) => normalizeListItemText(item.text) === normalizedTargetText);
+  if (matchingItem) {
+    const { error: updateError } = await supabase
+      .from("list_items")
+      .update({
+        quantity: parsed.quantity ?? null,
+        category,
+        is_completed: false,
+        completed_at: null,
+        completed_by: null,
+        updated_by: userId
+      })
+      .eq("id", matchingItem.id);
+
+    if (updateError) {
+      throw new Error(updateError.message);
+    }
+
+    return matchingItem.id;
+  }
 
   const { count: itemCount } = await supabase
     .from("list_items")

@@ -7,6 +7,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/client";
+import { ResponsivePanel } from "@/components/common/responsive-panel";
 import { useI18n } from "@/lib/i18n/context";
 
 const addItemSchema = z.object({
@@ -53,6 +54,11 @@ type CategoryGroupRow = {
   childOptions: Array<{ value: string; label: string }>;
 };
 
+type SimilarSuggestion = {
+  item: ListItem;
+  score: number;
+};
+
 async function fetchListItems(listId: string) {
   const response = await fetch(`/api/lists/${listId}/items`, { cache: "no-store" });
   const payload = (await response.json()) as { items: ListItem[]; error?: string };
@@ -66,6 +72,48 @@ async function fetchListItems(listId: string) {
 
 function normalizeItemName(value: string) {
   return value.trim().toLowerCase();
+}
+
+function tokenize(value: string) {
+  return normalizeItemName(value)
+    .split(/[^a-z0-9]+/i)
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 2);
+}
+
+function getSimilarityScore(target: string, candidate: string) {
+  const normalizedTarget = normalizeItemName(target);
+  const normalizedCandidate = normalizeItemName(candidate);
+  if (!normalizedTarget || !normalizedCandidate) {
+    return 0;
+  }
+
+  if (normalizedTarget === normalizedCandidate) {
+    return 100;
+  }
+
+  if (normalizedCandidate.includes(normalizedTarget) || normalizedTarget.includes(normalizedCandidate)) {
+    return 70;
+  }
+
+  const targetTokens = new Set(tokenize(normalizedTarget));
+  const candidateTokens = new Set(tokenize(normalizedCandidate));
+  if (targetTokens.size === 0 || candidateTokens.size === 0) {
+    return 0;
+  }
+
+  let overlap = 0;
+  for (const token of targetTokens) {
+    if (candidateTokens.has(token)) {
+      overlap += 1;
+    }
+  }
+
+  if (overlap === 0) {
+    return 0;
+  }
+
+  return Math.round((overlap / Math.max(targetTokens.size, candidateTokens.size)) * 100);
 }
 
 function splitCategoryLevels(value: string | null | undefined) {
@@ -146,9 +194,13 @@ export function ListItemsClient({
   const router = useRouter();
   const { t, locale } = useI18n();
   const [showComposer, setShowComposer] = useState(false);
+  const [isCompletedExpanded, setIsCompletedExpanded] = useState(true);
+  const [isItemMenuOpen, setIsItemMenuOpen] = useState(false);
   const [categoryQuery, setCategoryQuery] = useState("");
   const [isCategoryMenuOpen, setIsCategoryMenuOpen] = useState(false);
   const [isMobileCategoryPicker, setIsMobileCategoryPicker] = useState(false);
+  const [similarItemSuggestions, setSimilarItemSuggestions] = useState<SimilarSuggestion[]>([]);
+  const [pendingAddValues, setPendingAddValues] = useState<AddItemValues | null>(null);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [swipePreview, setSwipePreview] = useState<{ itemId: string; offset: number } | null>(null);
   const [touchTracking, setTouchTracking] = useState<{
@@ -170,6 +222,8 @@ export function ListItemsClient({
   });
 
   const queryKey = ["list-items", listId] as const;
+  const completedExpandedStorageKey = `loom:list:${listId}:completed-expanded`;
+  const itemPickerRef = useRef<HTMLDivElement | null>(null);
   const categoryPickerRef = useRef<HTMLDivElement | null>(null);
 
   const { data: items, isPending, error } = useQuery({
@@ -191,10 +245,7 @@ export function ListItemsClient({
       }
     },
     onSuccess: () => {
-      form.reset({ text: "", quantity: "", category: "" });
-      setCategoryQuery("");
-      setIsCategoryMenuOpen(false);
-      setShowComposer(false);
+      closeComposer();
       queryClient.invalidateQueries({ queryKey });
     }
   });
@@ -307,8 +358,31 @@ export function ListItemsClient({
     if (!showComposer) {
       setCategoryQuery("");
       setIsCategoryMenuOpen(false);
+      setIsItemMenuOpen(false);
     }
   }, [showComposer]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const storedValue = window.localStorage.getItem(completedExpandedStorageKey);
+    if (storedValue === "0") {
+      setIsCompletedExpanded(false);
+      return;
+    }
+
+    setIsCompletedExpanded(true);
+  }, [completedExpandedStorageKey]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    window.localStorage.setItem(completedExpandedStorageKey, isCompletedExpanded ? "1" : "0");
+  }, [completedExpandedStorageKey, isCompletedExpanded]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -355,6 +429,33 @@ export function ListItemsClient({
       window.removeEventListener("touchstart", handlePointerDown);
     };
   }, [isCategoryMenuOpen]);
+
+  useEffect(() => {
+    if (!isItemMenuOpen) {
+      return;
+    }
+
+    const handlePointerDown = (event: MouseEvent | globalThis.TouchEvent) => {
+      if (!itemPickerRef.current) {
+        return;
+      }
+
+      const target = event.target;
+      if (target instanceof Node && itemPickerRef.current.contains(target)) {
+        return;
+      }
+
+      setIsItemMenuOpen(false);
+    };
+
+    window.addEventListener("mousedown", handlePointerDown);
+    window.addEventListener("touchstart", handlePointerDown);
+
+    return () => {
+      window.removeEventListener("mousedown", handlePointerDown);
+      window.removeEventListener("touchstart", handlePointerDown);
+    };
+  }, [isItemMenuOpen]);
 
   const activeItems = (items ?? []).filter((item) => !item.isCompleted);
   const completedItems = (items ?? []).filter((item) => item.isCompleted);
@@ -486,6 +587,69 @@ export function ListItemsClient({
     return memory;
   }, [items]);
 
+  const textInputValue = form.watch("text");
+  const textSuggestions = useMemo(() => {
+    const normalized = normalizeItemName(textInputValue ?? "");
+    if (!normalized || normalized.length < 2) {
+      return [] as ListItem[];
+    }
+
+    return (items ?? [])
+      .filter((item) => normalizeItemName(item.text).includes(normalized))
+      .sort((left, right) => left.text.localeCompare(right.text))
+      .slice(0, 6);
+  }, [items, textInputValue]);
+  const hasExactTypedMatch = useMemo(() => {
+    const normalized = normalizeItemName(textInputValue ?? "");
+    if (!normalized) {
+      return false;
+    }
+
+    return (items ?? []).some((item) => normalizeItemName(item.text) === normalized);
+  }, [items, textInputValue]);
+
+  const completedGrouped = useMemo(() => {
+    if (!isSystemShoppingList) {
+      return [
+        {
+          key: "completed",
+          label: t("lists.completed", "Completed"),
+          items: completedItems
+            .slice()
+            .sort((left, right) => left.text.localeCompare(right.text))
+        }
+      ] as Array<{ key: string; label: string; items: ListItem[] }>;
+    }
+
+    const uncategorizedLabel = t("lists.uncategorized");
+    const groups = new Map<string, { label: string; items: ListItem[]; isUncategorized: boolean }>();
+
+    for (const item of completedItems) {
+      const rawCategory = item.category?.trim() || null;
+      const displayCategory = rawCategory ? (categoryLabelMap.get(rawCategory.toLowerCase()) ?? rawCategory) : null;
+      const label = displayCategory ?? uncategorizedLabel;
+      const key = displayCategory ? label.toLocaleLowerCase() : "__uncategorized__";
+      const current = groups.get(key);
+      if (current) {
+        current.items.push(item);
+      } else {
+        groups.set(key, { label, items: [item], isUncategorized: !displayCategory });
+      }
+    }
+
+    return Array.from(groups.entries())
+      .sort(([, left], [, right]) => {
+        if (left.isUncategorized) return 1;
+        if (right.isUncategorized) return -1;
+        return left.label.localeCompare(right.label);
+      })
+      .map(([key, group]) => ({
+        key,
+        label: group.label,
+        items: group.items.slice().sort((left, right) => left.text.localeCompare(right.text))
+      }));
+  }, [categoryLabelMap, completedItems, isSystemShoppingList, t]);
+
   function applyCategorySuggestion(itemName: string) {
     const suggestedCategory = categoryMemory.get(normalizeItemName(itemName));
     const currentCategory = form.getValues("category")?.trim();
@@ -499,15 +663,74 @@ export function ListItemsClient({
     return suggestedCategory;
   }
 
-  const textField = form.register("text");
+  function applyItemSuggestion(item: ListItem) {
+    form.setValue("text", item.text, { shouldDirty: true, shouldValidate: true });
+    form.setValue("quantity", item.quantity ?? "", { shouldDirty: true });
+    form.setValue("category", item.category ?? "", { shouldDirty: true });
+    setIsItemMenuOpen(false);
+    if (item.category?.trim()) {
+      setCategoryQuery(categoryLabelMap.get(item.category.toLowerCase()) ?? item.category);
+    }
+  }
 
-  function onSubmit(values: AddItemValues) {
+  function findSimilarItems(itemName: string) {
+    const normalizedTarget = normalizeItemName(itemName);
+    if (!normalizedTarget || normalizedTarget.length < 3) {
+      return [] as SimilarSuggestion[];
+    }
+
+    return (items ?? [])
+      .map((item) => ({
+        item,
+        score: getSimilarityScore(normalizedTarget, item.text)
+      }))
+      .filter((entry) => entry.score >= 40 && normalizeItemName(entry.item.text) !== normalizedTarget)
+      .sort((left, right) => right.score - left.score || left.item.text.localeCompare(right.item.text))
+      .slice(0, 5);
+  }
+
+  function submitNewItem(values: AddItemValues) {
     const suggestedCategory = applyCategorySuggestion(values.text);
-
     addMutation.mutate({
       ...values,
       category: values.category?.trim() || suggestedCategory || undefined
     });
+  }
+
+  function mergeIntoExistingItem(itemId: string, values: AddItemValues) {
+    const suggestedCategory = applyCategorySuggestion(values.text);
+    updateMutation.mutate(
+      {
+        itemId,
+        quantity: values.quantity?.trim() || null,
+        category: values.category?.trim() || suggestedCategory || null,
+        isCompleted: false
+      },
+      {
+        onSuccess: () => {
+          closeComposer();
+        }
+      }
+    );
+  }
+
+  const textField = form.register("text");
+
+  function onSubmit(values: AddItemValues) {
+    const exactMatch = (items ?? []).find((item) => normalizeItemName(item.text) === normalizeItemName(values.text));
+    if (exactMatch) {
+      mergeIntoExistingItem(exactMatch.id, values);
+      return;
+    }
+
+    const similar = findSimilarItems(values.text);
+    if (similar.length > 0) {
+      setPendingAddValues(values);
+      setSimilarItemSuggestions(similar);
+      return;
+    }
+
+    submitNewItem(values);
   }
 
   function closeEdit() {
@@ -515,12 +738,28 @@ export function ListItemsClient({
     editForm.reset({ itemId: "", text: "", quantity: "", category: "" });
   }
 
-  function startEdit(item: ListItem) {
-    if (editingItemId === item.id) {
-      closeEdit();
-      return;
-    }
+  function closeComposer() {
+    setShowComposer(false);
+    form.reset({ text: "", quantity: "", category: "" });
+    setCategoryQuery("");
+    setIsCategoryMenuOpen(false);
+    setIsItemMenuOpen(false);
+    setPendingAddValues(null);
+    setSimilarItemSuggestions([]);
+  }
 
+  function openAddPanel() {
+    closeEdit();
+    setShowComposer(true);
+  }
+
+  function closePanel() {
+    closeComposer();
+    closeEdit();
+  }
+
+  function startEdit(item: ListItem) {
+    setShowComposer(false);
     setEditingItemId(item.id);
     editForm.reset({
       itemId: item.id,
@@ -659,15 +898,12 @@ export function ListItemsClient({
     setSwipePreview(null);
   }
 
-  function renderItemRow(item: ListItem, isCompletedSection: boolean) {
+  function renderItemRow(item: ListItem, isCompletedSection: boolean, categoryBadgeLabel?: string | null) {
     const rawCategory = item.category?.trim() || null;
     const displayCategory = rawCategory ? (categoryLabelMap.get(rawCategory.toLowerCase()) ?? rawCategory) : null;
     const { level2 } = splitCategoryLevels(displayCategory);
-    const isEditing = editingItemId === item.id;
     const swipeOffset = swipePreview?.itemId === item.id ? swipePreview.offset : 0;
     const quantityState = parseQuantityForQuickAdjust(item.quantity);
-    const createdBy = item.createdByName ?? t("common.unknown");
-    const updatedBy = item.updatedByName ?? item.createdByName ?? t("common.unknown");
     const swipeProgress = Math.min(1, Math.abs(swipeOffset) / 88);
     const rowBackgroundColor = getRowBackgroundColor(isCompletedSection, swipeOffset);
     const rowStyle: { transform?: string; backgroundColor: string } = {
@@ -678,7 +914,7 @@ export function ListItemsClient({
     }
 
     return (
-      <div key={item.id} className={`loom-lists-detail-row-shell ${isEditing ? "is-editing" : ""}`}>
+      <div key={item.id} className="loom-lists-detail-row-shell">
         <div
           className={`loom-lists-swipe-track ${isCompletedSection ? "is-completed-section" : "is-active-section"}`}
           style={{ backgroundColor: rowBackgroundColor }}
@@ -704,6 +940,7 @@ export function ListItemsClient({
             <span className="loom-lists-detail-main">
               <span className={`loom-lists-detail-name ${isCompletedSection ? "loom-home-line-through" : ""}`}>{item.text}</span>
               {isSystemShoppingList && level2 ? <span className="loom-lists-detail-qty">{level2}</span> : null}
+              {categoryBadgeLabel ? <span className="loom-lists-item-category-badge">{categoryBadgeLabel}</span> : null}
             </span>
 
             <span className="loom-inline-actions">
@@ -745,50 +982,6 @@ export function ListItemsClient({
             </span>
           </div>
         </div>
-
-        {isEditing ? (
-          <form className="loom-lists-inline-edit" onSubmit={editForm.handleSubmit(submitEdit)}>
-            <label className="loom-lists-inline-field">
-              <span className="loom-lists-inline-label">{t("lists.form.itemName")}</span>
-              <input className="loom-input" type="text" {...editForm.register("text")} />
-            </label>
-            <label className="loom-lists-inline-field">
-              <span className="loom-lists-inline-label">{t("lists.form.quantity")}</span>
-              <input className="loom-input" type="text" {...editForm.register("quantity")} />
-            </label>
-            <label className="loom-lists-inline-field">
-              <span className="loom-lists-inline-label">{t("common.category")}</span>
-              <select className="loom-input" {...editForm.register("category")}>
-                <option value="">{t("lists.form.noCategory")}</option>
-                {categoryOptions.map((category) => (
-                  <option key={category} value={category}>
-                    {categoryLabelMap.get(category.toLowerCase()) ?? category}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <input type="hidden" {...editForm.register("itemId")} />
-
-            <div className="loom-lists-inline-meta">
-              <p className="loom-lists-inline-meta-line">
-                {t("common.created", "Created")}: {formatDateTime(item.createdAt)} {t("common.by", "by")} {createdBy}
-              </p>
-              <p className="loom-lists-inline-meta-line">
-                {t("common.updated")}: {formatDateTime(item.updatedAt)} {t("common.by", "by")} {updatedBy}
-              </p>
-            </div>
-
-            <div className="loom-form-actions">
-              <button className="loom-button-ghost" type="button" onClick={closeEdit}>
-                {t("common.cancel")}
-              </button>
-              <button className="loom-button-primary" type="submit" disabled={updateMutation.isPending}>
-                {t("common.saveChanges")}
-              </button>
-            </div>
-          </form>
-        ) : null}
       </div>
     );
   }
@@ -799,11 +992,22 @@ export function ListItemsClient({
     deleteListMutation.mutate();
   }
 
+  const editingItem = editingItemId ? (items ?? []).find((item) => item.id === editingItemId) ?? null : null;
+
   return (
     <div className="loom-stack">
-      <p className="loom-lists-detail-summary">
-        {activeItems.length} {t("lists.remaining")} - {completedItems.length} {t("lists.completed")}
-      </p>
+      <div className="loom-row-between">
+        <p className="loom-lists-detail-summary">
+          {activeItems.length} {t("lists.remaining")} - {completedItems.length} {t("lists.completed")}
+        </p>
+        <div className="loom-lists-summary-actions">
+          {isSystemShoppingList ? (
+            <button type="button" className="loom-lists-plus-button" aria-label={t("lists.addItem")} onClick={openAddPanel}>
+              +
+            </button>
+          ) : null}
+        </div>
+      </div>
 
       {form.formState.errors.text ? <p className="loom-feedback-error">{form.formState.errors.text.message}</p> : null}
       {addMutation.error ? <p className="loom-feedback-error">{addMutation.error.message}</p> : null}
@@ -824,27 +1028,97 @@ export function ListItemsClient({
 
       {completedItems.length > 0 ? (
         <section className="loom-stack-sm">
-          <p className="loom-lists-section-title">{t("lists.completed")}</p>
-          <div className="loom-lists-detail-card">
-            {completedItems.map((item) => renderItemRow(item, true))}
+          <div className="loom-row-between">
+            <p className="loom-lists-section-title">
+              {t("lists.completed")} ({completedItems.length})
+            </p>
+            <button type="button" className="loom-button-ghost" onClick={() => setIsCompletedExpanded((value) => !value)}>
+              {isCompletedExpanded
+                ? t("lists.collapseCompleted", "Hide completed items")
+                : t("lists.expandCompleted", "Show completed items")}
+            </button>
           </div>
+          {!isCompletedExpanded ? (
+            <p className="loom-muted small">{t("lists.completedCollapsedCount", "{count} completed items hidden").replace("{count}", String(completedItems.length))}</p>
+          ) : (
+            <div className="loom-lists-detail-card">
+              {completedGrouped.map((group) => (
+                <div key={group.key} className="loom-stack-sm p-2">
+                  <p className="loom-lists-group-title">{group.label}</p>
+                  <div className="loom-stack-sm">
+                    {group.items.map((item) => renderItemRow(item, true, isSystemShoppingList ? group.label : null))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </section>
       ) : null}
 
-      {showComposer ? (
-        <section className="loom-card p-4">
+      <ResponsivePanel
+        isOpen={showComposer || Boolean(editingItem)}
+        title={showComposer ? t("lists.addItem") : t("common.edit")}
+        onClose={closePanel}
+      >
+        {showComposer ? (
           <form className="loom-form-stack" onSubmit={form.handleSubmit(onSubmit)}>
             <div className="loom-lists-quick-add">
-              <input
-                className="loom-input"
-                type="text"
-                placeholder={t("lists.form.itemName")}
-                {...textField}
-                onBlur={(event) => {
-                  textField.onBlur(event);
-                  applyCategorySuggestion(event.target.value);
-                }}
-              />
+              <div className="loom-item-picker" ref={itemPickerRef}>
+                <input
+                  className="loom-input"
+                  type="text"
+                  placeholder={t("lists.form.itemName")}
+                  {...textField}
+                  onFocus={() => {
+                    if ((textInputValue ?? "").trim().length > 0) {
+                      setIsItemMenuOpen(true);
+                    }
+                  }}
+                  onChange={(event) => {
+                    textField.onChange(event);
+                    const nextValue = event.target.value.trim();
+                    setIsItemMenuOpen(nextValue.length > 0);
+                  }}
+                  onBlur={(event) => {
+                    textField.onBlur(event);
+                    applyCategorySuggestion(event.target.value);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Escape") {
+                      setIsItemMenuOpen(false);
+                    }
+                  }}
+                />
+                {isItemMenuOpen && (textInputValue ?? "").trim().length > 0 ? (
+                  <div className="loom-item-picker-menu">
+                    {!hasExactTypedMatch ? (
+                      <button
+                        type="button"
+                        className="loom-item-picker-option is-create"
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => setIsItemMenuOpen(false)}
+                      >
+                        <span className="loom-item-picker-option-main">{t("lists.useTypedValue", "Use") + ` "${textInputValue?.trim() ?? ""}"`}</span>
+                        <span className="loom-item-picker-option-meta">{t("lists.addAsNew", "Add as new item")}</span>
+                      </button>
+                    ) : null}
+                    {textSuggestions.map((suggestion) => (
+                      <button
+                        key={suggestion.id}
+                        type="button"
+                        className="loom-item-picker-option"
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => applyItemSuggestion(suggestion)}
+                      >
+                        <span className="loom-item-picker-option-main">{suggestion.text}</span>
+                        <span className="loom-item-picker-option-meta">
+                          {[suggestion.quantity, suggestion.category].filter(Boolean).join(" - ") || t("lists.form.noCategory")}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
               <input className="loom-input" type="text" placeholder={t("lists.form.quantity")} {...form.register("quantity")} />
               {isMobileCategoryPicker ? (
                 <select
@@ -953,10 +1227,99 @@ export function ListItemsClient({
               </button>
             </div>
           </form>
-        </section>
-      ) : null}
+        ) : null}
 
-      <button className="loom-lists-action-add" type="button" onClick={() => setShowComposer((value) => !value)}>
+        {editingItem ? (
+          <form className="loom-form-stack" onSubmit={editForm.handleSubmit(submitEdit)}>
+            <label className="loom-lists-inline-field">
+              <span className="loom-lists-inline-label">{t("lists.form.itemName")}</span>
+              <input className="loom-input" type="text" {...editForm.register("text")} />
+            </label>
+            <label className="loom-lists-inline-field">
+              <span className="loom-lists-inline-label">{t("lists.form.quantity")}</span>
+              <input className="loom-input" type="text" {...editForm.register("quantity")} />
+            </label>
+            <label className="loom-lists-inline-field">
+              <span className="loom-lists-inline-label">{t("common.category")}</span>
+              <select className="loom-input" {...editForm.register("category")}>
+                <option value="">{t("lists.form.noCategory")}</option>
+                {categoryOptions.map((category) => (
+                  <option key={category} value={category}>
+                    {categoryLabelMap.get(category.toLowerCase()) ?? category}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <input type="hidden" {...editForm.register("itemId")} />
+            <div className="loom-lists-inline-meta">
+              <p className="loom-lists-inline-meta-line">
+                {t("common.created", "Created")}: {formatDateTime(editingItem.createdAt)} {t("common.by", "by")} {editingItem.createdByName ?? t("common.unknown")}
+              </p>
+              <p className="loom-lists-inline-meta-line">
+                {t("common.updated")}: {formatDateTime(editingItem.updatedAt)} {t("common.by", "by")}{" "}
+                {editingItem.updatedByName ?? editingItem.createdByName ?? t("common.unknown")}
+              </p>
+            </div>
+            <div className="loom-form-actions">
+              <button className="loom-button-ghost" type="button" onClick={closeEdit}>
+                {t("common.cancel")}
+              </button>
+              <button className="loom-button-primary" type="submit" disabled={updateMutation.isPending}>
+                {t("common.saveChanges")}
+              </button>
+            </div>
+          </form>
+        ) : null}
+
+        {showComposer && pendingAddValues && similarItemSuggestions.length > 0 ? (
+          <section className="loom-card p-4">
+            <h3 className="loom-section-title">{t("lists.similarPopupTitle", "Similar items found")}</h3>
+            <p className="loom-muted small">
+              {t("lists.similarPopupBody", "Use one of these existing items instead of creating a duplicate?")}
+            </p>
+            <div className="loom-stack-sm">
+              {similarItemSuggestions.map((entry) => (
+                <button
+                  key={entry.item.id}
+                  type="button"
+                  className="loom-item-suggestion-option"
+                  onClick={() => mergeIntoExistingItem(entry.item.id, pendingAddValues)}
+                >
+                  <span className="loom-item-suggestion-name">{entry.item.text}</span>
+                  <span className="loom-item-suggestion-meta">
+                    {[entry.item.quantity, entry.item.category].filter(Boolean).join(" - ") || t("lists.form.noCategory")}
+                  </span>
+                </button>
+              ))}
+            </div>
+            <div className="loom-form-actions mt-3">
+              <button
+                type="button"
+                className="loom-button-ghost"
+                onClick={() => {
+                  setPendingAddValues(null);
+                  setSimilarItemSuggestions([]);
+                }}
+              >
+                {t("common.cancel")}
+              </button>
+              <button
+                type="button"
+                className="loom-button-primary"
+                onClick={() => {
+                  submitNewItem(pendingAddValues);
+                  setPendingAddValues(null);
+                  setSimilarItemSuggestions([]);
+                }}
+              >
+                {t("lists.addAsNew", "Add as new item")}
+              </button>
+            </div>
+          </section>
+        ) : null}
+      </ResponsivePanel>
+
+      <button className="loom-lists-action-add" type="button" onClick={openAddPanel}>
         + {t("lists.addItem")}
       </button>
 
@@ -968,3 +1331,4 @@ export function ListItemsClient({
     </div>
   );
 }
+

@@ -1,6 +1,6 @@
 import { requireUser } from "@/lib/auth";
 import { getActiveFamilyContext } from "@/features/families/context";
-import { getFamilyExternalCalendars } from "@/features/families/server";
+import { getFamilyExternalCalendars, getFamilySettings } from "@/features/families/server";
 import { FamilySettingsForm } from "@/features/families/family-settings-form";
 import { getServerI18n } from "@/lib/i18n/server";
 
@@ -20,6 +20,7 @@ export default async function FamilySettingsPage() {
   }
 
   const externalCalendars = await getFamilyExternalCalendars(activeFamily.id);
+  const familySettings = await getFamilySettings(activeFamily.id);
 
   return (
     <div className="loom-module-page">
@@ -30,7 +31,12 @@ export default async function FamilySettingsPage() {
         </div>
       </section>
       <section className="loom-card p-5">
-        <FamilySettingsForm familyId={activeFamily.id} defaultName={activeFamily.name} defaultExternalCalendars={externalCalendars} />
+        <FamilySettingsForm
+          familyId={activeFamily.id}
+          defaultName={activeFamily.name}
+          defaultAllowMultipleLists={familySettings.allowMultipleLists}
+          defaultExternalCalendars={externalCalendars}
+        />
       </section>
     </div>
   );

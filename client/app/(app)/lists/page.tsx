@@ -1,7 +1,8 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { getActiveFamilyContext } from "@/features/families/context";
-import { getListsWithStatsForFamily } from "@/features/lists/server";
+import { getListsWithStatsForFamily, getShoppingListIdForFamily, isMultipleListsEnabledForFamily } from "@/features/lists/server";
 import { ListsBoardClient } from "@/features/lists/lists-board-client";
 import { getServerI18n } from "@/lib/i18n/server";
 
@@ -12,6 +13,14 @@ export default async function ListsPage() {
 
   if (!context.activeFamilyId) {
     return <p className="loom-muted">{t("lists.createFamilyToUse")}</p>;
+  }
+
+  const allowMultipleLists = await isMultipleListsEnabledForFamily(context.activeFamilyId);
+  if (!allowMultipleLists) {
+    const shoppingListId = await getShoppingListIdForFamily(context.activeFamilyId);
+    if (shoppingListId) {
+      redirect(`/lists/${shoppingListId}`);
+    }
   }
 
   const lists = await getListsWithStatsForFamily(context.activeFamilyId);
@@ -25,11 +34,13 @@ export default async function ListsPage() {
             {lists.length} {t("lists.countLabel")}
           </p>
         </div>
-        <Link href="/lists/new" className="loom-lists-plus-button" aria-label={t("lists.createAction")}>
-          +
-        </Link>
+        {allowMultipleLists ? (
+          <Link href="/lists/new" className="loom-lists-plus-button" aria-label={t("lists.createAction")}>
+            +
+          </Link>
+        ) : null}
       </section>
-      <ListsBoardClient lists={lists} />
+      <ListsBoardClient lists={lists} canCreate={allowMultipleLists} />
     </div>
   );
 }

@@ -1,6 +1,8 @@
+import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { getActiveFamilyContext } from "@/features/families/context";
 import { getFamilyMembers } from "@/features/families/server";
+import { getShoppingListIdForFamily, isMultipleListsEnabledForFamily } from "@/features/lists/server";
 import { ListForm } from "@/features/lists/list-form";
 import { getServerI18n } from "@/lib/i18n/server";
 
@@ -11,6 +13,12 @@ export default async function NewListPage() {
 
   if (!context.activeFamilyId) {
     return <p className="loom-muted">{t("onboarding.createFamilyFirst")}</p>;
+  }
+
+  const allowMultipleLists = await isMultipleListsEnabledForFamily(context.activeFamilyId);
+  if (!allowMultipleLists) {
+    const shoppingListId = await getShoppingListIdForFamily(context.activeFamilyId);
+    redirect(shoppingListId ? `/lists/${shoppingListId}` : "/lists");
   }
 
   const members = (await getFamilyMembers(context.activeFamilyId))

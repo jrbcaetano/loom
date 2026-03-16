@@ -57,7 +57,7 @@ function getInitials(value: string | null) {
   return `${parts[0].slice(0, 1)}${parts[1].slice(0, 1)}`.toUpperCase();
 }
 
-export function ListsBoardClient({ lists }: { lists: ListOverview[] }) {
+export function ListsBoardClient({ lists, canCreate = true }: { lists: ListOverview[]; canCreate?: boolean }) {
   const { t } = useI18n();
   const activeLists = lists.filter((list) => !(list.totalItems > 0 && list.remainingItems === 0));
   const completedLists = lists.filter((list) => list.totalItems > 0 && list.remainingItems === 0);
@@ -179,9 +179,11 @@ export function ListsBoardClient({ lists }: { lists: ListOverview[] }) {
         </section>
       ) : null}
 
-      <Link href="/lists/new" className="loom-lists-create-button">
-        + {t("lists.createAction")}
-      </Link>
+      {canCreate ? (
+        <Link href="/lists/new" className="loom-lists-create-button">
+          + {t("lists.createAction")}
+        </Link>
+      ) : null}
     </div>
   );
 }
