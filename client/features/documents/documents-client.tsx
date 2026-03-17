@@ -4,7 +4,6 @@ import { useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { useI18n } from "@/lib/i18n/context";
-import { resolveDateLocale } from "@/lib/date";
 
 type DocumentRow = {
   id: string;
@@ -25,8 +24,7 @@ async function fetchDocuments(familyId: string, search: string) {
 }
 
 export function DocumentsClient({ familyId }: { familyId: string }) {
-  const { t, locale } = useI18n();
-  const dateLocale = resolveDateLocale(locale);
+  const { t, dateLocale } = useI18n();
   const [search, setSearch] = useState("");
   const query = useQuery({
     queryKey: ["documents", familyId, search],

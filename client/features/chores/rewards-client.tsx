@@ -2,7 +2,6 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useI18n } from "@/lib/i18n/context";
-import { resolveDateLocale } from "@/lib/date";
 
 type RewardsResponse = {
   balance: number;
@@ -17,8 +16,7 @@ async function fetchRewards() {
 }
 
 export function RewardsClient() {
-  const { t, locale } = useI18n();
-  const dateLocale = resolveDateLocale(locale);
+  const { t, dateLocale } = useI18n();
   const query = useQuery({
     queryKey: ["rewards"],
     queryFn: fetchRewards

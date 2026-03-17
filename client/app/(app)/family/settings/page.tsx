@@ -3,6 +3,7 @@ import { getActiveFamilyContext } from "@/features/families/context";
 import { getFamilyExternalCalendars, getFamilySettings } from "@/features/families/server";
 import { FamilySettingsForm } from "@/features/families/family-settings-form";
 import { getServerI18n } from "@/lib/i18n/server";
+import { TaskLabelsManager } from "@/features/tasks/task-labels-manager";
 
 export default async function FamilySettingsPage() {
   const user = await requireUser();
@@ -37,6 +38,13 @@ export default async function FamilySettingsPage() {
           defaultAllowMultipleLists={familySettings.allowMultipleLists}
           defaultExternalCalendars={externalCalendars}
         />
+      </section>
+      <section className="loom-card p-5">
+        <h3 className="loom-section-title">{t("family.taskLabelsTitle", "Family task labels")}</h3>
+        <p className="loom-muted small mt-2 mb-0">{t("family.taskLabelsHint", "These labels are shared with the whole family for planning and filtering tasks.")}</p>
+        <div className="mt-3">
+          <TaskLabelsManager scope="family" familyId={activeFamily.id} />
+        </div>
       </section>
     </div>
   );

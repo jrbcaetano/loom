@@ -34,6 +34,16 @@ h6 {
   max-width: var(--loom-shell-max-width);
 }
 
+@media (min-width: 960px) {
+  .loom-main-inner:has(.loom-tasks-page .loom-tasks-redesign.is-board-expanded) {
+    max-width: 100%;
+  }
+
+  .loom-module-page.loom-tasks-page:has(.loom-tasks-redesign.is-board-expanded) {
+    max-width: 100%;
+  }
+}
+
 .loom-main-body {
   padding: var(--loom-space-4);
 }

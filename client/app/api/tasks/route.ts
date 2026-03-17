@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createTask, getTasksForFamily } from "@/features/tasks/server";
+import { TASK_STATUSES, type TaskStatus } from "@/features/tasks/model";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -10,9 +11,13 @@ export async function GET(request: Request) {
   }
 
   try {
+    const rawStatus = searchParams.get("status");
+    const status: TaskStatus | "all" =
+      rawStatus && TASK_STATUSES.includes(rawStatus as (typeof TASK_STATUSES)[number]) ? (rawStatus as TaskStatus) : "all";
+
     const tasks = await getTasksForFamily(familyId, {
       mine: searchParams.get("mine") === "1",
-      status: (searchParams.get("status") as "todo" | "doing" | "done" | "all" | null) ?? "all",
+      status,
       priority: (searchParams.get("priority") as "low" | "medium" | "high" | "all" | null) ?? "all"
     });
 

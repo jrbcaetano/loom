@@ -23,6 +23,7 @@ import {
 import { useI18n } from "@/lib/i18n/context";
 import { resolveDateFnsLocale } from "@/lib/date";
 import { expandEventOccurrences, type EventRecurrenceRule } from "@/features/events/recurrence";
+import type { TaskStatus } from "@/features/tasks/model";
 
 type EventRow = {
   id: string;
@@ -47,7 +48,7 @@ type TaskRow = {
   dueAt: string | null;
   visibility: "private" | "family" | "selected_members";
   assignedToUserId: string | null;
-  status: "todo" | "doing" | "done";
+  status: TaskStatus;
 };
 
 type CalendarItem = {

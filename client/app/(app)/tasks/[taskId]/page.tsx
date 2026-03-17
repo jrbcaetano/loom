@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getTaskById } from "@/features/tasks/server";
+import { getTaskById, getTaskLabels } from "@/features/tasks/server";
 import { getFamilyMembers } from "@/features/families/server";
 import { TaskForm } from "@/features/tasks/task-form";
 import { VisibilityBadge } from "@/components/common/visibility-badge";
 import { getServerI18n } from "@/lib/i18n/server";
-import { resolveDateLocale } from "@/lib/date";
+import { requireUser } from "@/lib/auth";
 
 type TaskDetailPageProps = {
   params: Promise<{ taskId: string }>;
@@ -24,9 +24,17 @@ function formatDisplayDate(value: string | null, locale: string, fallback: strin
   return new Date(value).toLocaleString(locale);
 }
 
+function formatTaskStatusLabel(status: string, t: (key: string, fallback?: string) => string) {
+  if (status === "inbox") return t("tasks.statusInbox", "Inbox");
+  if (status === "next" || status === "planned") return t("tasks.statusPlanned", "Planned");
+  if (status === "in_progress") return t("tasks.statusInProgress", "In progress");
+  if (status === "waiting") return t("tasks.statusWaiting", "Waiting");
+  return t("tasks.statusDone", "Done");
+}
+
 export default async function TaskDetailPage({ params, searchParams }: TaskDetailPageProps) {
-  const { t, locale } = await getServerI18n();
-  const dateLocale = resolveDateLocale(locale);
+  const user = await requireUser();
+  const { t, dateLocale } = await getServerI18n();
   const { taskId } = await params;
   const query = await searchParams;
   const task = await getTaskById(taskId);
@@ -38,6 +46,10 @@ export default async function TaskDetailPage({ params, searchParams }: TaskDetai
   const members = (await getFamilyMembers(task.familyId))
     .filter((member) => member.userId)
     .map((member) => ({ userId: member.userId!, displayName: member.fullName ?? member.email ?? t("common.member", "Member") }));
+  const [personalLabels, familyLabels] = await Promise.all([
+    getTaskLabels({ scope: "personal" }),
+    getTaskLabels({ scope: "family", familyId: task.familyId })
+  ]);
 
   return (
     <div className="loom-module-page">
@@ -57,7 +69,7 @@ export default async function TaskDetailPage({ params, searchParams }: TaskDetai
       <section className="loom-card p-5">
         <div className="loom-row-between">
           <h3 className="loom-section-title">{t("tasks.settings", "Task settings")}</h3>
-          <p className="loom-home-pill is-muted m-0">{task.status}</p>
+          <p className="loom-home-pill is-muted m-0">{formatTaskStatusLabel(task.status, t)}</p>
         </div>
         <div className="loom-info-grid mt-4">
           <article className="loom-info-item">
@@ -95,8 +107,12 @@ export default async function TaskDetailPage({ params, searchParams }: TaskDetai
                 visibility: task.visibility,
                 assignedToUserId: task.assignedToUserId ?? "",
                 startAt: formatDateTimeLocal(task.startAt),
-                dueAt: formatDateTimeLocal(task.dueAt)
+                dueAt: formatDateTimeLocal(task.dueAt),
+                labelIds: task.labels.map((label) => label.id)
               }}
+              defaultAssigneeUserId={user.id}
+              personalLabels={personalLabels}
+              familyLabels={familyLabels}
             />
           </div>
         ) : null}

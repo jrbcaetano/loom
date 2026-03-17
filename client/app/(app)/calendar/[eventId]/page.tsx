@@ -5,7 +5,6 @@ import { getFamilyMembers } from "@/features/families/server";
 import { EventForm } from "@/features/events/event-form";
 import { VisibilityBadge } from "@/components/common/visibility-badge";
 import { getServerI18n } from "@/lib/i18n/server";
-import { resolveDateLocale } from "@/lib/date";
 import { describeRecurrenceRule } from "@/features/events/recurrence";
 
 type EventDetailPageProps = {
@@ -20,8 +19,7 @@ function formatDateTimeLocal(value: string) {
 }
 
 export default async function EventDetailPage({ params, searchParams }: EventDetailPageProps) {
-  const { t, locale } = await getServerI18n();
-  const dateLocale = resolveDateLocale(locale);
+  const { t, locale, dateLocale } = await getServerI18n();
   const { eventId } = await params;
   const query = await searchParams;
   const event = await getEventById(eventId);

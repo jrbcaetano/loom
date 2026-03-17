@@ -3,7 +3,6 @@
 import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useI18n } from "@/lib/i18n/context";
-import { resolveDateLocale } from "@/lib/date";
 
 type NotificationRow = {
   id: string;
@@ -39,8 +38,7 @@ function iconForType(type: NotificationRow["type"]) {
 }
 
 export function NotificationsClient() {
-  const { t, locale } = useI18n();
-  const dateLocale = resolveDateLocale(locale);
+  const { t, dateLocale } = useI18n();
   const queryClient = useQueryClient();
 
   const { data, isPending, error } = useQuery({

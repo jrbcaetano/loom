@@ -4,7 +4,6 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import { useI18n } from "@/lib/i18n/context";
-import { resolveDateLocale } from "@/lib/date";
 
 type MessageRow = {
   id: string;
@@ -24,8 +23,7 @@ async function fetchMessages(conversationId: string) {
 }
 
 export function MessageThreadClient({ conversationId, currentUserId }: { conversationId: string; currentUserId: string }) {
-  const { t, locale } = useI18n();
-  const dateLocale = resolveDateLocale(locale);
+  const { t, dateLocale } = useI18n();
   const [content, setContent] = useState("");
   const [serverError, setServerError] = useState<string | null>(null);
   const queryClient = useQueryClient();

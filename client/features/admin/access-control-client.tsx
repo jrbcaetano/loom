@@ -15,7 +15,7 @@ const createInviteSchema = z.object({
 
 type CreateInviteValues = z.infer<typeof createInviteSchema>;
 
-function formatDate(value: string | null) {
+function formatDate(value: string | null, locale: string) {
   if (!value) {
     return "N/A";
   }
@@ -25,7 +25,7 @@ function formatDate(value: string | null) {
     return "N/A";
   }
 
-  return parsed.toLocaleString();
+  return parsed.toLocaleString(locale);
 }
 
 function mapStatusLabel(status: AccessInvite["status"]) {
@@ -66,7 +66,7 @@ function isInviteExpired(invite: AccessInvite) {
 }
 
 export function AccessControlClient() {
-  const { t } = useI18n();
+  const { t, dateLocale } = useI18n();
   const [invites, setInvites] = useState<AccessInvite[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -251,13 +251,13 @@ export function AccessControlClient() {
                     {invite.sourceFamilyName ? ` (${invite.sourceFamilyName})` : ""}
                   </p>
                   <p className={isInviteExpired(invite) ? "loom-feedback-error small" : "loom-muted small"}>
-                    {t("admin.access.expiresAt", "Expires at")}: {formatDate(invite.expiresAt)}
+                    {t("admin.access.expiresAt", "Expires at")}: {formatDate(invite.expiresAt, dateLocale)}
                   </p>
                   <p className="loom-muted small">
-                    {t("admin.access.activatedAt", "Activated at")}: {formatDate(invite.activatedAt)}
+                    {t("admin.access.activatedAt", "Activated at")}: {formatDate(invite.activatedAt, dateLocale)}
                   </p>
                   <p className="loom-muted small">
-                    {t("admin.access.acceptedAt", "Accepted at")}: {formatDate(invite.acceptedAt)}
+                    {t("admin.access.acceptedAt", "Accepted at")}: {formatDate(invite.acceptedAt, dateLocale)}
                   </p>
                 </div>
                 <div className="loom-stack-sm">

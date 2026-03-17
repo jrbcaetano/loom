@@ -5,7 +5,7 @@ import { useI18n } from "@/lib/i18n/context";
 import { PRODUCT_FEATURE_CATALOG } from "@/lib/product-features";
 import type { ProductFeatureFlag } from "@/features/admin/types";
 
-function formatDate(value: string | null) {
+function formatDate(value: string | null, locale: string) {
   if (!value) {
     return "N/A";
   }
@@ -15,11 +15,11 @@ function formatDate(value: string | null) {
     return "N/A";
   }
 
-  return parsed.toLocaleString();
+  return parsed.toLocaleString(locale);
 }
 
 export function FeatureFlagsClient() {
-  const { t } = useI18n();
+  const { t, dateLocale } = useI18n();
   const [features, setFeatures] = useState<ProductFeatureFlag[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [pendingKey, setPendingKey] = useState<string | null>(null);
@@ -103,7 +103,7 @@ export function FeatureFlagsClient() {
                 <div className="loom-stack-xs">
                   <p className="m-0 font-semibold">{t(catalogItem.labelKey, catalogItem.fallbackLabel)}</p>
                   <p className="loom-muted small m-0">
-                    {t("admin.features.updatedAt", "Updated at")}: {formatDate(feature.updatedAt)}
+                    {t("admin.features.updatedAt", "Updated at")}: {formatDate(feature.updatedAt, dateLocale)}
                   </p>
                   <p className="loom-muted small m-0">
                     {t("admin.features.updatedBy", "Updated by")}: {feature.updatedByLabel ?? "N/A"}

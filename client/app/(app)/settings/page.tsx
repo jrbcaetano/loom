@@ -1,14 +1,17 @@
 import { getRequestLocale, requireUser } from "@/lib/auth";
 import { getActiveFamilyContext } from "@/features/families/context";
-import { LanguageSwitcher } from "@/components/common/language-switcher";
+import { getRequestRegionalSettings } from "@/lib/regional/server";
 import { ActiveFamilySwitcher } from "@/features/families/active-family-switcher";
 import Link from "next/link";
 import { getServerI18n } from "@/lib/i18n/server";
 import { PushSettingsClient } from "@/features/push/push-settings-client";
+import { TaskLabelsManager } from "@/features/tasks/task-labels-manager";
+import { RegionalSettingsForm } from "@/features/profile/regional-settings-form";
 
 export default async function SettingsPage() {
   const user = await requireUser();
   const locale = await getRequestLocale();
+  const regionalSettings = await getRequestRegionalSettings();
   const { t } = await getServerI18n();
   const context = await getActiveFamilyContext(user.id);
 
@@ -22,9 +25,10 @@ export default async function SettingsPage() {
       </section>
 
       <section className="loom-card p-5">
-        <h2 className="loom-section-title">{t("settings.language")}</h2>
+        <h2 className="loom-section-title">{t("settings.regional", "Regional settings")}</h2>
+        <p className="loom-muted small mt-2 mb-0">{t("settings.regionalHint", "Language, date format, and time format used across Loom.")}</p>
         <div className="mt-3">
-          <LanguageSwitcher locale={locale} />
+          <RegionalSettingsForm locale={locale} dateFormat={regionalSettings.dateFormat} timeFormat={regionalSettings.timeFormat} />
         </div>
       </section>
 
@@ -42,6 +46,14 @@ export default async function SettingsPage() {
         <h2 className="loom-section-title">{t("settings.pushNotifications", "Push notifications")}</h2>
         <div className="mt-3">
           <PushSettingsClient />
+        </div>
+      </section>
+
+      <section className="loom-card p-5">
+        <h2 className="loom-section-title">{t("settings.personalTaskLabels", "Personal task labels")}</h2>
+        <p className="loom-muted small mt-2 mb-0">{t("settings.personalTaskLabelsHint", "These labels only apply to your own task organization.")}</p>
+        <div className="mt-3">
+          <TaskLabelsManager scope="personal" />
         </div>
       </section>
 

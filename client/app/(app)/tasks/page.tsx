@@ -1,9 +1,9 @@
-import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { getActiveFamilyContext } from "@/features/families/context";
 import { getFamilyMembers } from "@/features/families/server";
 import { TasksClient } from "@/features/tasks/tasks-client";
 import { getServerI18n } from "@/lib/i18n/server";
+import { getTaskLabels } from "@/features/tasks/server";
 
 export default async function TasksPage() {
   const user = await requireUser();
@@ -21,20 +21,14 @@ export default async function TasksPage() {
       displayName: member.fullName ?? member.email ?? t("common.member", "Member"),
       avatarUrl: member.avatarUrl
     }));
+  const [personalLabels, familyLabels] = await Promise.all([
+    getTaskLabels({ scope: "personal" }),
+    getTaskLabels({ scope: "family", familyId: context.activeFamilyId })
+  ]);
 
   return (
     <div className="loom-module-page loom-tasks-page">
-      <section className="loom-module-header">
-        <div className="loom-module-header-copy">
-          <h2 className="loom-module-title">{t("nav.tasks", "Tasks")}</h2>
-          <p className="loom-module-subtitle">{t("tasks.subtitle", "Track daily priorities and household progress.")}</p>
-        </div>
-        <Link href="/tasks/new" className="loom-button-primary">
-          {t("tasks.new", "New task")}
-        </Link>
-      </section>
-
-      <TasksClient familyId={context.activeFamilyId} assignees={assignees} />
+      <TasksClient familyId={context.activeFamilyId} currentUserId={user.id} assignees={assignees} personalLabels={personalLabels} familyLabels={familyLabels} />
     </div>
   );
 }

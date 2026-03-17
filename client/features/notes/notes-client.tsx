@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { useI18n } from "@/lib/i18n/context";
-import { resolveDateLocale } from "@/lib/date";
 
 type NoteRow = {
   id: string;
@@ -24,8 +23,7 @@ async function fetchNotes(familyId: string, search: string) {
 }
 
 export function NotesClient({ familyId }: { familyId: string }) {
-  const { t, locale } = useI18n();
-  const dateLocale = resolveDateLocale(locale);
+  const { t, dateLocale } = useI18n();
   const [search, setSearch] = useState("");
   const [scope, setScope] = useState<"all" | "shared" | "private">("all");
 

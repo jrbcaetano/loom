@@ -5,7 +5,7 @@ import { useI18n } from "@/lib/i18n/context";
 import type { PushEventFlag } from "@/features/admin/types";
 import { PUSH_EVENT_CATALOG } from "@/features/push/catalog";
 
-function formatDate(value: string | null) {
+function formatDate(value: string | null, locale: string) {
   if (!value) {
     return "N/A";
   }
@@ -15,11 +15,11 @@ function formatDate(value: string | null) {
     return "N/A";
   }
 
-  return parsed.toLocaleString();
+  return parsed.toLocaleString(locale);
 }
 
 export function PushEventsClient() {
-  const { t } = useI18n();
+  const { t, dateLocale } = useI18n();
   const [events, setEvents] = useState<PushEventFlag[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [pendingKey, setPendingKey] = useState<string | null>(null);
@@ -103,7 +103,7 @@ export function PushEventsClient() {
                 <div className="loom-stack-xs">
                   <p className="m-0 font-semibold">{t(catalogItem.labelKey, catalogItem.fallbackLabel)}</p>
                   <p className="loom-muted small m-0">
-                    {t("admin.features.updatedAt", "Updated at")}: {formatDate(eventItem.updatedAt)}
+                    {t("admin.features.updatedAt", "Updated at")}: {formatDate(eventItem.updatedAt, dateLocale)}
                   </p>
                   <p className="loom-muted small m-0">
                     {t("admin.features.updatedBy", "Updated by")}: {eventItem.updatedByLabel ?? "N/A"}

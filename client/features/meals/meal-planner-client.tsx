@@ -4,7 +4,6 @@ import { FormEvent, useMemo, useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useI18n } from "@/lib/i18n/context";
-import { resolveDateLocale } from "@/lib/date";
 
 type Recipe = { id: string; title: string };
 type MealEntry = {
@@ -25,8 +24,7 @@ async function fetchMealPlan(familyId: string) {
 }
 
 export function MealPlannerClient({ familyId, recipes }: { familyId: string; recipes: Recipe[] }) {
-  const { t, locale } = useI18n();
-  const dateLocale = resolveDateLocale(locale);
+  const { t, dateLocale } = useI18n();
   const queryClient = useQueryClient();
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [mealType, setMealType] = useState<"breakfast" | "lunch" | "dinner">("dinner");

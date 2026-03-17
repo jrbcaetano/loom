@@ -21,7 +21,7 @@ export async function getHomeSnapshot(familyId: string, userId: string) {
       .select("id, title, due_at, status")
       .eq("family_id", familyId)
       .eq("assigned_to_user_id", userId)
-      .in("status", ["todo", "doing"])
+      .neq("status", "done")
       .order("due_at", { ascending: true, nullsFirst: false })
       .limit(8),
     supabase

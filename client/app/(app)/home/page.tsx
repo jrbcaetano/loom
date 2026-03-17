@@ -4,7 +4,6 @@ import { getActiveFamilyContext } from "@/features/families/context";
 import { getHomeSnapshot } from "@/features/home/server";
 import { getProductFeatureAvailability } from "@/features/admin/server";
 import { getServerI18n } from "@/lib/i18n/server";
-import { resolveDateLocale } from "@/lib/date";
 
 function formatDateKey(value: Date) {
   return value.toISOString().slice(0, 10);
@@ -21,7 +20,7 @@ function getWeekStartMonday(reference: Date) {
 
 export default async function HomePage() {
   const user = await requireUser();
-  const { t, locale } = await getServerI18n();
+  const { t, dateLocale } = await getServerI18n();
   const context = await getActiveFamilyContext(user.id);
 
   if (!context.activeFamilyId) {
@@ -34,7 +33,6 @@ export default async function HomePage() {
   ]);
   const showChoresRewards = featureAvailability.chores || featureAvailability.rewards;
   const firstName = (user.user_metadata?.full_name as string | undefined)?.split(" ")[0] ?? t("home.greetingFallbackName", "there");
-  const dateLocale = resolveDateLocale(locale);
   const todayLabel = new Intl.DateTimeFormat(dateLocale, { weekday: "long", month: "long", day: "numeric" }).format(new Date());
   const now = new Date();
   const todayStart = new Date(now);
