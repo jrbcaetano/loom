@@ -15,7 +15,7 @@ export async function getHomeSnapshot(familyId: string, userId: string) {
   const workWeekEnd = new Date(weekStart);
   workWeekEnd.setDate(workWeekEnd.getDate() + 4);
 
-  const [myTasksResult, familyOpenTasksResult, eventsResult, listsResult, choresResult, shoppingItemsResult, mealsResult, membersResult, rewardBalancesResult] = await Promise.all([
+  const [myTasksResult, familyOpenTasksResult, eventsResult, listsResult, choresResult, mealsResult, membersResult, rewardBalancesResult] = await Promise.all([
     supabase
       .from("tasks")
       .select("id, title, due_at, status")
@@ -50,9 +50,6 @@ export async function getHomeSnapshot(familyId: string, userId: string) {
       .eq("family_id", familyId)
       .eq("status", "todo"),
     supabase
-      .from("list_items")
-      .select("id, list_id, text, quantity, is_completed, sort_order"),
-    supabase
       .from("meal_plan_entries")
       .select("id, date, meal_type, recipes(title)")
       .eq("family_id", familyId)
@@ -76,7 +73,6 @@ export async function getHomeSnapshot(familyId: string, userId: string) {
   if (eventsResult.error) throw new Error(eventsResult.error.message);
   if (listsResult.error) throw new Error(listsResult.error.message);
   if (choresResult.error) throw new Error(choresResult.error.message);
-  if (shoppingItemsResult.error) throw new Error(shoppingItemsResult.error.message);
   if (mealsResult.error) throw new Error(mealsResult.error.message);
   if (membersResult.error) throw new Error(membersResult.error.message);
   if (rewardBalancesResult.error) throw new Error(rewardBalancesResult.error.message);
@@ -88,20 +84,29 @@ export async function getHomeSnapshot(familyId: string, userId: string) {
   const todayTaskCount = myTasks.filter((task) => task.due_at && new Date(task.due_at) >= todayStart && new Date(task.due_at) <= todayEnd).length;
 
   const familyListIds = new Set((listsResult.data ?? []).map((list) => list.id));
-  const shoppingItemsCount = (shoppingItemsResult.data ?? []).filter((item) => familyListIds.has(item.list_id) && item.is_completed === false).length;
   const selectedList =
     (listsResult.data ?? []).find((list) => isSystemShoppingListTitle(list.title)) ??
     (listsResult.data ?? []).find((list) => list.visibility === "family") ??
     (listsResult.data ?? [])[0] ??
     null;
 
-  const allSelectedListItems = (shoppingItemsResult.data ?? [])
+  const listIds = Array.from(familyListIds);
+  const { data: shoppingItemsData, error: shoppingItemsError } = listIds.length
+    ? await supabase
+        .from("list_items")
+        .select("id, list_id, text, quantity, is_completed, sort_order")
+        .in("list_id", listIds)
+    : { data: [], error: null };
+
+  if (shoppingItemsError) throw new Error(shoppingItemsError.message);
+
+  const shoppingItems = shoppingItemsData ?? [];
+
+  const shoppingItemsCount = shoppingItems.filter((item) => item.is_completed === false).length;
+  const allSelectedListItems = shoppingItems
     .filter((item) => selectedList && item.list_id === selectedList.id && item.is_completed === false)
     .sort((a, b) => a.sort_order - b.sort_order);
-  const selectedListItems = (shoppingItemsResult.data ?? [])
-    .filter((item) => selectedList && item.list_id === selectedList.id && item.is_completed === false)
-    .sort((a, b) => a.sort_order - b.sort_order)
-    .slice(0, 8);
+  const selectedListItems = allSelectedListItems.slice(0, 8);
 
   const memberNameById = new Map<string, string>();
   for (const row of membersResult.data ?? []) {

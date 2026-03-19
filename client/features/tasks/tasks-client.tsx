@@ -1,7 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useRef } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent as ReactMouseEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { addMonths, endOfMonth, endOfWeek, format, isSameDay, isSameMonth, startOfMonth, startOfWeek, subMonths } from "date-fns";
 import { createClient } from "@/lib/supabase/client";
@@ -75,6 +74,8 @@ type SmartView = "inbox" | "today" | "this_week" | "planned" | "all" | "complete
 type LabelMatchMode = "or" | "and";
 type DateFilter = "all" | "today" | "overdue" | "next7" | "no_date";
 type SortBy = "none" | "date" | "date_added" | "priority";
+type CalendarTaskView = "due" | "duration";
+type CalendarTaskColorBy = "label" | "status" | "priority" | "due_proximity" | "visibility";
 type TasksUiPreferences = {
   visibilityMode?: VisibilityMode;
   smartView?: SmartView;
@@ -83,6 +84,62 @@ type TasksUiPreferences = {
   displayMode?: DisplayMode;
   densityMode?: DensityMode;
   boardExpanded?: boolean;
+  calendarTaskView?: CalendarTaskView;
+  calendarTaskColorBy?: CalendarTaskColorBy;
+};
+
+type CalendarTaskSegment = {
+  task: TaskRow;
+  isStart: boolean;
+  isEnd: boolean;
+};
+
+type CalendarTaskLaneSegment = CalendarTaskSegment & {
+  lane: number;
+};
+
+type CalendarTaskHoverCard = {
+  taskId: string;
+  left: number;
+  top: number;
+};
+
+type CalendarOverflowCard = {
+  dayKey: string;
+  taskIds: string[];
+  left: number;
+  top: number;
+};
+
+type QuickShortcutTrigger = "#" | "@" | "/";
+
+type QuickShortcutSession = {
+  trigger: QuickShortcutTrigger;
+  query: string;
+  start: number;
+  end: number;
+  caret: number;
+};
+
+type QuickShortcutAction =
+  | { type: "label"; labelId: string }
+  | { type: "assignee"; userId: string }
+  | { type: "due_date"; dueAtLocal: string }
+  | { type: "priority"; priority: "low" | "medium" | "high" };
+
+type QuickShortcutOption = {
+  id: string;
+  title: string;
+  subtitle?: string;
+  group: string;
+  selected: boolean;
+  color?: string;
+  action: QuickShortcutAction;
+};
+
+type QuickShortcutAnchor = {
+  left: number;
+  top: number;
 };
 
 async function fetchTasks(familyId: string, mineOnly: boolean) {
@@ -139,6 +196,16 @@ function dueDateOnly(task: TaskRow) {
   if (!task.dueAt) return null;
   const due = new Date(task.dueAt);
   return new Date(due.getFullYear(), due.getMonth(), due.getDate());
+}
+
+function startDateOnly(task: TaskRow) {
+  if (!task.startAt) return null;
+  const start = new Date(task.startAt);
+  return new Date(start.getFullYear(), start.getMonth(), start.getDate());
+}
+
+function compareCalendarDate(left: Date, right: Date) {
+  return new Date(left.getFullYear(), left.getMonth(), left.getDate()).getTime() - new Date(right.getFullYear(), right.getMonth(), right.getDate()).getTime();
 }
 
 function isOverdue(task: TaskRow, now: Date) {
@@ -199,14 +266,85 @@ function normalizeServerErrorMessage(value: string) {
   return value;
 }
 
-function findHashTokenAtEnd(value: string) {
-  const match = value.match(/(?:^|\s)#([^\s#]*)$/);
-  if (!match) return null;
-  return match[1] ?? "";
+function cleanShortcutToken(value: string, session: QuickShortcutSession) {
+  const nextValue = `${value.slice(0, session.start)} ${value.slice(session.end)}`;
+  return nextValue.replace(/\s+/g, " ").trim();
 }
 
-function removeTrailingHashToken(value: string) {
-  return value.replace(/(?:^|\s)#[^\s#]*$/, " ").replace(/\s+/g, " ").trim();
+function findQuickShortcutSession(value: string, caret: number) {
+  const tokenEnd = value.slice(caret).search(/\s/);
+  const sessionEnd = tokenEnd === -1 ? value.length : caret + tokenEnd;
+  const beforeCaret = value.slice(0, caret);
+  const match = /(^|\s)([#@/])([^\s#@/]*)$/.exec(beforeCaret);
+
+  if (!match) return null;
+
+  const prefix = match[1] ?? "";
+  const trigger = match[2] as QuickShortcutTrigger;
+  const query = match[3] ?? "";
+  const start = (match.index ?? 0) + prefix.length;
+
+  return {
+    trigger,
+    query,
+    start,
+    end: sessionEnd,
+    caret
+  } satisfies QuickShortcutSession;
+}
+
+function getInputCaretAnchor(input: HTMLInputElement, caret: number): QuickShortcutAnchor {
+  const rect = input.getBoundingClientRect();
+  const styles = window.getComputedStyle(input);
+  const font = [
+    styles.fontStyle,
+    styles.fontVariant,
+    styles.fontWeight,
+    styles.fontSize,
+    styles.lineHeight === "normal" ? "" : `/${styles.lineHeight}`,
+    styles.fontFamily
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d");
+  const paddingLeft = Number.parseFloat(styles.paddingLeft || "0");
+  const paddingTop = Number.parseFloat(styles.paddingTop || "0");
+
+  if (context) {
+    context.font = font;
+  }
+
+  const beforeCaret = input.value.slice(0, caret);
+  const textWidth = context?.measureText(beforeCaret).width ?? 0;
+  const left = rect.left + paddingLeft + textWidth - input.scrollLeft;
+  const top = rect.top + paddingTop + input.offsetHeight / 2;
+
+  return {
+    left,
+    top
+  };
+}
+
+function endOfDayLocal(date: Date) {
+  const next = new Date(date);
+  next.setHours(23, 59, 0, 0);
+  return formatDateTimeLocal(next.toISOString());
+}
+
+function upcomingFriday(baseDate: Date, offsetWeeks = 0) {
+  const next = new Date(baseDate);
+  const day = next.getDay();
+  const friday = 5;
+  let daysUntilFriday = friday - day;
+
+  if (daysUntilFriday < 0) {
+    daysUntilFriday += 7;
+  }
+
+  next.setDate(next.getDate() + daysUntilFriday + offsetWeeks * 7);
+  next.setHours(23, 59, 0, 0);
+  return formatDateTimeLocal(next.toISOString());
 }
 
 function extractLabelIdsFromTitle(title: string, labels: TaskLabel[]) {
@@ -235,13 +373,15 @@ export function TasksClient({
   currentUserId,
   assignees,
   personalLabels,
-  familyLabels
+  familyLabels,
+  initialTasks
 }: {
   familyId: string;
   currentUserId: string;
   assignees: AssigneeOption[];
   personalLabels: TaskLabel[];
   familyLabels: TaskLabel[];
+  initialTasks?: TaskRow[];
 }) {
   const { t, locale, dateLocale } = useI18n();
   const queryClient = useQueryClient();
@@ -258,7 +398,11 @@ export function TasksClient({
   const [showCompleted, setShowCompleted] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [calendarMonth, setCalendarMonth] = useState<Date>(startOfMonth(new Date()));
+  const [calendarTaskView, setCalendarTaskView] = useState<CalendarTaskView>("due");
+  const [calendarTaskColorBy, setCalendarTaskColorBy] = useState<CalendarTaskColorBy>("label");
   const [selectedCalendarDay, setSelectedCalendarDay] = useState<Date | null>(null);
+  const [calendarHoverCard, setCalendarHoverCard] = useState<CalendarTaskHoverCard | null>(null);
+  const [calendarOverflowCard, setCalendarOverflowCard] = useState<CalendarOverflowCard | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [showDisplayMenu, setShowDisplayMenu] = useState(false);
   const [showFilterMenu, setShowFilterMenu] = useState(false);
@@ -271,8 +415,11 @@ export function TasksClient({
   const [quickDescription, setQuickDescription] = useState("");
   const [quickDueAtLocal, setQuickDueAtLocal] = useState("");
   const [quickPriority, setQuickPriority] = useState<"low" | "medium" | "high">("medium");
+  const [quickAssignedToUserId, setQuickAssignedToUserId] = useState(currentUserId);
   const [quickLabelIds, setQuickLabelIds] = useState<string[]>([]);
-  const [showQuickLabelPicker, setShowQuickLabelPicker] = useState(false);
+  const [quickShortcutSession, setQuickShortcutSession] = useState<QuickShortcutSession | null>(null);
+  const [quickShortcutActiveIndex, setQuickShortcutActiveIndex] = useState(0);
+  const [quickShortcutAnchor, setQuickShortcutAnchor] = useState<QuickShortcutAnchor | null>(null);
   const [quickAddError, setQuickAddError] = useState<string | null>(null);
   const [commentsSort, setCommentsSort] = useState<"oldest" | "newest">("oldest");
   const [drawerDraft, setDrawerDraft] = useState<DrawerDraft | null>(null);
@@ -282,6 +429,10 @@ export function TasksClient({
   const [drawerSaveError, setDrawerSaveError] = useState<string | null>(null);
   const displayMenuRef = useRef<HTMLDivElement | null>(null);
   const filterMenuRef = useRef<HTMLDivElement | null>(null);
+  const quickTitleInputRef = useRef<HTMLInputElement | null>(null);
+  const quickShortcutPaletteRef = useRef<HTMLDivElement | null>(null);
+  const calendarHoverHideTimeoutRef = useRef<number | null>(null);
+  const calendarOverflowHideTimeoutRef = useRef<number | null>(null);
   const [preferencesLoaded, setPreferencesLoaded] = useState(false);
   const preferencesStorageKey = useMemo(() => `loom.tasks.ui.v1:${currentUserId}:${familyId}`, [currentUserId, familyId]);
 
@@ -293,18 +444,168 @@ export function TasksClient({
   const activeLabels = visibilityMode === "my" ? personalLabels : familyLabels;
   const drawerLabelOptions = useMemo(() => [...personalLabels, ...familyLabels], [personalLabels, familyLabels]);
   const quickAddLabelOptions = activeLabels;
-  const quickHashQuery = findHashTokenAtEnd(quickTitle);
-  const quickHashSuggestions = useMemo(() => {
-    if (quickHashQuery === null) return [] as TaskLabel[];
-    const normalized = quickHashQuery.toLowerCase();
-    return quickAddLabelOptions
-      .filter((label) => (normalized.length === 0 ? true : label.name.toLowerCase().includes(normalized)))
-      .slice(0, 8);
-  }, [quickAddLabelOptions, quickHashQuery]);
+  const quickAssignee = useMemo(
+    () => assignees.find((assignee) => assignee.userId === quickAssignedToUserId) ?? null,
+    [assignees, quickAssignedToUserId]
+  );
 
   useEffect(() => {
     setSelectedLabelIds((current) => current.filter((labelId) => activeLabels.some((label) => label.id === labelId)));
   }, [activeLabels]);
+
+  useEffect(() => {
+    if (visibilityMode !== "family" && calendarTaskColorBy === "visibility") {
+      setCalendarTaskColorBy("label");
+    }
+  }, [calendarTaskColorBy, visibilityMode]);
+
+  useEffect(() => {
+    setQuickLabelIds((current) => current.filter((labelId) => quickAddLabelOptions.some((label) => label.id === labelId)));
+  }, [quickAddLabelOptions]);
+
+  const quickShortcutOptions = useMemo(() => {
+    if (!quickShortcutSession) return [] as QuickShortcutOption[];
+
+    const normalizedQuery = quickShortcutSession.query.trim().toLowerCase();
+
+    if (quickShortcutSession.trigger === "#") {
+      return quickAddLabelOptions
+        .filter((label) => (normalizedQuery.length === 0 ? true : label.name.toLowerCase().includes(normalizedQuery)))
+        .map<QuickShortcutOption>((label) => ({
+          id: `label:${label.id}`,
+          title: label.name,
+          group: t("tasks.labels", "Labels"),
+          selected: quickLabelIds.includes(label.id),
+          color: label.color,
+          action: { type: "label", labelId: label.id }
+        }))
+        .slice(0, 8);
+    }
+
+    if (quickShortcutSession.trigger === "@") {
+      return assignees
+        .filter((assignee) => (normalizedQuery.length === 0 ? true : assignee.displayName.toLowerCase().includes(normalizedQuery)))
+        .map<QuickShortcutOption>((assignee) => ({
+          id: `assignee:${assignee.userId}`,
+          title: assignee.displayName,
+          group: t("tasks.assignees", "Assignees"),
+          selected: quickAssignedToUserId === assignee.userId,
+          action: { type: "assignee", userId: assignee.userId }
+        }))
+        .slice(0, 8);
+    }
+
+    const dueDateOptions: QuickShortcutOption[] = [
+      {
+        id: "due:today",
+        title: t("calendar.today", "Today"),
+        subtitle: t("tasks.shortcutDueToday", "Set the due date to today at the end of the day"),
+        group: t("tasks.dueDate", "Due date"),
+        selected: quickDueAtLocal === endOfDayLocal(new Date()),
+        action: { type: "due_date", dueAtLocal: endOfDayLocal(new Date()) }
+      },
+      {
+        id: "due:tomorrow",
+        title: t("calendar.tomorrow", "Tomorrow"),
+        subtitle: t("tasks.shortcutDueTomorrow", "Set the due date to tomorrow at the end of the day"),
+        group: t("tasks.dueDate", "Due date"),
+        selected: quickDueAtLocal === endOfDayLocal(new Date(Date.now() + 24 * 60 * 60 * 1000)),
+        action: { type: "due_date", dueAtLocal: endOfDayLocal(new Date(Date.now() + 24 * 60 * 60 * 1000)) }
+      },
+      {
+        id: "due:this_week",
+        title: t("tasks.thisWeek", "This week"),
+        subtitle: t("tasks.shortcutDueThisWeek", "Set the due date to the upcoming Friday at the end of the day"),
+        group: t("tasks.dueDate", "Due date"),
+        selected: quickDueAtLocal === upcomingFriday(new Date()),
+        action: { type: "due_date", dueAtLocal: upcomingFriday(new Date()) }
+      },
+      {
+        id: "due:next_week",
+        title: t("tasks.nextWeek", "Next week"),
+        subtitle: t("tasks.shortcutDueNextWeek", "Set the due date to next Friday at the end of the day"),
+        group: t("tasks.dueDate", "Due date"),
+        selected: quickDueAtLocal === upcomingFriday(new Date(), 1),
+        action: { type: "due_date", dueAtLocal: upcomingFriday(new Date(), 1) }
+      }
+    ];
+
+    const labelOptions: QuickShortcutOption[] = quickAddLabelOptions.map<QuickShortcutOption>((label) => ({
+      id: `label:${label.id}`,
+      title: label.name,
+      group: t("tasks.labels", "Labels"),
+      selected: quickLabelIds.includes(label.id),
+      color: label.color,
+      action: { type: "label", labelId: label.id }
+    }));
+
+    const priorityOptions: QuickShortcutOption[] = [
+      {
+        id: "priority:low",
+        title: t("tasks.priorityLow", "Low"),
+        group: t("tasks.priority", "Priority"),
+        selected: quickPriority === "low",
+        action: { type: "priority", priority: "low" }
+      },
+      {
+        id: "priority:medium",
+        title: t("tasks.priorityMedium", "Medium"),
+        group: t("tasks.priority", "Priority"),
+        selected: quickPriority === "medium",
+        action: { type: "priority", priority: "medium" }
+      },
+      {
+        id: "priority:high",
+        title: t("tasks.priorityHigh", "High"),
+        group: t("tasks.priority", "Priority"),
+        selected: quickPriority === "high",
+        action: { type: "priority", priority: "high" }
+      }
+    ];
+
+    const assigneeOptions: QuickShortcutOption[] = assignees.map<QuickShortcutOption>((assignee) => ({
+      id: `assignee:${assignee.userId}`,
+      title: assignee.displayName,
+      group: t("tasks.assignees", "Assignees"),
+      selected: quickAssignedToUserId === assignee.userId,
+      action: { type: "assignee", userId: assignee.userId }
+    }));
+
+    return [...assigneeOptions, ...dueDateOptions, ...labelOptions, ...priorityOptions].filter((option) => {
+      if (normalizedQuery.length === 0) return true;
+      const haystack = `${option.group} ${option.title} ${option.subtitle ?? ""}`.toLowerCase();
+      return haystack.includes(normalizedQuery);
+    });
+  }, [assignees, quickAddLabelOptions, quickAssignedToUserId, quickDueAtLocal, quickLabelIds, quickPriority, quickShortcutSession, t]);
+
+  const quickShortcutGroups = useMemo(() => {
+    const groups: Array<{ name: string; options: QuickShortcutOption[] }> = [];
+    for (const option of quickShortcutOptions) {
+      const existing = groups.find((group) => group.name === option.group);
+      if (existing) {
+        existing.options.push(option);
+      } else {
+        groups.push({ name: option.group, options: [option] });
+      }
+    }
+    return groups;
+  }, [quickShortcutOptions]);
+
+  useEffect(() => {
+    if (quickShortcutOptions.length === 0) {
+      setQuickShortcutActiveIndex(0);
+      return;
+    }
+
+    setQuickShortcutActiveIndex((current) => Math.min(current, quickShortcutOptions.length - 1));
+  }, [quickShortcutOptions]);
+
+  useEffect(() => {
+    if (!quickShortcutSession || !quickShortcutPaletteRef.current) return;
+
+    const activeOption = quickShortcutPaletteRef.current.querySelector<HTMLElement>(`[data-shortcut-option-index="${quickShortcutActiveIndex}"]`);
+    activeOption?.scrollIntoView({ block: "nearest" });
+  }, [quickShortcutActiveIndex, quickShortcutSession, quickShortcutOptions]);
 
   useEffect(() => {
     const onMouseDown = (event: MouseEvent) => {
@@ -315,10 +616,32 @@ export function TasksClient({
       if (filterMenuRef.current && !filterMenuRef.current.contains(target)) {
         setShowFilterMenu(false);
       }
+      if (
+        quickShortcutSession &&
+        quickShortcutPaletteRef.current &&
+        !quickShortcutPaletteRef.current.contains(target) &&
+        quickTitleInputRef.current &&
+        !quickTitleInputRef.current.contains(target)
+      ) {
+        setQuickTitle((current) => cleanShortcutToken(current, quickShortcutSession));
+        setQuickShortcutSession(null);
+        setQuickShortcutAnchor(null);
+      }
     };
 
     document.addEventListener("mousedown", onMouseDown);
     return () => document.removeEventListener("mousedown", onMouseDown);
+  }, [quickShortcutSession]);
+
+  useEffect(() => {
+    return () => {
+      if (calendarHoverHideTimeoutRef.current) {
+        window.clearTimeout(calendarHoverHideTimeoutRef.current);
+      }
+      if (calendarOverflowHideTimeoutRef.current) {
+        window.clearTimeout(calendarOverflowHideTimeoutRef.current);
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -337,6 +660,8 @@ export function TasksClient({
     setDisplayMode("list");
     setDensityMode("comfortable");
     setBoardExpanded(false);
+    setCalendarTaskView("due");
+    setCalendarTaskColorBy("label");
 
     if (typeof window === "undefined") {
       setPreferencesLoaded(true);
@@ -380,6 +705,18 @@ export function TasksClient({
       if (typeof parsed.boardExpanded === "boolean") {
         setBoardExpanded(parsed.boardExpanded);
       }
+      if (parsed.calendarTaskView === "due" || parsed.calendarTaskView === "duration") {
+        setCalendarTaskView(parsed.calendarTaskView);
+      }
+      if (
+        parsed.calendarTaskColorBy === "label" ||
+        parsed.calendarTaskColorBy === "status" ||
+        parsed.calendarTaskColorBy === "priority" ||
+        parsed.calendarTaskColorBy === "due_proximity" ||
+        parsed.calendarTaskColorBy === "visibility"
+      ) {
+        setCalendarTaskColorBy(parsed.calendarTaskColorBy);
+      }
     } catch {
       // Ignore malformed preference payloads.
     }
@@ -399,17 +736,20 @@ export function TasksClient({
       labelMatchMode,
       displayMode,
       densityMode,
-      boardExpanded
+      boardExpanded,
+      calendarTaskView,
+      calendarTaskColorBy
     };
 
     window.localStorage.setItem(preferencesStorageKey, JSON.stringify(payload));
-  }, [preferencesStorageKey, preferencesLoaded, visibilityMode, smartView, selectedLabelIds, labelMatchMode, displayMode, densityMode, boardExpanded]);
+  }, [preferencesStorageKey, preferencesLoaded, visibilityMode, smartView, selectedLabelIds, labelMatchMode, displayMode, densityMode, boardExpanded, calendarTaskView, calendarTaskColorBy]);
 
   const queryKey = ["tasks", familyId, visibilityMode] as const;
 
   const { data, isPending, error } = useQuery({
     queryKey,
-    queryFn: () => fetchTasks(familyId, visibilityMode === "my")
+    queryFn: () => fetchTasks(familyId, visibilityMode === "my"),
+    initialData: visibilityMode === "my" ? initialTasks : undefined
   });
 
   useEffect(() => {
@@ -579,7 +919,7 @@ export function TasksClient({
     } else if (smartView === "completed") {
       tasksForView = tasksForView.filter((task) => task.status === "done");
     } else if (smartView === "all") {
-      tasksForView = tasksForView;
+      tasksForView = tasksForView.filter((task) => (showCompleted ? true : task.status !== "done"));
     } else {
       tasksForView = tasksForView.filter((task) => (showCompleted ? true : task.status !== "done"));
     }
@@ -676,11 +1016,121 @@ export function TasksClient({
     return map;
   }, [filteredTasks]);
 
+  const durationTasksByDay = useMemo(() => {
+    const map = new Map<string, CalendarTaskSegment[]>();
+
+    for (const task of filteredTasks) {
+      const taskStart = startDateOnly(task) ?? dueDateOnly(task);
+      const taskEnd = dueDateOnly(task) ?? taskStart;
+
+      if (!taskStart || !taskEnd) continue;
+
+      const rangeStart = taskStart <= taskEnd ? taskStart : taskEnd;
+      const rangeEnd = taskEnd >= taskStart ? taskEnd : taskStart;
+      const cursor = new Date(rangeStart);
+
+      while (cursor <= rangeEnd) {
+        const key = format(cursor, "yyyy-MM-dd");
+        const bucket = map.get(key) ?? [];
+        bucket.push({
+          task,
+          isStart: isSameDay(cursor, rangeStart),
+          isEnd: isSameDay(cursor, rangeEnd)
+        });
+        map.set(key, bucket);
+        cursor.setDate(cursor.getDate() + 1);
+      }
+    }
+
+    return map;
+  }, [filteredTasks]);
+
+  const calendarDurationLanesByDay = useMemo(() => {
+    const map = new Map<string, CalendarTaskLaneSegment[]>();
+
+    for (let weekIndex = 0; weekIndex < monthGridDays.length; weekIndex += 7) {
+      const weekDays = monthGridDays.slice(weekIndex, weekIndex + 7);
+      if (weekDays.length === 0) continue;
+
+      const weekStartDay = weekDays[0];
+      const weekEndDay = weekDays[weekDays.length - 1];
+      const weekTasks = filteredTasks
+        .map((task) => {
+          const taskStart = startDateOnly(task) ?? dueDateOnly(task);
+          const taskEnd = dueDateOnly(task) ?? taskStart;
+          if (!taskStart || !taskEnd) return null;
+
+          const rangeStart = compareCalendarDate(taskStart, taskEnd) <= 0 ? taskStart : taskEnd;
+          const rangeEnd = compareCalendarDate(taskStart, taskEnd) <= 0 ? taskEnd : taskStart;
+
+          if (compareCalendarDate(rangeEnd, weekStartDay) < 0 || compareCalendarDate(rangeStart, weekEndDay) > 0) {
+            return null;
+          }
+
+          return { task, rangeStart, rangeEnd };
+        })
+        .filter((value): value is { task: TaskRow; rangeStart: Date; rangeEnd: Date } => Boolean(value))
+        .sort((left, right) => {
+          const startCompare = compareCalendarDate(left.rangeStart, right.rangeStart);
+          if (startCompare !== 0) return startCompare;
+          const endCompare = compareCalendarDate(left.rangeEnd, right.rangeEnd);
+          if (endCompare !== 0) return endCompare;
+          return left.task.title.localeCompare(right.task.title);
+        });
+
+      const laneEndDates: Date[] = [];
+
+      for (const entry of weekTasks) {
+        let lane = laneEndDates.findIndex((laneEnd) => compareCalendarDate(laneEnd, entry.rangeStart) < 0);
+        if (lane === -1) {
+          lane = laneEndDates.length;
+          laneEndDates.push(entry.rangeEnd);
+        } else {
+          laneEndDates[lane] = entry.rangeEnd;
+        }
+
+        for (const day of weekDays) {
+          if (compareCalendarDate(day, entry.rangeStart) < 0 || compareCalendarDate(day, entry.rangeEnd) > 0) {
+            continue;
+          }
+
+          const key = format(day, "yyyy-MM-dd");
+          const bucket = map.get(key) ?? [];
+          bucket.push({
+            task: entry.task,
+            lane,
+            isStart: isSameDay(day, entry.rangeStart),
+            isEnd: isSameDay(day, entry.rangeEnd)
+          });
+          map.set(key, bucket);
+        }
+      }
+    }
+
+    for (const [key, segments] of map.entries()) {
+      segments.sort((left, right) => left.lane - right.lane || left.task.title.localeCompare(right.task.title));
+      map.set(key, segments);
+    }
+
+    return map;
+  }, [filteredTasks, monthGridDays]);
+
   const selectedDayTasks = useMemo(() => {
     if (!selectedCalendarDay) return [] as TaskRow[];
     const key = format(selectedCalendarDay, "yyyy-MM-dd");
+    if (calendarTaskView === "duration") {
+      const segments = durationTasksByDay.get(key) ?? [];
+      const seen = new Set<string>();
+      return segments
+        .filter(({ task }) => {
+          if (seen.has(task.id)) return false;
+          seen.add(task.id);
+          return true;
+        })
+        .map(({ task }) => task);
+    }
     return dueTasksByDay.get(key) ?? [];
-  }, [dueTasksByDay, selectedCalendarDay]);
+  }, [calendarTaskView, dueTasksByDay, durationTasksByDay, selectedCalendarDay]);
 
   const sortedComments = useMemo(() => {
     const comments = [...(selectedTaskCommentsQuery.data ?? [])];
@@ -825,6 +1275,153 @@ export function TasksClient({
     );
   }
 
+  function getCalendarTaskPalette(task: TaskRow) {
+    if (task.status === "done") {
+      return {
+        background: "#ececec",
+        borderColor: "#d4d4d4",
+        textColor: "#7a7a7a"
+      };
+    }
+
+    if (calendarTaskColorBy === "status") {
+      const palette: Record<TaskStatus, { background: string; borderColor: string; textColor: string }> = {
+        inbox: { background: "#e0ecff", borderColor: "#7aa6ff", textColor: "#1f4ea3" },
+        planned: { background: "#e7e8ff", borderColor: "#8b90ff", textColor: "#4a4fb8" },
+        in_progress: { background: "#def7f1", borderColor: "#3ab99c", textColor: "#136b58" },
+        waiting: { background: "#fff2de", borderColor: "#f0a647", textColor: "#9a5d10" },
+        done: { background: "#ececec", borderColor: "#d4d4d4", textColor: "#7a7a7a" }
+      };
+      return palette[task.status];
+    }
+
+    if (calendarTaskColorBy === "priority") {
+      const palette = {
+        low: { background: "#e8f6ed", borderColor: "#69b983", textColor: "#1f6f3f" },
+        medium: { background: "#fff4de", borderColor: "#f0b14d", textColor: "#9a6511" },
+        high: { background: "#ffe5e5", borderColor: "#ef6b6b", textColor: "#a52a2a" }
+      };
+      return palette[task.priority];
+    }
+
+    if (calendarTaskColorBy === "due_proximity") {
+      const due = task.dueAt ? new Date(task.dueAt) : null;
+      if (!due) {
+        return { background: "#f2f4f7", borderColor: "#cfd6df", textColor: "#566170" };
+      }
+      if (isOverdue(task, now)) {
+        return { background: "#ffe5e5", borderColor: "#ef6b6b", textColor: "#a52a2a" };
+      }
+      const tomorrow = new Date(todayStart);
+      tomorrow.setDate(todayStart.getDate() + 1);
+      const nextWeek = new Date(todayStart);
+      nextWeek.setDate(todayStart.getDate() + 7);
+      if (due < tomorrow) {
+        return { background: "#fff1db", borderColor: "#f59e0b", textColor: "#9a6511" };
+      }
+      if (due <= nextWeek) {
+        return { background: "#e4f0ff", borderColor: "#60a5fa", textColor: "#1d4ed8" };
+      }
+      return { background: "#e6f8f1", borderColor: "#3ab99c", textColor: "#136b58" };
+    }
+
+    if (calendarTaskColorBy === "visibility" && visibilityMode === "family") {
+      const palette = {
+        private: { background: "#ffe7f1", borderColor: "#ef5d95", textColor: "#a52b5f" },
+        family: { background: "#e6efff", borderColor: "#4f7df3", textColor: "#234da7" },
+        selected_members: { background: "#efe8ff", borderColor: "#8b5cf6", textColor: "#5b33b6" }
+      };
+      return palette[task.visibility];
+    }
+
+    if (task.labels.length > 0) {
+      const colors = task.labels.slice(0, 3).map((label) => label.color);
+      return {
+        background:
+          colors.length === 1
+            ? `${colors[0]}22`
+            : `linear-gradient(135deg, ${colors
+                .map((color, index) => `${color}22 ${Math.round(index * (100 / colors.length))}%`)
+                .join(", ")})`,
+        borderColor: colors[0],
+        textColor: "#0f5132"
+      };
+    }
+
+    return {
+      background: "#e6f8f1",
+      borderColor: "#3ab99c",
+      textColor: "#136b58"
+    };
+  }
+
+  function getCalendarTaskStyle(task: TaskRow) {
+    const palette = getCalendarTaskPalette(task);
+    const isAssignedToCurrentUser = !task.assignedToUserId || task.assignedToUserId === currentUserId;
+
+    return {
+      "--calendar-task-background": isAssignedToCurrentUser ? palette.background : "#ffffff",
+      "--calendar-task-border": palette.borderColor,
+      "--calendar-task-text": palette.textColor,
+      "--calendar-task-decoration": task.status === "done" ? "line-through" : "none"
+    } as CSSProperties;
+  }
+
+  function showCalendarHoverCard(task: TaskRow, event: ReactMouseEvent<HTMLElement>) {
+    if (calendarHoverHideTimeoutRef.current) {
+      window.clearTimeout(calendarHoverHideTimeoutRef.current);
+      calendarHoverHideTimeoutRef.current = null;
+    }
+    const rect = event.currentTarget.getBoundingClientRect();
+    setCalendarHoverCard({
+      taskId: task.id,
+      left: rect.left + rect.width / 2,
+      top: rect.top - 10
+    });
+  }
+
+  function hideCalendarHoverCard(taskId?: string) {
+    if (calendarHoverHideTimeoutRef.current) {
+      window.clearTimeout(calendarHoverHideTimeoutRef.current);
+    }
+    calendarHoverHideTimeoutRef.current = window.setTimeout(() => {
+      setCalendarHoverCard((current) => {
+        if (!current) return null;
+        if (taskId && current.taskId !== taskId) return current;
+        return null;
+      });
+      calendarHoverHideTimeoutRef.current = null;
+    }, 140);
+  }
+
+  function showCalendarOverflowCard(dayKey: string, taskIds: string[], event: ReactMouseEvent<HTMLElement>) {
+    if (calendarOverflowHideTimeoutRef.current) {
+      window.clearTimeout(calendarOverflowHideTimeoutRef.current);
+      calendarOverflowHideTimeoutRef.current = null;
+    }
+    const rect = event.currentTarget.getBoundingClientRect();
+    setCalendarOverflowCard({
+      dayKey,
+      taskIds,
+      left: rect.left + rect.width / 2,
+      top: rect.top - 8
+    });
+  }
+
+  function hideCalendarOverflowCard(dayKey?: string) {
+    if (calendarOverflowHideTimeoutRef.current) {
+      window.clearTimeout(calendarOverflowHideTimeoutRef.current);
+    }
+    calendarOverflowHideTimeoutRef.current = window.setTimeout(() => {
+      setCalendarOverflowCard((current) => {
+        if (!current) return null;
+        if (dayKey && current.dayKey !== dayKey) return current;
+        return null;
+      });
+      calendarOverflowHideTimeoutRef.current = null;
+    }, 140);
+  }
+
   function renderTaskCard(task: TaskRow, compact = false) {
     const densityClass = densityMode === "compact" ? "is-density-compact" : densityMode === "spacious" ? "is-density-spacious" : "";
     const overdue = isOverdue(task, now);
@@ -933,18 +1530,91 @@ export function TasksClient({
     setQuickDescription("");
     setQuickDueAtLocal("");
     setQuickPriority("medium");
+    setQuickAssignedToUserId(currentUserId);
     setQuickLabelIds([]);
-    setShowQuickLabelPicker(false);
+    setQuickShortcutSession(null);
+    setQuickShortcutActiveIndex(0);
+    setQuickShortcutAnchor(null);
     setQuickAddError(null);
   }
 
-  function applyQuickHashLabel(label: TaskLabel) {
-    setQuickLabelIds((current) => (current.includes(label.id) ? current : [...current, label.id]));
-    setQuickTitle((current) => removeTrailingHashToken(current));
+  function applyQuickShortcutOption(option: QuickShortcutOption) {
+    const { action } = option;
+
+    switch (action.type) {
+      case "label":
+        setQuickLabelIds((current) => (current.includes(action.labelId) ? current : [...current, action.labelId]));
+        return;
+      case "assignee":
+        setQuickAssignedToUserId(action.userId);
+        return;
+      case "due_date":
+        setQuickDueAtLocal(action.dueAtLocal);
+        return;
+      case "priority":
+        setQuickPriority(action.priority);
+        return;
+      default:
+        return;
+    }
+  }
+
+  function commitQuickShortcut(sessionOverride?: QuickShortcutSession | null) {
+    const session = sessionOverride ?? quickShortcutSession;
+    if (!session) return;
+
+    setQuickTitle((current) => cleanShortcutToken(current, session));
+    setQuickShortcutSession(null);
+    setQuickShortcutAnchor(null);
+    window.requestAnimationFrame(() => {
+      quickTitleInputRef.current?.focus();
+    });
+  }
+
+  function syncQuickShortcutFromInput(input: HTMLInputElement) {
+    const caret = input.selectionStart ?? input.value.length;
+    const nextSession = findQuickShortcutSession(input.value, caret);
+    setQuickShortcutSession(nextSession);
+    setQuickShortcutActiveIndex(0);
+    setQuickShortcutAnchor(nextSession ? getInputCaretAnchor(input, caret) : null);
+  }
+
+  function handleQuickTitleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (!quickShortcutSession) return;
+
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      if (quickShortcutOptions.length === 0) return;
+      setQuickShortcutActiveIndex((current) => (current + 1) % quickShortcutOptions.length);
+      return;
+    }
+
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      if (quickShortcutOptions.length === 0) return;
+      setQuickShortcutActiveIndex((current) => (current - 1 + quickShortcutOptions.length) % quickShortcutOptions.length);
+      return;
+    }
+
+    if (event.key === "Escape") {
+      event.preventDefault();
+      commitQuickShortcut();
+      return;
+    }
+
+    if (event.key === "Enter" || event.key === "Tab") {
+      event.preventDefault();
+      const activeOption = quickShortcutOptions[quickShortcutActiveIndex];
+      if (activeOption) {
+        applyQuickShortcutOption(activeOption);
+      }
+      commitQuickShortcut();
+    }
   }
 
   async function submitQuickAdd() {
-    const trimmedTitle = quickTitle.trim();
+    const committedTitle = quickShortcutSession ? cleanShortcutToken(quickTitle, quickShortcutSession) : quickTitle;
+    const trimmedTitle = committedTitle.trim();
     if (!trimmedTitle) {
       setQuickAddError(t("tasks.quickAddTitleRequired", "Task name is required"));
       return;
@@ -957,17 +1627,18 @@ export function TasksClient({
     const finalTitle = parsed.cleanedTitle || trimmedTitle;
 
     try {
-      await quickAddMutation.mutateAsync({
-        familyId,
-        title: finalTitle,
-        description: quickDescription.trim() || null,
-        status: "inbox",
-        priority: quickPriority,
-        dueAt: quickDueAtLocal ? new Date(quickDueAtLocal).toISOString() : null,
-        assignedToUserId: currentUserId,
-        visibility: visibilityMode === "my" ? "private" : "family",
-        labelIds
-      });
+        await quickAddMutation.mutateAsync({
+          familyId,
+          title: finalTitle,
+          description: quickDescription.trim() || null,
+          status: "inbox",
+          priority: quickPriority,
+          startAt: new Date().toISOString(),
+          dueAt: quickDueAtLocal ? new Date(quickDueAtLocal).toISOString() : null,
+          assignedToUserId: quickAssignedToUserId || currentUserId,
+          visibility: visibilityMode === "my" ? "private" : "family",
+          labelIds
+        });
       closeQuickAdd();
     } catch (error) {
       const message = error instanceof Error ? error.message : t("tasks.saveError", "Failed to save task");
@@ -1264,15 +1935,49 @@ export function TasksClient({
         ) : null}
 
         {!isPending && !error && displayMode === "calendar" ? (
-          <section className="loom-card p-4">
-            <div className="loom-calendar-header">
-              <button className="loom-calendar-nav" type="button" onClick={() => setCalendarMonth((value) => subMonths(value, 1))} aria-label={t("calendar.previousMonth", "Previous month")}>
-                ‹
-              </button>
-              <h3 className="loom-calendar-month">{format(calendarMonth, "MMMM yyyy", { locale: resolveDateFnsLocale(locale) })}</h3>
-              <button className="loom-calendar-nav" type="button" onClick={() => setCalendarMonth((value) => addMonths(value, 1))} aria-label={t("calendar.nextMonth", "Next month")}>
-                ›
-              </button>
+            <section className="loom-card p-4">
+            <div className="loom-calendar-toolbar">
+              <div className="loom-calendar-header">
+                <button className="loom-calendar-nav" type="button" onClick={() => setCalendarMonth((value) => subMonths(value, 1))} aria-label={t("calendar.previousMonth", "Previous month")}>
+                  ‹
+                </button>
+                <h3 className="loom-calendar-month">{format(calendarMonth, "MMMM yyyy", { locale: resolveDateFnsLocale(locale) })}</h3>
+                <button className="loom-calendar-nav" type="button" onClick={() => setCalendarMonth((value) => addMonths(value, 1))} aria-label={t("calendar.nextMonth", "Next month")}>
+                  ›
+                </button>
+              </div>
+
+              <div className="loom-task-calendar-view-toggle" role="group" aria-label={t("tasks.calendarTaskView", "Task calendar view")}>
+                <button
+                  type="button"
+                  className={calendarTaskView === "due" ? "is-active" : ""}
+                  onClick={() => setCalendarTaskView("due")}
+                >
+                  {t("tasks.calendarDueView", "Due dates")}
+                </button>
+                <button
+                  type="button"
+                  className={calendarTaskView === "duration" ? "is-active" : ""}
+                  onClick={() => setCalendarTaskView("duration")}
+                >
+                  {t("tasks.calendarDurationView", "Duration")}
+                </button>
+              </div>
+
+              <label className="loom-task-calendar-color-field">
+                <span>{t("tasks.calendarColorBy", "Color by")}</span>
+                <select
+                  className="loom-input"
+                  value={calendarTaskColorBy}
+                  onChange={(event) => setCalendarTaskColorBy(event.target.value as CalendarTaskColorBy)}
+                >
+                  <option value="label">{t("tasks.calendarColorByLabel", "Label")}</option>
+                  <option value="status">{t("tasks.status", "Status")}</option>
+                  <option value="priority">{t("tasks.priority", "Priority")}</option>
+                  <option value="due_proximity">{t("tasks.calendarColorByDue", "Due date proximity")}</option>
+                  {visibilityMode === "family" ? <option value="visibility">{t("common.visibility", "Visibility")}</option> : null}
+                </select>
+              </label>
             </div>
 
             <div className="loom-calendar-weekdays mt-3">
@@ -1287,24 +1992,163 @@ export function TasksClient({
               {monthGridDays.map((day) => {
                 const key = format(day, "yyyy-MM-dd");
                 const dayTasks = dueTasksByDay.get(key) ?? [];
+                const daySegments = calendarDurationLanesByDay.get(key) ?? [];
+                const maxVisibleLanes = 3;
+                const lanes = Array.from({ length: maxVisibleLanes }, (_, lane) => daySegments.find((segment) => segment.lane === lane) ?? null);
+                const hiddenLaneCount = Math.max(0, daySegments.length - maxVisibleLanes);
+                const hiddenTaskIds = daySegments.slice(maxVisibleLanes).map((segment) => segment.task.id);
                 const isSelected = selectedCalendarDay ? isSameDay(selectedCalendarDay, day) : false;
+                const hasItems = calendarTaskView === "duration" ? daySegments.length > 0 : dayTasks.length > 0;
                 return (
-                  <button
+                  <div
                     key={key}
-                    type="button"
-                    className={`loom-calendar-day ${isSameMonth(day, calendarMonth) ? "" : "is-muted"} ${isSelected ? "is-selected" : ""} ${dayTasks.length > 0 ? "is-has-items" : ""}`}
+                    className={`loom-calendar-day ${isSameMonth(day, calendarMonth) ? "" : "is-muted"} ${isSelected ? "is-selected" : ""} ${hasItems ? "is-has-items" : ""}`}
+                    role="button"
+                    tabIndex={0}
                     onClick={() => setSelectedCalendarDay((current) => (current && isSameDay(current, day) ? null : day))}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        setSelectedCalendarDay((current) => (current && isSameDay(current, day) ? null : day));
+                      }
+                    }}
                   >
                     <span className="loom-calendar-day-number">{format(day, "d")}</span>
-                    <span className="loom-calendar-dots">
-                      {dayTasks.slice(0, 3).map((task) => (
-                        <span key={`${task.id}-${key}`} className="loom-calendar-dot is-task" />
-                      ))}
-                    </span>
-                  </button>
+                    {calendarTaskView === "duration" ? (
+                      <span className="loom-calendar-ranges is-duration-view">
+                        {lanes.map((segment, lane) =>
+                          segment ? (
+                            <span
+                              key={`${segment.task.id}-${key}-${lane}`}
+                              className={`loom-calendar-range-pill ${segment.isStart ? "is-start" : "is-continued-left"} ${segment.isEnd ? "is-end" : "is-continued-right"}`.trim()}
+                              title={segment.task.title}
+                              style={getCalendarTaskStyle(segment.task)}
+                              onMouseEnter={(event) => showCalendarHoverCard(segment.task, event)}
+                              onMouseLeave={() => hideCalendarHoverCard(segment.task.id)}
+                            >
+                              {segment.isStart ? segment.task.title : "\u00A0"}
+                            </span>
+                          ) : (
+                            <span key={`empty-${key}-${lane}`} className="loom-calendar-range-slot" aria-hidden="true" />
+                          )
+                        )}
+                        <span className="loom-calendar-range-more-slot">
+                          {hiddenLaneCount > 0 ? (
+                            <button
+                              type="button"
+                              className="loom-calendar-range-more"
+                              onClick={(event) => event.stopPropagation()}
+                              onMouseEnter={(event) => showCalendarOverflowCard(key, hiddenTaskIds, event)}
+                              onMouseLeave={() => hideCalendarOverflowCard(key)}
+                            >
+                              +{hiddenLaneCount}
+                            </button>
+                          ) : null}
+                        </span>
+                      </span>
+                    ) : (
+                      <span className="loom-calendar-dots">
+                        {dayTasks.slice(0, 3).map((task) => (
+                          <span
+                            key={`${task.id}-${key}`}
+                            className="loom-calendar-dot is-task"
+                            style={{ background: getCalendarTaskPalette(task).borderColor }}
+                            onMouseEnter={(event) => showCalendarHoverCard(task, event)}
+                            onMouseLeave={() => hideCalendarHoverCard(task.id)}
+                          />
+                        ))}
+                      </span>
+                    )}
+                  </div>
                 );
               })}
             </div>
+
+            {calendarHoverCard ? (
+              (() => {
+                const hoveredTask = allTasks.find((task) => task.id === calendarHoverCard.taskId);
+                if (!hoveredTask) return null;
+
+                const hoveredAssignee = hoveredTask.assignedToUserId ? assigneeMap.get(hoveredTask.assignedToUserId) : null;
+                return (
+                  <div
+                    className="loom-calendar-task-hover-card"
+                    style={{ left: calendarHoverCard.left, top: calendarHoverCard.top }}
+                    onMouseEnter={() => {
+                      if (calendarHoverHideTimeoutRef.current) {
+                        window.clearTimeout(calendarHoverHideTimeoutRef.current);
+                        calendarHoverHideTimeoutRef.current = null;
+                      }
+                    }}
+                    onMouseLeave={() => hideCalendarHoverCard()}
+                  >
+                    <div className="loom-row-between">
+                      <strong>{hoveredTask.title}</strong>
+                      <button
+                        type="button"
+                        className="loom-calendar-task-hover-edit"
+                        aria-label={t("tasks.editTask", "Edit task")}
+                        onClick={() => {
+                          setSelectedTaskId(hoveredTask.id);
+                          setCalendarHoverCard(null);
+                        }}
+                      >
+                        ↗
+                      </button>
+                    </div>
+                    <div className="loom-calendar-task-hover-grid">
+                      <span>{statusLabel(hoveredTask.status, t)}</span>
+                      <span>{formatDue(hoveredTask, t, dateLocale)}</span>
+                      <span>{hoveredTask.priority === "high" ? t("tasks.priorityHigh", "High") : hoveredTask.priority === "medium" ? t("tasks.priorityMedium", "Medium") : t("tasks.priorityLow", "Low")}</span>
+                      <span>{hoveredAssignee?.displayName ?? t("tasks.unassigned", "Unassigned")}</span>
+                    </div>
+                  </div>
+                );
+              })()
+            ) : null}
+
+            {calendarOverflowCard ? (
+              (() => {
+                const overflowTasks = calendarOverflowCard.taskIds
+                  .map((taskId) => allTasks.find((task) => task.id === taskId) ?? null)
+                  .filter((task): task is TaskRow => Boolean(task));
+
+                if (overflowTasks.length === 0) return null;
+
+                return (
+                  <div
+                    className="loom-calendar-overflow-card"
+                    style={{ left: calendarOverflowCard.left, top: calendarOverflowCard.top }}
+                    onMouseEnter={() => {
+                      if (calendarOverflowHideTimeoutRef.current) {
+                        window.clearTimeout(calendarOverflowHideTimeoutRef.current);
+                        calendarOverflowHideTimeoutRef.current = null;
+                      }
+                    }}
+                    onMouseLeave={() => hideCalendarOverflowCard()}
+                  >
+                    <table>
+                      <tbody>
+                        {overflowTasks.map((task) => (
+                          <tr key={task.id}>
+                            <td>
+                              <span
+                                className="loom-calendar-overflow-task"
+                                style={getCalendarTaskStyle(task)}
+                                onMouseEnter={(event) => showCalendarHoverCard(task, event)}
+                                onMouseLeave={() => hideCalendarHoverCard(task.id)}
+                              >
+                                {task.title}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })()
+            ) : null}
 
             {selectedCalendarDay ? (
               <div className="mt-4">
@@ -1323,31 +2167,85 @@ export function TasksClient({
       {showQuickAdd ? (
         <div className="loom-quick-task-overlay" role="presentation">
           <button type="button" className="loom-quick-task-backdrop" aria-label={t("common.cancel", "Cancel")} onClick={closeQuickAdd} />
-          <section className="loom-quick-task-modal" role="dialog" aria-modal="true" aria-label={t("tasks.quickAddTitle", "Quick add task")}>
-            <div className="loom-quick-task-body">
-              <label className="loom-field">
-                <span>{t("tasks.quickTaskName", "Task name")}</span>
-                <input
-                  className="loom-input loom-quick-task-title"
-                  value={quickTitle}
-                  onChange={(event) => setQuickTitle(event.target.value)}
-                  placeholder={t("tasks.quickTaskNamePlaceholder", "Task name")}
-                  autoFocus
-                />
-              </label>
-              {quickHashQuery !== null && quickHashSuggestions.length > 0 ? (
-                <div className="loom-quick-task-hash-suggestions">
-                  {quickHashSuggestions.map((label) => (
-                    <button key={label.id} type="button" className="loom-task-label-chip" onClick={() => applyQuickHashLabel(label)} style={{ borderColor: label.color }}>
-                      <i style={{ backgroundColor: label.color }} />
-                      {label.name}
-                    </button>
-                  ))}
-                </div>
-              ) : null}
+            <section className="loom-quick-task-modal" role="dialog" aria-modal="true" aria-label={t("tasks.quickAddTitle", "Quick add task")}>
+              <div className="loom-quick-task-body">
+                <label className="loom-field loom-quick-task-title-field">
+                  <span>{t("tasks.quickTaskName", "Task name")}</span>
+                  <input
+                    className="loom-input loom-quick-task-title"
+                    ref={quickTitleInputRef}
+                    value={quickTitle}
+                    onChange={(event) => {
+                      setQuickTitle(event.target.value);
+                      syncQuickShortcutFromInput(event.target);
+                    }}
+                    onClick={(event) => syncQuickShortcutFromInput(event.currentTarget)}
+                    onSelect={(event) => syncQuickShortcutFromInput(event.currentTarget)}
+                    onKeyDown={handleQuickTitleKeyDown}
+                    placeholder={t("tasks.quickTaskNamePlaceholder", "Task name")}
+                    autoFocus
+                  />
+                </label>
+                {quickShortcutSession && quickShortcutAnchor ? (
+                  <div
+                    ref={quickShortcutPaletteRef}
+                    className="loom-quick-shortcut-palette"
+                    style={{ left: quickShortcutAnchor.left, top: quickShortcutAnchor.top }}
+                    role="listbox"
+                    aria-label={t("tasks.shortcutMenu", "Shortcut options")}
+                  >
+                    <div className="loom-quick-shortcut-header">
+                      <span className="loom-home-pill is-muted">{quickShortcutSession.trigger}</span>
+                      <span>{t("tasks.shortcutHint", "Use arrows plus Enter or Tab to pick")}</span>
+                    </div>
+                    {quickShortcutGroups.length > 0 ? (
+                      quickShortcutGroups.map((group) => (
+                        <div key={group.name} className="loom-quick-shortcut-group">
+                          <p className="loom-quick-shortcut-group-title">{group.name}</p>
+                          <div className="loom-quick-shortcut-options">
+                            {group.options.map((option) => {
+                              const absoluteIndex = quickShortcutOptions.findIndex((candidate) => candidate.id === option.id);
+                              const isActive = absoluteIndex === quickShortcutActiveIndex;
 
-              <label className="loom-field mt-2">
-                <span>{t("common.description", "Description")}</span>
+                              return (
+                                <button
+                                  key={option.id}
+                                  type="button"
+                                  data-shortcut-option-index={absoluteIndex}
+                                  className={`loom-quick-shortcut-option ${isActive ? "is-active" : ""} ${option.selected ? "is-selected" : ""}`.trim()}
+                                  onMouseDown={(event) => event.preventDefault()}
+                                  onClick={() => applyQuickShortcutOption(option)}
+                                  role="option"
+                                  aria-selected={option.selected}
+                                >
+                                  <span className="loom-quick-shortcut-option-main">
+                                    <span className="loom-quick-shortcut-option-title">
+                                      {option.color ? <i className="loom-quick-shortcut-option-dot" style={{ backgroundColor: option.color }} /> : null}
+                                      {option.title}
+                                    </span>
+                                    {option.subtitle ? <span className="loom-quick-shortcut-option-subtitle">{option.subtitle}</span> : null}
+                                  </span>
+                                  {option.selected ? <span className="loom-quick-shortcut-option-check">✓</span> : null}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="loom-muted small m-0">{t("tasks.noMatchingOptions", "No matching options")}</p>
+                    )}
+                  </div>
+                ) : null}
+
+                <div className="loom-quick-shortcut-help">
+                  <span>`#` {t("tasks.shortcutLabels", "labels")}</span>
+                  <span>`@` {t("tasks.shortcutAssignees", "assignees")}</span>
+                  <span>`/` {t("tasks.shortcutEverything", "everything")}</span>
+                </div>
+
+                <label className="loom-field mt-2">
+                  <span>{t("common.description", "Description")}</span>
                 <textarea
                   className="loom-input loom-textarea"
                   rows={3}
@@ -1372,13 +2270,19 @@ export function TasksClient({
                 </label>
               </div>
 
+              <div className="loom-quick-task-summary">
+                <span className="loom-home-pill is-muted">
+                  {t("tasks.assignee", "Assignee")}: {quickAssignee?.displayName ?? t("tasks.unassigned", "Unassigned")}
+                </span>
+                {quickDueAtLocal ? (
+                  <span className="loom-home-pill is-muted">
+                    {t("tasks.dueDate", "Due date")}: {new Date(new Date(quickDueAtLocal).getTime()).toLocaleString(dateLocale)}
+                  </span>
+                ) : null}
+              </div>
+
               <div className="loom-field mt-2">
-                <div className="loom-row-between">
-                  <span>{t("tasks.labels", "Labels")}</span>
-                  <button type="button" className="loom-button-ghost loom-task-label-add-btn" onClick={() => setShowQuickLabelPicker((value) => !value)}>
-                    +
-                  </button>
-                </div>
+                <span>{t("tasks.labels", "Labels")}</span>
                 <div className="loom-label-list mt-2">
                   {quickLabelIds.map((labelId) => {
                     const label = quickAddLabelOptions.find((option) => option.id === labelId);
@@ -1398,24 +2302,8 @@ export function TasksClient({
                       </span>
                     );
                   })}
+                  {quickLabelIds.length === 0 ? <p className="loom-muted small m-0">{t("tasks.shortcutLabelsEmpty", "Type # to add labels")}</p> : null}
                 </div>
-
-                {showQuickLabelPicker ? (
-                  <div className="loom-label-list mt-2">
-                    {quickAddLabelOptions.filter((label) => !quickLabelIds.includes(label.id)).map((label) => (
-                      <button
-                        key={label.id}
-                        type="button"
-                        className="loom-task-label-chip"
-                        onClick={() => setQuickLabelIds((current) => [...current, label.id])}
-                        style={{ borderColor: label.color }}
-                      >
-                        <i style={{ backgroundColor: label.color }} />
-                        {label.name}
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
               </div>
             </div>
 
@@ -1620,7 +2508,17 @@ export function TasksClient({
                       value={drawerDraft.dueAtLocal}
                       onFocus={() => setDrawerEditor("dueAt")}
                       onBlur={() => setDrawerEditor((value) => (value === "dueAt" ? null : value))}
-                      onChange={(event) => setDrawerDraft((current) => (current ? { ...current, dueAtLocal: event.target.value } : current))}
+                        onChange={(event) => setDrawerDraft((current) => (current ? { ...current, dueAtLocal: event.target.value } : current))}
+                      />
+                  </div>
+
+                  <div className="loom-task-editable-item">
+                    <span className="loom-muted small">{t("tasks.closeDate", "Close date")}</span>
+                    <input
+                      type="datetime-local"
+                      className="loom-input loom-task-inline-control"
+                      value={selectedTask.status === "done" ? formatDateTimeLocal(selectedTask.updatedAt) : ""}
+                      readOnly
                     />
                   </div>
 

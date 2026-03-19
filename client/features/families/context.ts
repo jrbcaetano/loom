@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 
 export type FamilySummary = {
@@ -11,7 +12,7 @@ export type ActiveFamilyContext = {
   families: FamilySummary[];
 };
 
-export async function getActiveFamilyContext(userId: string): Promise<ActiveFamilyContext> {
+export const getActiveFamilyContext = cache(async function getActiveFamilyContext(userId: string): Promise<ActiveFamilyContext> {
   const supabase = await createClient();
 
   await supabase.rpc("claim_family_invites_for_current_user");
@@ -55,4 +56,4 @@ export async function getActiveFamilyContext(userId: string): Promise<ActiveFami
     activeFamilyId,
     families
   };
-}
+});

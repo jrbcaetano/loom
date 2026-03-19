@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { clsx } from "clsx";
-import { useCallback, useEffect, useMemo, useState, type ReactNode, type SVGProps } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type SVGProps } from "react";
 import { SignOutButton } from "@/components/sign-out-button";
 import { useI18n } from "@/lib/i18n/context";
 import { createClient as createSupabaseClient } from "@/lib/supabase/client";
@@ -279,6 +279,8 @@ export function AppShell({
   const [isDocumentVisible, setIsDocumentVisible] = useState(true);
   const [liveUnreadNotificationsCount, setLiveUnreadNotificationsCount] = useState(unreadNotificationsCount);
   const [liveUnreadMessagesCount, setLiveUnreadMessagesCount] = useState(unreadMessagesCount);
+  const refreshInFlightRef = useRef<Promise<void> | null>(null);
+  const lastRefreshAtRef = useRef(0);
   const profileName = (userDisplayName ?? "").trim() || userEmail || t("nav.profile", "Profile");
   const initial = profileName.slice(0, 1).toUpperCase();
   const _activeFamilyName = activeFamilyName;
@@ -364,25 +366,44 @@ export function AppShell({
     };
   }, []);
 
-  const refreshUnreadBadges = useCallback(async () => {
+  const refreshUnreadBadges = useCallback(async (force = false) => {
+    const now = Date.now();
+    if (!force && now - lastRefreshAtRef.current < 15_000) {
+      return refreshInFlightRef.current ?? Promise.resolve();
+    }
+
+    if (refreshInFlightRef.current) {
+      return refreshInFlightRef.current;
+    }
+
     const params = new URLSearchParams();
     if (activeFamilyId) {
       params.set("familyId", activeFamilyId);
     }
 
-    const response = await fetch(`/api/unread-badges?${params.toString()}`, {
-      cache: "no-store"
-    });
-    const payload = (await response.json()) as {
-      unreadNotificationsCount?: number;
-      unreadMessagesCount?: number;
-    };
-    if (!response.ok) {
-      throw new Error("Failed to refresh unread badges");
-    }
+    const refreshPromise = (async () => {
+      const response = await fetch(`/api/unread-badges?${params.toString()}`, {
+        cache: "no-store"
+      });
+      const payload = (await response.json()) as {
+        unreadNotificationsCount?: number;
+        unreadMessagesCount?: number;
+      };
+      if (!response.ok) {
+        throw new Error("Failed to refresh unread badges");
+      }
 
-    setLiveUnreadNotificationsCount(payload.unreadNotificationsCount ?? 0);
-    setLiveUnreadMessagesCount(payload.unreadMessagesCount ?? 0);
+      lastRefreshAtRef.current = Date.now();
+      setLiveUnreadNotificationsCount(payload.unreadNotificationsCount ?? 0);
+      setLiveUnreadMessagesCount(payload.unreadMessagesCount ?? 0);
+    })();
+
+    refreshInFlightRef.current = refreshPromise;
+    try {
+      await refreshPromise;
+    } finally {
+      refreshInFlightRef.current = null;
+    }
   }, [activeFamilyId]);
 
   useEffect(() => {
@@ -392,7 +413,7 @@ export function AppShell({
 
     let isCancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
-    let backoffMs = 30_000;
+    let backoffMs = 120_000;
 
     const schedule = (delay: number) => {
       if (isCancelled) return;
@@ -411,7 +432,7 @@ export function AppShell({
 
       try {
         await refreshUnreadBadges();
-        backoffMs = 30_000;
+        backoffMs = 120_000;
         schedule(backoffMs);
       } catch {
         backoffMs = Math.min(backoffMs * 2, 120_000);
@@ -420,17 +441,17 @@ export function AppShell({
     };
 
     const onFocus = () => {
-      void tick();
+      void refreshUnreadBadges(true);
     };
 
     const onOnline = () => {
-      void tick();
+      void refreshUnreadBadges(true);
     };
 
     window.addEventListener("focus", onFocus);
     window.addEventListener("online", onOnline);
 
-    void tick();
+    schedule(backoffMs);
 
     return () => {
       isCancelled = true;
@@ -453,9 +474,6 @@ export function AppShell({
       .on("postgres_changes", { event: "*", schema: "public", table: "notifications" }, () => {
         void refreshUnreadBadges();
       })
-      .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, () => {
-        void refreshUnreadBadges();
-      })
       .subscribe();
 
     return () => {
@@ -468,7 +486,7 @@ export function AppShell({
       <aside className="loom-sidebar">
         <div className="px-2">
           <Link href="/home" className="loom-brand">
-            <Image src="/brand/loom-symbol.png" alt="" width={50} height={50} className="loom-brand-badge" aria-hidden />
+            <Image src="/brand/loom-symbol.png" alt="" width={30} height={30} className="loom-brand-badge" aria-hidden />
             <span>Loom</span>
           </Link>
         </div>
@@ -547,7 +565,7 @@ export function AppShell({
           <header className="loom-mobile-header">
             <div className="loom-mobile-header-inner">
               <Link href="/home" className="loom-mobile-brand">
-                <Image src="/brand/loom-symbol.png" alt="" width={50} height={50} className="loom-brand-badge" aria-hidden />
+                <Image src="/brand/loom-symbol.png" alt="" width={30} height={30} className="loom-brand-badge" aria-hidden />
                 <span>Loom</span>
               </Link>
               <div className="loom-mobile-header-actions">

@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireUser } from "@/lib/auth";
@@ -94,7 +95,7 @@ export async function assertProductAdmin() {
   return { userId: user.id };
 }
 
-export async function getProductFeatureAvailability(): Promise<ProductFeatureAvailability> {
+export const getProductFeatureAvailability = cache(async function getProductFeatureAvailability(): Promise<ProductFeatureAvailability> {
   const defaults = getDefaultProductFeatureAvailability();
   const supabase = await createClient();
   const { data, error } = await supabase.from("product_feature_flags").select("feature_key, is_enabled");
@@ -113,7 +114,7 @@ export async function getProductFeatureAvailability(): Promise<ProductFeatureAva
   }
 
   return normalizeProductFeatureAvailability(partial);
-}
+});
 
 export async function getProductFeatureFlags(): Promise<ProductFeatureFlag[]> {
   await assertProductAdmin();

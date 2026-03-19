@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { getActiveFamilyContext } from "@/features/families/context";
 import { ChoresClient } from "@/features/chores/chores-client";
+import { getChores } from "@/features/chores/server";
 import { getFamilyMembers } from "@/features/families/server";
 import { getServerI18n } from "@/lib/i18n/server";
 
@@ -16,6 +17,7 @@ export default async function ChoresPage() {
   const members = (await getFamilyMembers(context.activeFamilyId))
     .filter((member) => member.userId)
     .map((member) => ({ userId: member.userId!, displayName: member.fullName ?? member.email ?? t("common.member", "Member") }));
+  const initialChores = await getChores(context.activeFamilyId);
 
   return (
     <div className="loom-module-page">
@@ -28,7 +30,7 @@ export default async function ChoresPage() {
           {t("chores.new", "New chore")}
         </Link>
       </section>
-      <ChoresClient familyId={context.activeFamilyId} members={members} />
+      <ChoresClient familyId={context.activeFamilyId} members={members} initialChores={initialChores} />
     </div>
   );
 }

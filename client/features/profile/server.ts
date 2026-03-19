@@ -1,6 +1,8 @@
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { getAuthAvatarUrl, getAuthDisplayName } from "@/lib/auth-user";
 import { z } from "zod";
+import { getCurrentUser } from "@/lib/auth";
 
 const profileSchema = z.object({
   fullName: z.string().trim().min(1).max(120),
@@ -16,15 +18,13 @@ export type ProfileRow = {
   preferredLocale: string;
 };
 
-export async function getMyProfile(): Promise<ProfileRow | null> {
-  const supabase = await createClient();
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
-
+export const getMyProfile = cache(async function getMyProfile(): Promise<ProfileRow | null> {
+  const user = await getCurrentUser();
   if (!user) {
     return null;
   }
+
+  const supabase = await createClient();
 
   const { data, error } = await supabase
     .from("profiles")
@@ -53,7 +53,7 @@ export async function getMyProfile(): Promise<ProfileRow | null> {
     avatarUrl: data.avatar_url ?? getAuthAvatarUrl(user),
     preferredLocale: data.preferred_locale
   };
-}
+});
 
 export async function updateMyProfile(input: unknown) {
   const parsed = profileSchema.parse(input);

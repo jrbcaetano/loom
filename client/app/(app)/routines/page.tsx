@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { getActiveFamilyContext } from "@/features/families/context";
 import { RoutinesClient } from "@/features/routines/routines-client";
+import { getRoutines } from "@/features/routines/server";
 import { getServerI18n } from "@/lib/i18n/server";
 
 export default async function RoutinesPage() {
@@ -11,6 +12,7 @@ export default async function RoutinesPage() {
   if (!context.activeFamilyId) {
     return <p className="loom-muted">{t("onboarding.createFamilyFirst", "Create a family first.")}</p>;
   }
+  const initialRoutines = await getRoutines(context.activeFamilyId);
 
   return (
     <div className="loom-module-page">
@@ -23,7 +25,7 @@ export default async function RoutinesPage() {
           {t("routines.new", "New routine")}
         </Link>
       </section>
-      <RoutinesClient familyId={context.activeFamilyId} />
+      <RoutinesClient familyId={context.activeFamilyId} initialRoutines={initialRoutines} />
     </div>
   );
 }

@@ -22,14 +22,15 @@ async function fetchNotes(familyId: string, search: string) {
   return payload.notes ?? [];
 }
 
-export function NotesClient({ familyId }: { familyId: string }) {
+export function NotesClient({ familyId, initialNotes = [] }: { familyId: string; initialNotes?: NoteRow[] }) {
   const { t, dateLocale } = useI18n();
   const [search, setSearch] = useState("");
   const [scope, setScope] = useState<"all" | "shared" | "private">("all");
 
   const query = useQuery({
     queryKey: ["notes", familyId, search],
-    queryFn: () => fetchNotes(familyId, search)
+    queryFn: () => fetchNotes(familyId, search),
+    initialData: search.trim().length === 0 ? initialNotes : undefined
   });
 
   const filtered = useMemo(() => {

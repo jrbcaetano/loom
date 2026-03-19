@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { getActiveFamilyContext } from "@/features/families/context";
 import { ExpensesClient } from "@/features/expenses/expenses-client";
+import { getExpenses, getMonthlySummary } from "@/features/expenses/server";
 import { getServerI18n } from "@/lib/i18n/server";
 
 export default async function ExpensesPage() {
@@ -11,6 +12,10 @@ export default async function ExpensesPage() {
   if (!context.activeFamilyId) {
     return <p className="loom-muted">{t("onboarding.createFamilyFirst", "Create a family first.")}</p>;
   }
+  const [initialExpenses, initialSummary] = await Promise.all([
+    getExpenses(context.activeFamilyId),
+    getMonthlySummary(context.activeFamilyId)
+  ]);
 
   return (
     <div className="loom-module-page">
@@ -23,7 +28,7 @@ export default async function ExpensesPage() {
           {t("expenses.new", "New expense")}
         </Link>
       </section>
-      <ExpensesClient familyId={context.activeFamilyId} />
+      <ExpensesClient familyId={context.activeFamilyId} initialExpenses={initialExpenses} initialSummary={initialSummary} />
     </div>
   );
 }

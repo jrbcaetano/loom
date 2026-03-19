@@ -76,9 +76,19 @@ const createTaskSchema = baseTaskSchema
     }
   );
 
-const updateTaskSchema = baseTaskSchema
-  .omit({ familyId: true })
-  .partial()
+const updateTaskSchema = z
+  .object({
+    title: nonEmptyTextSchema.max(180).optional(),
+    description: z.string().trim().max(5000).optional().nullable(),
+    status: taskStatusSchema.optional(),
+    priority: taskPrioritySchema.optional(),
+    startAt: z.iso.datetime().optional().nullable(),
+    dueAt: z.iso.datetime().optional().nullable(),
+    assignedToUserId: z.string().uuid().optional().nullable(),
+    visibility: visibilitySchema.optional(),
+    selectedMemberIds: z.array(z.string().uuid()).optional(),
+    labelIds: z.array(z.string().uuid()).optional()
+  })
   .superRefine((value, context) => {
     if (!value.startAt || !value.dueAt) {
       return;

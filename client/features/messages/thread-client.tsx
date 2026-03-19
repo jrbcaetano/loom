@@ -22,7 +22,15 @@ async function fetchMessages(conversationId: string) {
   return payload.messages ?? [];
 }
 
-export function MessageThreadClient({ conversationId, currentUserId }: { conversationId: string; currentUserId: string }) {
+export function MessageThreadClient({
+  conversationId,
+  currentUserId,
+  initialMessages
+}: {
+  conversationId: string;
+  currentUserId: string;
+  initialMessages?: MessageRow[];
+}) {
   const { t, dateLocale } = useI18n();
   const [content, setContent] = useState("");
   const [serverError, setServerError] = useState<string | null>(null);
@@ -34,7 +42,8 @@ export function MessageThreadClient({ conversationId, currentUserId }: { convers
 
   const { data, isPending, error } = useQuery({
     queryKey: ["messages", conversationId],
-    queryFn: () => fetchMessages(conversationId)
+    queryFn: () => fetchMessages(conversationId),
+    initialData: initialMessages
   });
 
   const scrollToBottom = () => {
@@ -156,20 +165,23 @@ export function MessageThreadClient({ conversationId, currentUserId }: { convers
           {(data ?? []).map((message) => {
             const isUnreadIncoming = message.senderUserId !== currentUserId && message.readAt === null;
             return (
-            <article
-              key={message.id}
-              ref={isUnreadIncoming && !firstUnreadMessageRef.current ? firstUnreadMessageRef : undefined}
-              className={`loom-thread-message ${message.senderUserId === currentUserId ? "is-mine" : ""}`}
-            >
-              <div className="loom-thread-bubble">
-                <div className="loom-row-between">
-                  <p className="m-0 text-sm font-semibold">{message.senderName}</p>
-                  <p className="m-0 loom-muted small">{new Date(message.createdAt).toLocaleTimeString(dateLocale, { hour: "numeric", minute: "2-digit" })}</p>
+              <article
+                key={message.id}
+                ref={isUnreadIncoming && !firstUnreadMessageRef.current ? firstUnreadMessageRef : undefined}
+                className={`loom-thread-message ${message.senderUserId === currentUserId ? "is-mine" : ""}`}
+              >
+                <div className="loom-thread-bubble">
+                  <div className="loom-row-between">
+                    <p className="m-0 text-sm font-semibold">{message.senderName}</p>
+                    <p className="m-0 loom-muted small">
+                      {new Date(message.createdAt).toLocaleTimeString(dateLocale, { hour: "numeric", minute: "2-digit" })}
+                    </p>
+                  </div>
+                  <p className="m-0 mt-2">{message.content}</p>
                 </div>
-                <p className="m-0 mt-2">{message.content}</p>
-              </div>
-            </article>
-          )})}
+              </article>
+            );
+          })}
         </div>
       </section>
 

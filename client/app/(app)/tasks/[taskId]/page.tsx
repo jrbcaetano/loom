@@ -110,6 +110,7 @@ export default async function TaskDetailPage({ params, searchParams }: TaskDetai
                 dueAt: formatDateTimeLocal(task.dueAt),
                 labelIds: task.labels.map((label) => label.id)
               }}
+              closedAt={task.status === "done" ? formatDateTimeLocal(task.updatedAt) : ""}
               defaultAssigneeUserId={user.id}
               personalLabels={personalLabels}
               familyLabels={familyLabels}

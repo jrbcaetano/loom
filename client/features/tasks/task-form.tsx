@@ -59,7 +59,6 @@ function toLocalDateTimeValue(date: Date) {
 
 function getDefaultStartAt() {
   const start = new Date();
-  start.setHours(12, 0, 0, 0);
   return toLocalDateTimeValue(start);
 }
 
@@ -81,6 +80,7 @@ export function TaskForm({
   redirectTo,
   personalLabels,
   familyLabels,
+  closedAt,
   disableRedirect = false,
   onSaved,
   mode = "default"
@@ -96,6 +96,7 @@ export function TaskForm({
   cancelHref?: string;
   personalLabels: LabelOption[];
   familyLabels: LabelOption[];
+  closedAt?: string | null;
   disableRedirect?: boolean;
   onSaved?: (payload: { taskId?: string }) => void;
   mode?: "default" | "drawer";
@@ -226,6 +227,11 @@ export function TaskForm({
         </label>
 
       </div>
+
+      <label className="loom-field">
+        <span>{t("tasks.closeDate", "Close date")}</span>
+        <input className="loom-input" type="datetime-local" value={closedAt ?? ""} readOnly />
+      </label>
 
       <label className="loom-field">
         <span>{t("tasks.assignee", "Assignee")}</span>

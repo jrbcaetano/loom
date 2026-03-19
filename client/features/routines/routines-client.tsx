@@ -17,12 +17,13 @@ async function fetchRoutines(familyId: string) {
   return payload.routines ?? [];
 }
 
-export function RoutinesClient({ familyId }: { familyId: string }) {
+export function RoutinesClient({ familyId, initialRoutines = [] }: { familyId: string; initialRoutines?: RoutineRow[] }) {
   const { t } = useI18n();
   const queryClient = useQueryClient();
   const query = useQuery({
     queryKey: ["routines", familyId],
-    queryFn: () => fetchRoutines(familyId)
+    queryFn: () => fetchRoutines(familyId),
+    initialData: initialRoutines
   });
 
   const completeMutation = useMutation({

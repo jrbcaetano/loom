@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { getActiveFamilyContext } from "@/features/families/context";
 import { NotesClient } from "@/features/notes/notes-client";
+import { getNotes } from "@/features/notes/server";
 import { getServerI18n } from "@/lib/i18n/server";
 
 export default async function NotesPage() {
@@ -11,6 +12,7 @@ export default async function NotesPage() {
   if (!context.activeFamilyId) {
     return <p className="loom-muted">{t("onboarding.createFamilyFirst", "Create a family first.")}</p>;
   }
+  const initialNotes = await getNotes(context.activeFamilyId);
 
   return (
     <div className="loom-module-page">
@@ -23,7 +25,7 @@ export default async function NotesPage() {
           {t("notes.new", "New note")}
         </Link>
       </section>
-      <NotesClient familyId={context.activeFamilyId} />
+      <NotesClient familyId={context.activeFamilyId} initialNotes={initialNotes} />
     </div>
   );
 }

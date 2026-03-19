@@ -35,18 +35,28 @@ async function fetchSummary(familyId: string) {
   return payload.summary ?? [];
 }
 
-export function ExpensesClient({ familyId }: { familyId: string }) {
+export function ExpensesClient({
+  familyId,
+  initialExpenses = [],
+  initialSummary = []
+}: {
+  familyId: string;
+  initialExpenses?: ExpenseRow[];
+  initialSummary?: MonthlySummary[];
+}) {
   const { t } = useI18n();
   const [search, setSearch] = useState("");
 
   const expensesQuery = useQuery({
     queryKey: ["expenses", familyId, search],
-    queryFn: () => fetchExpenses(familyId, search)
+    queryFn: () => fetchExpenses(familyId, search),
+    initialData: search.trim().length === 0 ? initialExpenses : undefined
   });
 
   const summaryQuery = useQuery({
     queryKey: ["expenses-summary", familyId],
-    queryFn: () => fetchSummary(familyId)
+    queryFn: () => fetchSummary(familyId),
+    initialData: initialSummary
   });
 
   return (

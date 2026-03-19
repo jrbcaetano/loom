@@ -11,13 +11,14 @@ import { getUnreadMessagesCount } from "@/features/messages/server";
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const user = await requireUser();
-  const [profile, context, isProductAdmin, hasAppAccess, unreadNotificationsCount, featureAvailability] = await Promise.all([
+  const context = await getActiveFamilyContext(user.id);
+  const [profile, isProductAdmin, hasAppAccess, unreadNotificationsCount, featureAvailability, unreadMessagesCount] = await Promise.all([
     getMyProfile(),
-    getActiveFamilyContext(user.id),
     isProductAdminByUserId(user.id),
     hasAppAccessByUserId(user.id),
     getUnreadNotificationsCount(),
-    getProductFeatureAvailability()
+    getProductFeatureAvailability(),
+    context.activeFamilyId ? getUnreadMessagesCount(context.activeFamilyId) : Promise.resolve(0)
   ]);
 
   if (!isProductAdmin && !hasAppAccess) {
@@ -29,7 +30,6 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   }
 
   const activeFamily = context.families.find((family) => family.id === context.activeFamilyId) ?? context.families[0];
-  const unreadMessagesCount = activeFamily ? await getUnreadMessagesCount(activeFamily.id) : 0;
 
   return (
     <AppShell

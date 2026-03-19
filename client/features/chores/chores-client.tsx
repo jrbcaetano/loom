@@ -27,12 +27,21 @@ async function fetchChores(familyId: string) {
   return payload.chores ?? [];
 }
 
-export function ChoresClient({ familyId, members }: { familyId: string; members: MemberOption[] }) {
+export function ChoresClient({
+  familyId,
+  members,
+  initialChores
+}: {
+  familyId: string;
+  members: MemberOption[];
+  initialChores?: ChoreRow[];
+}) {
   const { t } = useI18n();
   const queryClient = useQueryClient();
   const query = useQuery({
     queryKey: ["chores", familyId],
-    queryFn: () => fetchChores(familyId)
+    queryFn: () => fetchChores(familyId),
+    initialData: initialChores
   });
 
   const completeMutation = useMutation({

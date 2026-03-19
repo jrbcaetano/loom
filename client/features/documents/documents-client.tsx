@@ -23,12 +23,13 @@ async function fetchDocuments(familyId: string, search: string) {
   return payload.documents ?? [];
 }
 
-export function DocumentsClient({ familyId }: { familyId: string }) {
+export function DocumentsClient({ familyId, initialDocuments = [] }: { familyId: string; initialDocuments?: DocumentRow[] }) {
   const { t, dateLocale } = useI18n();
   const [search, setSearch] = useState("");
   const query = useQuery({
     queryKey: ["documents", familyId, search],
-    queryFn: () => fetchDocuments(familyId, search)
+    queryFn: () => fetchDocuments(familyId, search),
+    initialData: search.trim().length === 0 ? initialDocuments : undefined
   });
 
   return (

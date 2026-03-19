@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { startTransition, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useI18n } from "@/lib/i18n/context";
 
@@ -27,15 +28,25 @@ async function fetchConversations(familyId: string) {
   return payload.conversations ?? [];
 }
 
-export function MessagesClient({ familyId, members }: { familyId: string; members: MemberOption[] }) {
+export function MessagesClient({
+  familyId,
+  members,
+  initialConversations
+}: {
+  familyId: string;
+  members: MemberOption[];
+  initialConversations?: ConversationSummary[];
+}) {
   const { t } = useI18n();
+  const router = useRouter();
   const queryClient = useQueryClient();
   const [selectedUserId, setSelectedUserId] = useState("");
   const [serverError, setServerError] = useState<string | null>(null);
 
   const { data, isPending, error } = useQuery({
     queryKey: ["conversations", familyId],
-    queryFn: () => fetchConversations(familyId)
+    queryFn: () => fetchConversations(familyId),
+    initialData: initialConversations
   });
 
   const mutation = useMutation({
@@ -54,7 +65,9 @@ export function MessagesClient({ familyId, members }: { familyId: string; member
     onSuccess: (conversationId) => {
       setServerError(null);
       queryClient.invalidateQueries({ queryKey: ["conversations", familyId] });
-      window.location.href = `/messages/${conversationId}`;
+      startTransition(() => {
+        router.push(`/messages/${conversationId}`);
+      });
     },
     onError: (mutationError) => {
       setServerError(mutationError instanceof Error ? mutationError.message : t("messages.createDirectError", "Failed to create direct conversation"));

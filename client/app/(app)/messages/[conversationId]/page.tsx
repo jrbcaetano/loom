@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { MessageThreadClient } from "@/features/messages/thread-client";
+import { getMessages } from "@/features/messages/server";
 import { getServerI18n } from "@/lib/i18n/server";
 
 type MessageThreadPageProps = {
@@ -11,6 +12,7 @@ export default async function MessageThreadPage({ params }: MessageThreadPagePro
   const user = await requireUser();
   const { t } = await getServerI18n();
   const { conversationId } = await params;
+  const initialMessages = await getMessages(conversationId);
 
   return (
     <div className="loom-module-page">
@@ -23,7 +25,7 @@ export default async function MessageThreadPage({ params }: MessageThreadPagePro
           {t("messages.backToInbox", "Back to inbox")}
         </Link>
       </section>
-      <MessageThreadClient conversationId={conversationId} currentUserId={user.id} />
+      <MessageThreadClient conversationId={conversationId} currentUserId={user.id} initialMessages={initialMessages} />
     </div>
   );
 }

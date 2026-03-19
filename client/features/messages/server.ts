@@ -1,6 +1,8 @@
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { z } from "zod";
 import { sendPushToConversationMembers } from "@/features/push/server";
+import { getCurrentUser } from "@/lib/auth";
 
 const sendMessageSchema = z.object({
   conversationId: z.string().uuid(),
@@ -33,9 +35,7 @@ export type MessageRow = {
 };
 
 async function getCurrentUserId(supabase: Awaited<ReturnType<typeof createClient>>) {
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
 
   if (!user) {
     throw new Error("Not authenticated");
@@ -221,7 +221,7 @@ export async function markConversationRead(conversationId: string) {
   }
 }
 
-export async function getUnreadMessagesCount(familyId: string): Promise<number> {
+export const getUnreadMessagesCount = cache(async function getUnreadMessagesCount(familyId: string): Promise<number> {
   const supabase = await createClient();
   const currentUserId = await getCurrentUserId(supabase);
 
@@ -251,4 +251,4 @@ export async function getUnreadMessagesCount(familyId: string): Promise<number> 
   }
 
   return count ?? 0;
-}
+});
