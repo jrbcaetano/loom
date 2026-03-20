@@ -36,6 +36,9 @@ export type TaskCommentRow = {
   familyId: string;
   authorUserId: string;
   body: string;
+  entryKind: "comment" | "audit";
+  eventType: string | null;
+  metadata: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
   authorName: string;
@@ -130,6 +133,48 @@ async function currentUserId(supabase: Awaited<ReturnType<typeof createClient>>)
   }
 
   return user.id;
+}
+
+async function loadProfilesMap(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userIds: string[]
+) {
+  const uniqueUserIds = Array.from(new Set(userIds.filter(Boolean)));
+  const profileMap = new Map<string, { full_name: string | null; avatar_url: string | null; email: string | null }>();
+
+  if (uniqueUserIds.length === 0) {
+    return profileMap;
+  }
+
+  const { data: profiles, error } = await supabase.from("profiles").select("id, full_name, avatar_url, email").in("id", uniqueUserIds);
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  for (const profile of profiles ?? []) {
+    profileMap.set(profile.id, {
+      full_name: profile.full_name,
+      avatar_url: profile.avatar_url,
+      email: profile.email
+    });
+  }
+
+  return profileMap;
+}
+
+function profileDisplayName(
+  profileMap: Map<string, { full_name: string | null; avatar_url: string | null; email: string | null }>,
+  userId: string | null
+) {
+  if (!userId) return "Unassigned";
+  const profile = profileMap.get(userId);
+  return profile?.full_name ?? profile?.email ?? "Member";
+}
+
+function sameDateTimeValue(left: string | null | undefined, right: string | null | undefined) {
+  if (!left && !right) return true;
+  if (!left || !right) return false;
+  return new Date(left).getTime() === new Date(right).getTime();
 }
 
 async function loadTaskLabelsByTaskIds(taskIds: string[]) {
@@ -369,7 +414,7 @@ export async function updateTask(taskId: string, input: unknown) {
 
   const { data: existing, error: existingError } = await supabase
     .from("tasks")
-    .select("id, family_id, visibility, status")
+    .select("id, family_id, visibility, status, assigned_to_user_id, due_at")
     .eq("id", taskId)
     .single();
   if (existingError) {
@@ -407,6 +452,50 @@ export async function updateTask(taskId: string, input: unknown) {
     throw new Error(error.message);
   }
 
+  const profileMap = await loadProfilesMap(supabase, [userId, existing.assigned_to_user_id ?? "", parsed.assignedToUserId ?? ""]);
+  const auditEntries: Array<{ body: string; eventType: string; metadata: Record<string, unknown> }> = [];
+  const previousStatus = normalizeTaskStatus(existing.status);
+
+  if (effectiveStatus !== undefined && effectiveStatus !== previousStatus) {
+    const nextStatusLabel = effectiveStatus.replaceAll("_", " ");
+    const previousStatusLabel = previousStatus.replaceAll("_", " ");
+    auditEntries.push({
+      body: "Status updated",
+      eventType: "status_changed",
+      metadata: {
+        fieldLabel: "Status",
+        previousValue: previousStatusLabel,
+        nextValue: nextStatusLabel
+      }
+    });
+  }
+
+  if (parsed.assignedToUserId !== undefined && parsed.assignedToUserId !== existing.assigned_to_user_id) {
+    const previousAssignee = profileDisplayName(profileMap, existing.assigned_to_user_id);
+    const nextAssignee = profileDisplayName(profileMap, parsed.assignedToUserId ?? null);
+    auditEntries.push({
+      body: "Assignee updated",
+      eventType: "assignee_changed",
+      metadata: {
+        fieldLabel: "Assignee",
+        previousValue: previousAssignee,
+        nextValue: nextAssignee
+      }
+    });
+  }
+
+  if (parsed.dueAt !== undefined && !sameDateTimeValue(parsed.dueAt ?? null, existing.due_at ?? null)) {
+    auditEntries.push({
+      body: "Due date updated",
+      eventType: "due_date_changed",
+      metadata: {
+        fieldLabel: "Due date",
+        previousValue: existing.due_at ?? null,
+        nextValue: parsed.dueAt ?? null
+      }
+    });
+  }
+
   const shouldUpdateShares = parsed.visibility !== undefined || parsed.selectedMemberIds !== undefined;
 
   if (shouldUpdateShares) {
@@ -433,6 +522,24 @@ export async function updateTask(taskId: string, input: unknown) {
   }
 
   await replaceTaskLabels(supabase, taskId, existing.family_id, userId, parsed.labelIds);
+
+  if (auditEntries.length > 0) {
+    const { error: auditError } = await supabase.from("task_comments").insert(
+      auditEntries.map((entry) => ({
+        task_id: taskId,
+        family_id: existing.family_id,
+        author_user_id: userId,
+        body: entry.body,
+        entry_kind: "audit",
+        event_type: entry.eventType,
+        metadata: entry.metadata
+      }))
+    );
+
+    if (auditError) {
+      throw new Error(auditError.message);
+    }
+  }
 }
 
 export async function archiveTask(taskId: string) {
@@ -547,7 +654,7 @@ export async function getTaskComments(taskId: string): Promise<TaskCommentRow[]>
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("task_comments")
-    .select("id, task_id, family_id, author_user_id, body, created_at, updated_at")
+    .select("id, task_id, family_id, author_user_id, body, entry_kind, event_type, metadata, created_at, updated_at")
     .eq("task_id", taskId)
     .order("created_at", { ascending: true });
 
@@ -559,26 +666,7 @@ export async function getTaskComments(taskId: string): Promise<TaskCommentRow[]>
   }
 
   const authorIds = Array.from(new Set((data ?? []).map((row) => row.author_user_id).filter(Boolean)));
-  const profileMap = new Map<string, { full_name: string | null; avatar_url: string | null; email: string | null }>();
-
-  if (authorIds.length > 0) {
-    const { data: profiles, error: profilesError } = await supabase
-      .from("profiles")
-      .select("id, full_name, avatar_url, email")
-      .in("id", authorIds);
-
-    if (profilesError) {
-      throw new Error(profilesError.message);
-    }
-
-    for (const profile of profiles ?? []) {
-      profileMap.set(profile.id, {
-        full_name: profile.full_name,
-        avatar_url: profile.avatar_url,
-        email: profile.email
-      });
-    }
-  }
+  const profileMap = await loadProfilesMap(supabase, authorIds);
 
   return (data ?? []).map((row) => {
     const profile = profileMap.get(row.author_user_id);
@@ -590,6 +678,9 @@ export async function getTaskComments(taskId: string): Promise<TaskCommentRow[]>
       familyId: row.family_id,
       authorUserId: row.author_user_id,
       body: row.body,
+      entryKind: row.entry_kind === "audit" ? "audit" : "comment",
+      eventType: row.event_type ?? null,
+      metadata: row.metadata ?? {},
       createdAt: row.created_at,
       updatedAt: row.updated_at,
       authorName,
@@ -614,7 +705,10 @@ export async function createTaskComment(taskId: string, input: unknown): Promise
       task_id: taskId,
       family_id: task.family_id,
       author_user_id: userId,
-      body: parsed.body
+      body: parsed.body,
+      entry_kind: "comment",
+      event_type: null,
+      metadata: {}
     })
     .select("id")
     .single();

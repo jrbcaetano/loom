@@ -123,6 +123,8 @@ export function TaskForm({
 
   const visibility = form.watch("visibility");
   const selectedLabelIds = form.watch("labelIds") ?? [];
+  const startAtValue = form.watch("startAt") ?? "";
+  const dueAtValue = form.watch("dueAt") ?? "";
 
   async function onSubmit(values: TaskValues) {
     setServerError(null);
@@ -218,15 +220,15 @@ export function TaskForm({
       <div className="loom-form-inline loom-task-form-schedule-row">
         <label className="loom-field">
           <span>{t("tasks.startDate", "Start date")}</span>
-          <input className="loom-input" type="datetime-local" {...form.register("startAt")} />
+          <input className="loom-input" type="datetime-local" max={dueAtValue || undefined} {...form.register("startAt")} />
         </label>
 
         <label className="loom-field">
           <span>{t("tasks.dueDate", "Due date")}</span>
-          <input className="loom-input" type="datetime-local" {...form.register("dueAt")} />
+          <input className="loom-input" type="datetime-local" min={startAtValue || undefined} {...form.register("dueAt")} />
         </label>
-
       </div>
+      {form.formState.errors.dueAt ? <p className="loom-feedback-error m-0">{form.formState.errors.dueAt.message}</p> : null}
 
       <label className="loom-field">
         <span>{t("tasks.closeDate", "Close date")}</span>

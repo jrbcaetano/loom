@@ -42,6 +42,9 @@ type TaskCommentRow = {
   familyId: string;
   authorUserId: string;
   body: string;
+  entryKind: "comment" | "audit";
+  eventType: string | null;
+  metadata: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
   authorName: string;
@@ -60,6 +63,8 @@ type DrawerDraft = {
   labelIds: string[];
   selectedMemberIds: string[];
 };
+
+type DrawerEditor = null | "title" | "description" | "status" | "priority" | "startAt" | "dueAt" | "assignee" | "visibility" | "labels";
 
 type AssigneeOption = {
   userId: string;
@@ -250,6 +255,88 @@ function sameLabelSet(left: string[], right: string[]) {
   return true;
 }
 
+function sameDrawerDraft(left: DrawerDraft | null, right: DrawerDraft | null) {
+  if (!left || !right) return left === right;
+
+  return (
+    left.title === right.title &&
+    left.description === right.description &&
+    left.status === right.status &&
+    left.priority === right.priority &&
+    left.startAtLocal === right.startAtLocal &&
+    left.dueAtLocal === right.dueAtLocal &&
+    left.assignedToUserId === right.assignedToUserId &&
+    left.visibility === right.visibility &&
+    sameLabelSet(left.labelIds, right.labelIds) &&
+    sameLabelSet(left.selectedMemberIds, right.selectedMemberIds)
+  );
+}
+
+function buildDrawerDraft(task: TaskRow): DrawerDraft {
+  return {
+    title: task.title,
+    description: task.description ?? "",
+    status: task.status,
+    priority: task.priority,
+    startAtLocal: formatDateTimeLocal(task.startAt),
+    dueAtLocal: formatDateTimeLocal(task.dueAt),
+    assignedToUserId: task.assignedToUserId ?? "",
+    visibility: task.visibility,
+    labelIds: task.labels.map((label) => label.id),
+    selectedMemberIds: task.selectedMemberIds ?? []
+  };
+}
+
+function validateDrawerDraft(draft: DrawerDraft, t: (key: string, fallback?: string) => string) {
+  const trimmedTitle = draft.title.trim();
+
+  if (!trimmedTitle) {
+    return t("tasks.titleRequired", "Title is required");
+  }
+
+  if (trimmedTitle.length > 180) {
+    return t("tasks.titleTooLong", "Title must be 180 characters or fewer");
+  }
+
+  if (draft.description.trim().length > 5000) {
+    return t("tasks.descriptionTooLong", "Description must be 5000 characters or fewer");
+  }
+
+  if (draft.startAtLocal && draft.dueAtLocal) {
+    const startAt = new Date(draft.startAtLocal).getTime();
+    const dueAt = new Date(draft.dueAtLocal).getTime();
+    if (dueAt < startAt) {
+      return t("tasks.dueDateAfterStart", "Due date must be after or equal to start date");
+    }
+  }
+
+  return null;
+}
+
+function buildDrawerUpdateBody(base: DrawerDraft, next: DrawerDraft) {
+  const body: Record<string, unknown> = {};
+
+  if (next.title !== base.title) body.title = next.title.trim();
+  if (next.description !== base.description) body.description = next.description.trim() ? next.description : null;
+  if (next.status !== base.status) body.status = next.status;
+  if (next.priority !== base.priority) body.priority = next.priority;
+  if (next.startAtLocal !== base.startAtLocal) body.startAt = next.startAtLocal ? new Date(next.startAtLocal).toISOString() : null;
+  if (next.dueAtLocal !== base.dueAtLocal) body.dueAt = next.dueAtLocal ? new Date(next.dueAtLocal).toISOString() : null;
+  if (next.assignedToUserId !== base.assignedToUserId) body.assignedToUserId = next.assignedToUserId || null;
+  if (next.visibility !== base.visibility) body.visibility = next.visibility;
+  if (!sameLabelSet(next.labelIds, base.labelIds)) body.labelIds = next.labelIds;
+
+  const selectedMembersChanged = !sameLabelSet(next.selectedMemberIds, base.selectedMemberIds);
+  if (next.visibility === "selected_members" && (selectedMembersChanged || next.visibility !== base.visibility)) {
+    body.selectedMemberIds = next.selectedMemberIds;
+  }
+  if (next.visibility !== "selected_members" && base.visibility === "selected_members") {
+    body.selectedMemberIds = [];
+  }
+
+  return body;
+}
+
 function normalizeServerErrorMessage(value: string) {
   try {
     const parsed = JSON.parse(value) as Array<{ message?: string }> | { message?: string };
@@ -264,6 +351,22 @@ function normalizeServerErrorMessage(value: string) {
   }
 
   return value;
+}
+
+function renderAuditValue(value: unknown, dateLocale: string) {
+  if (value === null || value === undefined || value === "") {
+    return "None";
+  }
+
+  if (typeof value === "string") {
+    const parsedDate = new Date(value);
+    if (!Number.isNaN(parsedDate.getTime()) && /T/.test(value)) {
+      return parsedDate.toLocaleString(dateLocale);
+    }
+    return value;
+  }
+
+  return String(value);
 }
 
 function cleanShortcutToken(value: string, session: QuickShortcutSession) {
@@ -417,22 +520,36 @@ export function TasksClient({
   const [quickPriority, setQuickPriority] = useState<"low" | "medium" | "high">("medium");
   const [quickAssignedToUserId, setQuickAssignedToUserId] = useState(currentUserId);
   const [quickLabelIds, setQuickLabelIds] = useState<string[]>([]);
+  const [quickEditor, setQuickEditor] = useState<null | "title" | "description">(null);
   const [quickShortcutSession, setQuickShortcutSession] = useState<QuickShortcutSession | null>(null);
   const [quickShortcutActiveIndex, setQuickShortcutActiveIndex] = useState(0);
   const [quickShortcutAnchor, setQuickShortcutAnchor] = useState<QuickShortcutAnchor | null>(null);
   const [quickAddError, setQuickAddError] = useState<string | null>(null);
   const [commentsSort, setCommentsSort] = useState<"oldest" | "newest">("oldest");
   const [drawerDraft, setDrawerDraft] = useState<DrawerDraft | null>(null);
+  const [drawerSavedDraft, setDrawerSavedDraft] = useState<DrawerDraft | null>(null);
   const [drawerTaskId, setDrawerTaskId] = useState<string | null>(null);
-  const [drawerEditor, setDrawerEditor] = useState<null | "status" | "priority" | "startAt" | "dueAt" | "assignee" | "visibility" | "labels">(null);
+  const [drawerEditor, setDrawerEditor] = useState<DrawerEditor>(null);
   const [showLabelPicker, setShowLabelPicker] = useState(false);
   const [drawerSaveError, setDrawerSaveError] = useState<string | null>(null);
+  const [drawerSaveState, setDrawerSaveState] = useState<"idle" | "saving" | "saved">("idle");
+  const [isCommentComposerOpen, setIsCommentComposerOpen] = useState(false);
   const displayMenuRef = useRef<HTMLDivElement | null>(null);
   const filterMenuRef = useRef<HTMLDivElement | null>(null);
   const quickTitleInputRef = useRef<HTMLInputElement | null>(null);
+  const quickDescriptionTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const quickShortcutPaletteRef = useRef<HTMLDivElement | null>(null);
   const calendarHoverHideTimeoutRef = useRef<number | null>(null);
   const calendarOverflowHideTimeoutRef = useRef<number | null>(null);
+  const drawerSaveTimeoutRef = useRef<number | null>(null);
+  const queuedDrawerSaveRef = useRef(false);
+  const closeAfterDrawerSaveRef = useRef(false);
+  const drawerDraftRef = useRef<DrawerDraft | null>(null);
+  const drawerSavedDraftRef = useRef<DrawerDraft | null>(null);
+  const selectedTaskRef = useRef<TaskRow | null>(null);
+  const titleInputRef = useRef<HTMLInputElement | null>(null);
+  const descriptionTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const commentTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const [preferencesLoaded, setPreferencesLoaded] = useState(false);
   const preferencesStorageKey = useMemo(() => `loom.tasks.ui.v1:${currentUserId}:${familyId}`, [currentUserId, familyId]);
 
@@ -444,11 +561,6 @@ export function TasksClient({
   const activeLabels = visibilityMode === "my" ? personalLabels : familyLabels;
   const drawerLabelOptions = useMemo(() => [...personalLabels, ...familyLabels], [personalLabels, familyLabels]);
   const quickAddLabelOptions = activeLabels;
-  const quickAssignee = useMemo(
-    () => assignees.find((assignee) => assignee.userId === quickAssignedToUserId) ?? null,
-    [assignees, quickAssignedToUserId]
-  );
-
   useEffect(() => {
     setSelectedLabelIds((current) => current.filter((labelId) => activeLabels.some((label) => label.id === labelId)));
   }, [activeLabels]);
@@ -762,6 +874,7 @@ export function TasksClient({
   useEffect(() => {
     setCommentDraft("");
     setCommentsSort("oldest");
+    setIsCommentComposerOpen(false);
   }, [selectedTaskId]);
 
   const updateMutation = useMutation({
@@ -802,6 +915,7 @@ export function TasksClient({
     },
     onSuccess: (_, variables) => {
       setCommentDraft("");
+      setIsCommentComposerOpen(false);
       queryClient.invalidateQueries({ queryKey: ["task-comments", variables.taskId] });
     }
   });
@@ -884,6 +998,15 @@ export function TasksClient({
       void supabase.removeChannel(channel);
     };
   }, [queryClient, selectedTaskId]);
+
+  useEffect(() => {
+    drawerDraftRef.current = drawerDraft;
+  }, [drawerDraft]);
+
+  useEffect(() => {
+    drawerSavedDraftRef.current = drawerSavedDraft;
+  }, [drawerSavedDraft]);
+
 
   const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -1182,8 +1305,15 @@ export function TasksClient({
   }, [allTasks, selectedTaskId]);
 
   useEffect(() => {
+    selectedTaskRef.current = selectedTask;
+  }, [selectedTask]);
+
+  useEffect(() => {
     if (!selectedTaskId || !selectedTask) {
+      drawerDraftRef.current = null;
+      drawerSavedDraftRef.current = null;
       setDrawerDraft(null);
+      setDrawerSavedDraft(null);
       setDrawerTaskId(null);
       setDrawerEditor(null);
       return;
@@ -1197,35 +1327,18 @@ export function TasksClient({
     setDrawerEditor(null);
     setShowLabelPicker(false);
     setDrawerSaveError(null);
-    setDrawerDraft({
-      title: selectedTask.title,
-      description: selectedTask.description ?? "",
-      status: selectedTask.status,
-      priority: selectedTask.priority,
-      startAtLocal: formatDateTimeLocal(selectedTask.startAt),
-      dueAtLocal: formatDateTimeLocal(selectedTask.dueAt),
-      assignedToUserId: selectedTask.assignedToUserId ?? "",
-      visibility: selectedTask.visibility,
-      labelIds: selectedTask.labels.map((label) => label.id),
-      selectedMemberIds: selectedTask.selectedMemberIds ?? []
-    });
+    setDrawerSaveState("idle");
+    const initialDraft = buildDrawerDraft(selectedTask);
+    drawerDraftRef.current = initialDraft;
+    drawerSavedDraftRef.current = initialDraft;
+    setDrawerDraft(initialDraft);
+    setDrawerSavedDraft(initialDraft);
   }, [drawerTaskId, selectedTask, selectedTaskId]);
 
   const isDrawerDirty = useMemo(() => {
-    if (!selectedTask || !drawerDraft) return false;
-    return (
-      drawerDraft.title !== selectedTask.title ||
-      drawerDraft.description !== (selectedTask.description ?? "") ||
-      drawerDraft.status !== selectedTask.status ||
-      drawerDraft.priority !== selectedTask.priority ||
-      drawerDraft.startAtLocal !== formatDateTimeLocal(selectedTask.startAt) ||
-      drawerDraft.dueAtLocal !== formatDateTimeLocal(selectedTask.dueAt) ||
-      drawerDraft.assignedToUserId !== (selectedTask.assignedToUserId ?? "") ||
-      drawerDraft.visibility !== selectedTask.visibility ||
-      !sameLabelSet(drawerDraft.labelIds, selectedTask.labels.map((label) => label.id)) ||
-      !sameLabelSet(drawerDraft.selectedMemberIds, selectedTask.selectedMemberIds ?? [])
-    );
-  }, [drawerDraft, selectedTask]);
+    if (!drawerDraft || !drawerSavedDraft) return false;
+    return !sameDrawerDraft(drawerDraft, drawerSavedDraft);
+  }, [drawerDraft, drawerSavedDraft]);
 
   function renderAssignee(assignedToUserId: string | null) {
     if (!assignedToUserId) {
@@ -1448,11 +1561,11 @@ export function TasksClient({
                 >
                   {task.title}
                 </button>
-                <span className="loom-home-pill is-muted">{statusLabel(task.status, t)}</span>
               </div>
               <p className={`loom-task-meta ${overdue ? "is-overdue" : ""}`}>
                 {formatDue(task, t, dateLocale)}
                 {overdue ? <span className="loom-task-overdue-flag">{t("tasks.overdue", "Overdue")}</span> : null}
+                <span className="loom-home-pill is-muted">{statusLabel(task.status, t)}</span>
               </p>
             </div>
 
@@ -1474,54 +1587,178 @@ export function TasksClient({
     );
   }
 
-  async function saveDrawerTask() {
-    if (!selectedTask || !drawerDraft || !isDrawerDirty || drawerSaveMutation.isPending) {
-      return;
+  async function saveDrawerTask(options?: { closeAfterSave?: boolean }) {
+    const selectedTaskValue = selectedTaskRef.current;
+    const draftValue = drawerDraftRef.current;
+    const savedValue = drawerSavedDraftRef.current;
+
+    if (options?.closeAfterSave) {
+      closeAfterDrawerSaveRef.current = true;
     }
+
+    if (!selectedTaskValue || !draftValue || !savedValue) {
+      return false;
+    }
+
+    if (drawerSaveTimeoutRef.current) {
+      window.clearTimeout(drawerSaveTimeoutRef.current);
+      drawerSaveTimeoutRef.current = null;
+    }
+
+    const validationError = validateDrawerDraft(draftValue, t);
+    if (validationError) {
+      setDrawerSaveError(validationError);
+      setDrawerSaveState("idle");
+      closeAfterDrawerSaveRef.current = false;
+      return false;
+    }
+
+    if (sameDrawerDraft(draftValue, savedValue)) {
+      if (closeAfterDrawerSaveRef.current) {
+        closeAfterDrawerSaveRef.current = false;
+        closeDrawer();
+      }
+      return true;
+    }
+
+    const body = buildDrawerUpdateBody(savedValue, draftValue);
+    if (Object.keys(body).length === 0) {
+      setDrawerSavedDraft(draftValue);
+      setDrawerSaveState("saved");
+      if (closeAfterDrawerSaveRef.current) {
+        closeAfterDrawerSaveRef.current = false;
+        closeDrawer();
+      }
+      return true;
+    }
+
+    if (drawerSaveMutation.isPending) {
+      queuedDrawerSaveRef.current = true;
+      return false;
+    }
+
     setDrawerSaveError(null);
-
-    const originalStartAtLocal = formatDateTimeLocal(selectedTask.startAt);
-    const originalDueAtLocal = formatDateTimeLocal(selectedTask.dueAt);
-    const originalLabelIds = selectedTask.labels.map((label) => label.id);
-    const originalSelectedMemberIds = selectedTask.selectedMemberIds ?? [];
-
-    const body: Record<string, unknown> = {};
-    if (drawerDraft.title !== selectedTask.title) body.title = drawerDraft.title;
-    if (drawerDraft.description !== (selectedTask.description ?? "")) body.description = drawerDraft.description || null;
-    if (drawerDraft.status !== selectedTask.status) body.status = drawerDraft.status;
-    if (drawerDraft.priority !== selectedTask.priority) body.priority = drawerDraft.priority;
-    if (drawerDraft.startAtLocal !== originalStartAtLocal) body.startAt = drawerDraft.startAtLocal ? new Date(drawerDraft.startAtLocal).toISOString() : null;
-    if (drawerDraft.dueAtLocal !== originalDueAtLocal) body.dueAt = drawerDraft.dueAtLocal ? new Date(drawerDraft.dueAtLocal).toISOString() : null;
-    if (drawerDraft.assignedToUserId !== (selectedTask.assignedToUserId ?? "")) body.assignedToUserId = drawerDraft.assignedToUserId || null;
-    if (drawerDraft.visibility !== selectedTask.visibility) body.visibility = drawerDraft.visibility;
-    if (!sameLabelSet(drawerDraft.labelIds, originalLabelIds)) body.labelIds = drawerDraft.labelIds;
-
-    const selectedMembersChanged = !sameLabelSet(drawerDraft.selectedMemberIds, originalSelectedMemberIds);
-    if (drawerDraft.visibility === "selected_members" && (selectedMembersChanged || drawerDraft.visibility !== selectedTask.visibility)) {
-      body.selectedMemberIds = drawerDraft.selectedMemberIds;
-    }
+    setDrawerSaveState("saving");
 
     try {
+      const submittedDraft = draftValue;
       await drawerSaveMutation.mutateAsync({
-        taskId: selectedTask.id,
+        taskId: selectedTaskValue.id,
         body
       });
-      setDrawerEditor(null);
-      closeDrawer();
+
+      const latestDraft = drawerDraftRef.current;
+      drawerSavedDraftRef.current = submittedDraft;
+      setDrawerSavedDraft(submittedDraft);
+      setDrawerSaveState("saved");
+
+      if (!sameDrawerDraft(latestDraft, submittedDraft)) {
+        queuedDrawerSaveRef.current = true;
+      }
+
+      if (queuedDrawerSaveRef.current) {
+        queuedDrawerSaveRef.current = false;
+        await saveDrawerTask({ closeAfterSave: closeAfterDrawerSaveRef.current });
+        return true;
+      }
+
+      if (closeAfterDrawerSaveRef.current) {
+        closeAfterDrawerSaveRef.current = false;
+        closeDrawer();
+      }
+
+      return true;
     } catch (error) {
       const message = error instanceof Error ? error.message : t("tasks.updateError", "Failed to update task");
       setDrawerSaveError(normalizeServerErrorMessage(message));
+      setDrawerSaveState("idle");
+      closeAfterDrawerSaveRef.current = false;
+      return false;
     }
   }
 
+  function scheduleDrawerSave() {
+    if (drawerSaveTimeoutRef.current) {
+      window.clearTimeout(drawerSaveTimeoutRef.current);
+    }
+
+    drawerSaveTimeoutRef.current = window.setTimeout(() => {
+      drawerSaveTimeoutRef.current = null;
+      void saveDrawerTask();
+    }, 450);
+  }
+
+  async function submitCommentDraft() {
+    if (!selectedTaskRef.current) return false;
+
+    const trimmedBody = commentDraft.trim();
+    if (!trimmedBody) {
+      setCommentDraft("");
+      setIsCommentComposerOpen(false);
+      return true;
+    }
+
+    if (commentMutation.isPending) {
+      return false;
+    }
+
+    try {
+      await commentMutation.mutateAsync({ taskId: selectedTaskRef.current.id, body: trimmedBody });
+      setIsCommentComposerOpen(false);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async function commitDrawerAndClose() {
+    const commentSaved = await submitCommentDraft();
+    if (!commentSaved) {
+      return;
+    }
+
+    await saveDrawerTask({ closeAfterSave: true });
+  }
+
+  function isCommentEditorTarget(target: EventTarget | null) {
+    if (!(target instanceof Node)) {
+      return false;
+    }
+
+    return Boolean(commentTextareaRef.current && commentTextareaRef.current.contains(target));
+  }
+
+  function isInlineTextEditorTarget(target: EventTarget | null) {
+    if (!(target instanceof Node)) {
+      return false;
+    }
+
+    return Boolean(
+      (titleInputRef.current && titleInputRef.current.contains(target)) ||
+        (descriptionTextareaRef.current && descriptionTextareaRef.current.contains(target))
+    );
+  }
+
   function closeDrawer() {
+    if (drawerSaveTimeoutRef.current) {
+      window.clearTimeout(drawerSaveTimeoutRef.current);
+      drawerSaveTimeoutRef.current = null;
+    }
     setSelectedTaskId(null);
+    drawerDraftRef.current = null;
+    drawerSavedDraftRef.current = null;
+    selectedTaskRef.current = null;
     setDrawerDraft(null);
+    setDrawerSavedDraft(null);
     setDrawerTaskId(null);
     setDrawerEditor(null);
     setShowLabelPicker(false);
     setDrawerSaveError(null);
+    setDrawerSaveState("idle");
     setCommentDraft("");
+    setIsCommentComposerOpen(false);
+    queuedDrawerSaveRef.current = false;
+    closeAfterDrawerSaveRef.current = false;
   }
 
   function closeQuickAdd() {
@@ -1532,6 +1769,7 @@ export function TasksClient({
     setQuickPriority("medium");
     setQuickAssignedToUserId(currentUserId);
     setQuickLabelIds([]);
+    setQuickEditor(null);
     setQuickShortcutSession(null);
     setQuickShortcutActiveIndex(0);
     setQuickShortcutAnchor(null);
@@ -1617,6 +1855,7 @@ export function TasksClient({
     const trimmedTitle = committedTitle.trim();
     if (!trimmedTitle) {
       setQuickAddError(t("tasks.quickAddTitleRequired", "Task name is required"));
+      setQuickEditor("title");
       return;
     }
 
@@ -1660,6 +1899,94 @@ export function TasksClient({
     setDragOverStatus(null);
     setDraggingTaskId(null);
   }
+
+  useEffect(() => {
+    if (!selectedTask || !drawerDraft || !drawerSavedDraft || !isDrawerDirty) {
+      return;
+    }
+
+    scheduleDrawerSave();
+
+    return () => {
+      if (drawerSaveTimeoutRef.current) {
+        window.clearTimeout(drawerSaveTimeoutRef.current);
+        drawerSaveTimeoutRef.current = null;
+      }
+    };
+  }, [drawerDraft, drawerSavedDraft, isDrawerDirty, selectedTask]);
+
+  useEffect(() => {
+    if (!selectedTask) {
+      return;
+    }
+
+    const handleDrawerShortcut = (event: globalThis.KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.key !== "Enter") {
+        return;
+      }
+
+      if (isCommentEditorTarget(event.target) || isInlineTextEditorTarget(event.target)) {
+        return;
+      }
+
+      event.preventDefault();
+      void commitDrawerAndClose();
+    };
+
+    window.addEventListener("keydown", handleDrawerShortcut);
+    return () => window.removeEventListener("keydown", handleDrawerShortcut);
+  }, [selectedTask, commentDraft]);
+
+  useEffect(() => {
+    if (drawerEditor !== "title") return;
+    window.requestAnimationFrame(() => titleInputRef.current?.focus());
+  }, [drawerEditor]);
+
+  useEffect(() => {
+    if (drawerEditor !== "description") return;
+    window.requestAnimationFrame(() => descriptionTextareaRef.current?.focus());
+  }, [drawerEditor]);
+
+  useEffect(() => {
+    if (!isCommentComposerOpen) return;
+    window.requestAnimationFrame(() => commentTextareaRef.current?.focus());
+  }, [isCommentComposerOpen]);
+
+  useEffect(() => {
+    if (quickEditor !== "title") return;
+    window.requestAnimationFrame(() => quickTitleInputRef.current?.focus());
+  }, [quickEditor]);
+
+  useEffect(() => {
+    if (quickEditor !== "description") return;
+    window.requestAnimationFrame(() => quickDescriptionTextareaRef.current?.focus());
+  }, [quickEditor]);
+
+  useEffect(() => {
+    if (!showQuickAdd) {
+      return;
+    }
+
+    setQuickEditor("title");
+  }, [showQuickAdd]);
+
+  useEffect(() => {
+    if (!showQuickAdd) {
+      return;
+    }
+
+    const handleQuickAddShortcut = (event: globalThis.KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.key !== "Enter") {
+        return;
+      }
+
+      event.preventDefault();
+      void submitQuickAdd();
+    };
+
+    window.addEventListener("keydown", handleQuickAddShortcut);
+    return () => window.removeEventListener("keydown", handleQuickAddShortcut);
+  }, [showQuickAdd, quickTitle, quickDescription, quickDueAtLocal, quickPriority, quickAssignedToUserId, quickLabelIds, quickShortcutSession]);
 
   return (
     <div className="loom-stack">
@@ -1787,7 +2114,15 @@ export function TasksClient({
             ) : null}
           </div>
 
-          <button type="button" className="loom-task-create-plus" aria-label={t("tasks.new", "New task")} onClick={() => setShowQuickAdd(true)}>
+          <button
+            type="button"
+            className="loom-task-create-plus"
+            aria-label={t("tasks.new", "New task")}
+            onClick={() => {
+              setQuickEditor("title");
+              setShowQuickAdd(true);
+            }}
+          >
             +
           </button>
         </div>
@@ -2169,23 +2504,60 @@ export function TasksClient({
           <button type="button" className="loom-quick-task-backdrop" aria-label={t("common.cancel", "Cancel")} onClick={closeQuickAdd} />
             <section className="loom-quick-task-modal" role="dialog" aria-modal="true" aria-label={t("tasks.quickAddTitle", "Quick add task")}>
               <div className="loom-quick-task-body">
-                <label className="loom-field loom-quick-task-title-field">
-                  <span>{t("tasks.quickTaskName", "Task name")}</span>
-                  <input
-                    className="loom-input loom-quick-task-title"
-                    ref={quickTitleInputRef}
-                    value={quickTitle}
-                    onChange={(event) => {
-                      setQuickTitle(event.target.value);
-                      syncQuickShortcutFromInput(event.target);
-                    }}
-                    onClick={(event) => syncQuickShortcutFromInput(event.currentTarget)}
-                    onSelect={(event) => syncQuickShortcutFromInput(event.currentTarget)}
-                    onKeyDown={handleQuickTitleKeyDown}
-                    placeholder={t("tasks.quickTaskNamePlaceholder", "Task name")}
-                    autoFocus
-                  />
-                </label>
+                <div className="loom-quick-task-top">
+                  {quickEditor === "title" ? (
+                    <input
+                      className="loom-input loom-quick-task-title"
+                      ref={quickTitleInputRef}
+                      value={quickTitle}
+                      onBlur={() => setQuickEditor((value) => (value === "title" ? null : value))}
+                      onChange={(event) => {
+                        setQuickTitle(event.target.value);
+                        syncQuickShortcutFromInput(event.target);
+                      }}
+                      onClick={(event) => syncQuickShortcutFromInput(event.currentTarget)}
+                      onSelect={(event) => syncQuickShortcutFromInput(event.currentTarget)}
+                      onKeyDown={(event) => {
+                        if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          void submitQuickAdd();
+                          return;
+                        }
+
+                        handleQuickTitleKeyDown(event);
+                      }}
+                      placeholder={t("tasks.quickTaskNamePlaceholder", "Task name")}
+                    />
+                  ) : (
+                    <button type="button" className="loom-quick-task-inline-trigger is-title" onClick={() => setQuickEditor("title")}>
+                      {quickTitle || t("tasks.quickTaskNamePlaceholder", "Task name")}
+                    </button>
+                  )}
+
+                  {quickEditor === "description" ? (
+                    <textarea
+                      ref={quickDescriptionTextareaRef}
+                      className="loom-input loom-textarea loom-quick-task-description-editor"
+                      rows={3}
+                      value={quickDescription}
+                      onBlur={() => setQuickEditor((value) => (value === "description" ? null : value))}
+                      onChange={(event) => setQuickDescription(event.target.value)}
+                      onKeyDown={(event) => {
+                        if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          void submitQuickAdd();
+                        }
+                      }}
+                      placeholder={t("common.description", "Description")}
+                    />
+                  ) : (
+                    <button type="button" className="loom-quick-task-inline-trigger is-description" onClick={() => setQuickEditor("description")}>
+                      {quickDescription || t("common.description", "Description")}
+                    </button>
+                  )}
+                </div>
                 {quickShortcutSession && quickShortcutAnchor ? (
                   <div
                     ref={quickShortcutPaletteRef}
@@ -2244,23 +2616,12 @@ export function TasksClient({
                   <span>`/` {t("tasks.shortcutEverything", "everything")}</span>
                 </div>
 
-                <label className="loom-field mt-2">
-                  <span>{t("common.description", "Description")}</span>
-                <textarea
-                  className="loom-input loom-textarea"
-                  rows={3}
-                  value={quickDescription}
-                  onChange={(event) => setQuickDescription(event.target.value)}
-                  placeholder={t("common.description", "Description")}
-                />
-              </label>
-
               <div className="loom-quick-task-controls mt-2">
-                <label className="loom-field">
+                <label className="loom-quick-task-control-chip">
                   <span>{t("tasks.dueDate", "Due date")}</span>
                   <input className="loom-input" type="datetime-local" value={quickDueAtLocal} onChange={(event) => setQuickDueAtLocal(event.target.value)} />
                 </label>
-                <label className="loom-field">
+                <label className="loom-quick-task-control-chip">
                   <span>{t("tasks.priority", "Priority")}</span>
                   <select className="loom-input" value={quickPriority} onChange={(event) => setQuickPriority(event.target.value as "low" | "medium" | "high")}>
                     <option value="low">{t("tasks.priorityLow", "Low")}</option>
@@ -2268,20 +2629,19 @@ export function TasksClient({
                     <option value="high">{t("tasks.priorityHigh", "High")}</option>
                   </select>
                 </label>
+                <label className="loom-quick-task-control-chip">
+                  <span>{t("tasks.assignee", "Assignee")}</span>
+                  <select className="loom-input" value={quickAssignedToUserId} onChange={(event) => setQuickAssignedToUserId(event.target.value)}>
+                    {assignees.map((member) => (
+                      <option key={member.userId} value={member.userId}>
+                        {member.displayName}
+                      </option>
+                    ))}
+                  </select>
+                </label>
               </div>
 
-              <div className="loom-quick-task-summary">
-                <span className="loom-home-pill is-muted">
-                  {t("tasks.assignee", "Assignee")}: {quickAssignee?.displayName ?? t("tasks.unassigned", "Unassigned")}
-                </span>
-                {quickDueAtLocal ? (
-                  <span className="loom-home-pill is-muted">
-                    {t("tasks.dueDate", "Due date")}: {new Date(new Date(quickDueAtLocal).getTime()).toLocaleString(dateLocale)}
-                  </span>
-                ) : null}
-              </div>
-
-              <div className="loom-field mt-2">
+              <div className="loom-quick-task-control-chip is-labels">
                 <span>{t("tasks.labels", "Labels")}</span>
                 <div className="loom-label-list mt-2">
                   {quickLabelIds.map((labelId) => {
@@ -2295,6 +2655,7 @@ export function TasksClient({
                           type="button"
                           className="loom-task-label-remove-btn"
                           aria-label={t("common.remove", "Remove")}
+                          tabIndex={-1}
                           onClick={() => setQuickLabelIds((current) => current.filter((id) => id !== label.id))}
                         >
                           ×
@@ -2308,11 +2669,11 @@ export function TasksClient({
             </div>
 
             <footer className="loom-quick-task-footer">
-              <button type="button" className="loom-button-ghost" onClick={closeQuickAdd}>
-                {t("common.cancel", "Cancel")}
-              </button>
               <button type="button" className="loom-button-primary" onClick={() => void submitQuickAdd()} disabled={quickAddMutation.isPending}>
                 {quickAddMutation.isPending ? t("common.saving", "Saving...") : t("tasks.quickAddAction", "Add task")}
+              </button>
+              <button type="button" className="loom-button-ghost" tabIndex={-1} onClick={closeQuickAdd}>
+                {t("common.cancel", "Cancel")}
               </button>
             </footer>
             {quickAddError ? <p className="loom-feedback-error m-0">{quickAddError}</p> : null}
@@ -2322,21 +2683,57 @@ export function TasksClient({
 
       <ResponsivePanel
         isOpen={Boolean(selectedTask)}
-        title={selectedTask?.title ?? t("tasks.taskDetails", "Task details")}
+        title={drawerDraft?.title?.trim() || t("tasks.taskDetails", "Task details")}
+        titleContent={
+          selectedTask && drawerDraft ? (
+            drawerEditor === "title" ? (
+              <input
+                ref={titleInputRef}
+                className="loom-input loom-task-drawer-title-input loom-task-inline-text-editor is-header"
+                value={drawerDraft.title}
+                onBlur={() => setDrawerEditor((value) => (value === "title" ? null : value))}
+                onChange={(event) => {
+                  setDrawerSaveError(null);
+                  setDrawerDraft((current) => (current ? { ...current, title: event.target.value } : current));
+                }}
+                onKeyDown={(event) => {
+                  if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    event.currentTarget.blur();
+                    void saveDrawerTask();
+                  }
+                }}
+              />
+            ) : (
+              <button type="button" className="loom-task-inline-text-trigger is-title is-header" onClick={() => setDrawerEditor("title")}>
+                {drawerDraft.title || t("common.title", "Title")}
+              </button>
+            )
+          ) : null
+        }
         onClose={closeDrawer}
         size="wide"
         headerActions={
           <div className="loom-inline-actions">
+            <span className="loom-task-drawer-save-indicator" aria-live="polite">
+              {drawerSaveError
+                ? t("common.error", "Error")
+                : drawerSaveState === "saving"
+                  ? t("common.saving", "Saving...")
+                  : isDrawerDirty
+                    ? t("tasks.pendingChanges", "Saving soon...")
+                    : drawerSaveState === "saved"
+                      ? t("tasks.allChangesSaved", "Saved")
+                      : ""}
+            </span>
             <button
               type="button"
-              className="loom-button-primary"
-              onClick={() => void saveDrawerTask()}
-              disabled={!isDrawerDirty || drawerSaveMutation.isPending || !drawerDraft}
+              className="loom-task-icon-button"
+              aria-label={t("common.close", "Close")}
+              onClick={closeDrawer}
             >
-              {drawerSaveMutation.isPending ? t("common.saving", "Saving...") : t("tasks.save", "Save task")}
-            </button>
-            <button type="button" className="loom-button-ghost" onClick={closeDrawer}>
-              {t("common.close", "Close")}
+              ×
             </button>
           </div>
         }
@@ -2345,29 +2742,41 @@ export function TasksClient({
           <div className="loom-task-drawer-layout">
             <div className="loom-task-drawer-main">
               {drawerSaveError ? <p className="loom-feedback-error m-0">{drawerSaveError}</p> : null}
-              <section className="loom-card soft p-4">
-                <label className="loom-field">
-                  <span>{t("common.title", "Title")}</span>
-                  <input
-                    className="loom-input loom-task-drawer-title-input"
-                    value={drawerDraft.title}
-                    onChange={(event) => setDrawerDraft((current) => (current ? { ...current, title: event.target.value } : current))}
-                  />
-                </label>
-                <label className="loom-field mt-3">
-                  <span>{t("common.description", "Description")}</span>
+              <section className="loom-task-drawer-primary-surface">
+                {drawerEditor === "description" ? (
                   <textarea
-                    className="loom-input loom-textarea loom-task-description-large"
-                    rows={6}
+                    ref={descriptionTextareaRef}
+                    className="loom-input loom-textarea loom-task-description-large loom-task-inline-text-editor"
+                    rows={8}
                     value={drawerDraft.description}
-                    onChange={(event) => setDrawerDraft((current) => (current ? { ...current, description: event.target.value } : current))}
+                    onBlur={() => setDrawerEditor((value) => (value === "description" ? null : value))}
+                    onChange={(event) => {
+                      setDrawerSaveError(null);
+                      setDrawerDraft((current) => (current ? { ...current, description: event.target.value } : current));
+                    }}
+                    onKeyDown={(event) => {
+                      if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        event.currentTarget.blur();
+                        void saveDrawerTask();
+                      }
+                    }}
                   />
-                </label>
+                ) : (
+                  <button type="button" className="loom-task-inline-text-trigger is-description" onClick={() => setDrawerEditor("description")}>
+                    {drawerDraft.description ? (
+                      <span className="loom-task-inline-text-copy">{drawerDraft.description}</span>
+                    ) : (
+                      <span className="loom-task-inline-placeholder">{t("common.description", "Description")}</span>
+                    )}
+                  </button>
+                )}
               </section>
 
-              <section className="loom-card soft p-4">
+              <section className="loom-task-drawer-primary-surface is-comments">
                 <div className="loom-row-between">
-                  <h4 className="loom-section-title m-0">{t("tasks.comments", "Comments")}</h4>
+                  <h4 className="loom-section-title m-0">{t("tasks.activity", "Activity")}</h4>
                   <div className="loom-inline-actions">
                     <div className="loom-task-comment-sort-toggle" role="group" aria-label={t("tasks.commentsSort", "Comment sort")}>
                       <button
@@ -2394,58 +2803,82 @@ export function TasksClient({
                   {selectedTaskCommentsQuery.error ? <p className="loom-feedback-error m-0">{selectedTaskCommentsQuery.error.message}</p> : null}
 
                   {sortedComments.map((comment) => (
-                    <article key={comment.id} className="loom-task-comment-item">
-                      <span
-                        className={`loom-task-assignee-avatar ${comment.authorAvatarUrl ? "has-image" : ""}`}
-                        style={comment.authorAvatarUrl ? { backgroundImage: `url("${comment.authorAvatarUrl}")` } : undefined}
-                        aria-hidden="true"
-                      >
-                        {comment.authorAvatarUrl ? null : getInitials(comment.authorName)}
-                      </span>
-                      <div className="loom-task-comment-body">
-                        <p className="m-0 loom-task-comment-headline">
-                          <span className="font-semibold">{comment.authorName}</span>
-                          <span className="loom-muted small">{new Date(comment.createdAt).toLocaleString(dateLocale)}</span>
-                        </p>
-                        <p className="m-0 mt-2">{comment.body}</p>
-                      </div>
+                    <article key={comment.id} className={`loom-task-comment-item ${comment.entryKind === "audit" ? "is-audit" : ""}`.trim()}>
+                      {comment.entryKind === "audit" ? (
+                        <>
+                          <span className="loom-task-audit-marker" aria-hidden="true" />
+                          <div className="loom-task-comment-body loom-task-audit-body">
+                            <p className="m-0 loom-task-comment-headline">
+                              <span className="loom-task-audit-title">{comment.authorName}</span>
+                              <span className="loom-muted small">{new Date(comment.createdAt).toLocaleString(dateLocale)}</span>
+                            </p>
+                            <p className="m-0 loom-task-audit-copy">{comment.body}</p>
+                            <div className="loom-task-audit-delta">
+                              <span className="loom-task-audit-field">{String(comment.metadata.fieldLabel ?? "Updated")}</span>
+                              <span className="loom-task-audit-value is-previous">{renderAuditValue(comment.metadata.previousValue, dateLocale)}</span>
+                              <span className="loom-task-audit-arrow" aria-hidden="true">→</span>
+                              <span className="loom-task-audit-value is-next">{renderAuditValue(comment.metadata.nextValue, dateLocale)}</span>
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <span
+                            className={`loom-task-assignee-avatar ${comment.authorAvatarUrl ? "has-image" : ""}`}
+                            style={comment.authorAvatarUrl ? { backgroundImage: `url("${comment.authorAvatarUrl}")` } : undefined}
+                            aria-hidden="true"
+                          >
+                            {comment.authorAvatarUrl ? null : getInitials(comment.authorName)}
+                          </span>
+                          <div className="loom-task-comment-body">
+                            <p className="m-0 loom-task-comment-headline">
+                              <span className="font-semibold">{comment.authorName}</span>
+                              <span className="loom-muted small">{new Date(comment.createdAt).toLocaleString(dateLocale)}</span>
+                            </p>
+                            <p className="m-0 mt-2">{comment.body}</p>
+                          </div>
+                        </>
+                      )}
                     </article>
                   ))}
                   {selectedTaskCommentsQuery.data && selectedTaskCommentsQuery.data.length === 0 ? (
-                    <p className="loom-muted m-0">{t("tasks.noComments", "No comments yet.")}</p>
+                    <p className="loom-muted m-0">{t("tasks.noActivity", "No activity yet.")}</p>
                   ) : null}
                 </div>
 
-                <form
-                  className="loom-task-comment-form mt-3"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    if (!commentDraft.trim()) return;
-                    commentMutation.mutate({ taskId: selectedTask.id, body: commentDraft.trim() });
-                  }}
-                >
-                  <textarea
-                    className="loom-input loom-textarea"
-                    placeholder={t("tasks.commentPlaceholder", "Comment")}
-                    value={commentDraft}
-                    onChange={(event) => setCommentDraft(event.target.value)}
-                    rows={3}
-                  />
-                  <div className="loom-form-actions">
-                    <button type="button" className="loom-button-ghost" onClick={() => setCommentDraft("")}>
-                      {t("common.cancel", "Cancel")}
+                <div className="loom-task-comment-form mt-3">
+                  {isCommentComposerOpen ? (
+                    <>
+                      <textarea
+                        ref={commentTextareaRef}
+                        className="loom-input loom-textarea loom-task-comment-editor"
+                        placeholder={t("tasks.commentPlaceholder", "Comment")}
+                        value={commentDraft}
+                        onBlur={() => void submitCommentDraft()}
+                        onChange={(event) => setCommentDraft(event.target.value)}
+                        onKeyDown={(event) => {
+                          if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            void submitCommentDraft();
+                          }
+                        }}
+                        rows={4}
+                      />
+                      <p className="loom-muted small m-0">{t("tasks.commentAutoSaveHint", "Comments post automatically when you click away or press Ctrl+Enter.")}</p>
+                    </>
+                  ) : (
+                    <button type="button" className="loom-task-comment-trigger" onClick={() => setIsCommentComposerOpen(true)}>
+                      {commentDraft.trim() ? commentDraft : t("tasks.commentPlaceholder", "Comment")}
                     </button>
-                    <button type="submit" className="loom-button-primary" disabled={commentMutation.isPending || commentDraft.trim().length === 0}>
-                      {commentMutation.isPending ? t("common.saving", "Saving...") : t("tasks.addComment", "Comment")}
-                    </button>
-                  </div>
+                  )}
                   {commentMutation.error ? <p className="loom-feedback-error m-0">{commentMutation.error.message}</p> : null}
-                </form>
+                </div>
               </section>
             </div>
 
             <aside className="loom-task-drawer-aside">
-              <section className="loom-card soft p-4">
+              <section className="loom-task-drawer-sidebar-surface">
                 <h4 className="loom-section-title m-0">{t("tasks.settings", "Task settings")}</h4>
                 <div className="loom-task-editable-list mt-3">
                   <div className="loom-task-editable-item">
@@ -2494,6 +2927,7 @@ export function TasksClient({
                       type="datetime-local"
                       className={`loom-input loom-task-inline-control ${drawerEditor === "startAt" ? "is-editing" : ""}`}
                       value={drawerDraft.startAtLocal}
+                      max={drawerDraft.dueAtLocal || undefined}
                       onFocus={() => setDrawerEditor("startAt")}
                       onBlur={() => setDrawerEditor((value) => (value === "startAt" ? null : value))}
                       onChange={(event) => setDrawerDraft((current) => (current ? { ...current, startAtLocal: event.target.value } : current))}
@@ -2506,6 +2940,7 @@ export function TasksClient({
                       type="datetime-local"
                       className={`loom-input loom-task-inline-control ${drawerEditor === "dueAt" ? "is-editing" : ""}`}
                       value={drawerDraft.dueAtLocal}
+                      min={drawerDraft.startAtLocal || undefined}
                       onFocus={() => setDrawerEditor("dueAt")}
                       onBlur={() => setDrawerEditor((value) => (value === "dueAt" ? null : value))}
                         onChange={(event) => setDrawerDraft((current) => (current ? { ...current, dueAtLocal: event.target.value } : current))}
