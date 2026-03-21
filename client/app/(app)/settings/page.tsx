@@ -7,11 +7,16 @@ import { getServerI18n } from "@/lib/i18n/server";
 import { PushSettingsClient } from "@/features/push/push-settings-client";
 import { TaskLabelsManager } from "@/features/tasks/task-labels-manager";
 import { RegionalSettingsForm } from "@/features/profile/regional-settings-form";
+import { ThemeSettingsForm } from "@/features/theme/theme-settings-form";
+import { DensitySettingsForm } from "@/features/theme/density-settings-form";
+import { getRequestDensity, getRequestTheme } from "@/lib/theme/server";
 
 export default async function SettingsPage() {
   const user = await requireUser();
   const locale = await getRequestLocale();
   const regionalSettings = await getRequestRegionalSettings();
+  const theme = await getRequestTheme();
+  const density = await getRequestDensity();
   const { t } = await getServerI18n();
   const context = await getActiveFamilyContext(user.id);
 
@@ -21,6 +26,22 @@ export default async function SettingsPage() {
         <div className="loom-module-header-copy">
           <h2 className="loom-module-title">{t("nav.settings")}</h2>
           <p className="loom-module-subtitle">{t("settings.subtitle")}</p>
+        </div>
+      </section>
+
+      <section className="loom-card p-5">
+        <h2 className="loom-section-title">{t("settings.appearanceTheme", "Theme")}</h2>
+        <p className="loom-muted small mt-2 mb-0">{t("settings.appearanceThemeHint", "Choose the visual style used across Loom on desktop and mobile.")}</p>
+        <div className="mt-3">
+          <ThemeSettingsForm theme={theme} />
+        </div>
+      </section>
+
+      <section className="loom-card p-5">
+        <h2 className="loom-section-title">{t("settings.appearanceDensity", "Density")}</h2>
+        <p className="loom-muted small mt-2 mb-0">{t("settings.appearanceDensityHint", "Choose whether Loom feels comfortable or more information-dense.")}</p>
+        <div className="mt-3">
+          <DensitySettingsForm density={density} />
         </div>
       </section>
 

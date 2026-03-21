@@ -5,6 +5,7 @@ import { AppProviders } from "@/components/layout/app-providers";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 import { getRequestLocale } from "@/lib/auth";
 import { getRequestRegionalSettings } from "@/lib/regional/server";
+import { getRequestDensity, getRequestTheme, getRequestThemeColorMode } from "@/lib/theme/server";
 import "./globals.css";
 
 const inter = Inter({
@@ -44,11 +45,14 @@ export const viewport: Viewport = {
 export default async function RootLayout({ children }: { children: ReactNode }) {
   const locale = await getRequestLocale();
   const regionalSettings = await getRequestRegionalSettings();
+  const theme = await getRequestTheme();
+  const density = await getRequestDensity();
+  const colorMode = await getRequestThemeColorMode();
   const dictionary = getDictionary(locale);
   const htmlLang = locale === "en" ? "en-GB" : locale === "pt" ? "pt-PT" : locale;
 
   return (
-    <html lang={htmlLang}>
+    <html lang={htmlLang} data-theme={theme} data-density={density} data-color-mode={colorMode}>
       <body className={`${inter.className} ${wireOne.variable}`}>
         <AppProviders locale={locale} dictionary={dictionary} regionalSettings={regionalSettings}>
           {children}

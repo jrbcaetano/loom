@@ -1,0 +1,198 @@
+html {
+  color-scheme: light;
+}
+
+html[data-color-mode="dark"] {
+  color-scheme: dark;
+}
+
+html[data-theme="loom"] {
+}
+
+html[data-density="comfortable"] {
+  --loom-font-scale: 1;
+  --loom-space-scale: 1;
+  --loom-control-scale: 1;
+}
+
+html[data-density="compact"] {
+  --loom-font-scale: 0.88;
+  --loom-space-scale: 0.76;
+  --loom-control-scale: 0.82;
+  --loom-shell-max-width: 1160px;
+  --loom-page-max-width: 1000px;
+  --loom-sidebar-width: 228px;
+  --loom-main-max-width-mobile: 370px;
+  --loom-radius-sm: 8px;
+  --loom-radius-md: 12px;
+  --loom-radius-lg: 16px;
+  --loom-shadow-sm: 0 1px 2px rgb(17 24 39 / 0.02), 0 6px 14px rgb(17 24 39 / 0.04);
+  --loom-shadow-md: 0 12px 28px rgb(17 24 39 / 0.07);
+}
+
+html[data-theme="loom-dark"] {
+  --loom-base-bg: #0f1724;
+  --loom-base-surface: #151f30;
+  --loom-base-surface-soft: #1b2840;
+  --loom-base-surface-strong: #243350;
+  --loom-base-text: #f4f7fb;
+  --loom-base-text-muted: #a7b3c8;
+  --loom-base-text-soft: #7d89a0;
+  --loom-base-border: #2a3954;
+  --loom-base-border-strong: #38506f;
+  --loom-base-primary: #7aa2ff;
+  --loom-base-primary-hover: #91b3ff;
+  --loom-base-primary-soft: rgb(122 162 255 / 0.18);
+  --loom-base-primary-strong: #c8d8ff;
+  --loom-base-danger: #ff7e96;
+  --loom-base-danger-soft: rgb(255 126 150 / 0.14);
+  --loom-base-danger-border: rgb(255 126 150 / 0.35);
+  --loom-base-success: #63d99c;
+  --loom-base-success-soft: rgb(99 217 156 / 0.14);
+  --loom-base-success-border: rgb(99 217 156 / 0.3);
+  --loom-base-warning: #ffb469;
+  --loom-base-warning-soft: rgb(255 180 105 / 0.14);
+  --loom-base-info-soft: rgb(122 162 255 / 0.16);
+  --loom-base-info-border: rgb(122 162 255 / 0.36);
+  --loom-base-overlay: rgb(2 6 14 / 0.58);
+  --loom-base-focus-ring: rgb(122 162 255 / 0.28);
+  --loom-shadow-sm: 0 8px 24px rgb(0 0 0 / 0.22);
+  --loom-shadow-md: 0 18px 48px rgb(0 0 0 / 0.34);
+  --loom-shadow-lg: 0 30px 72px rgb(0 0 0 / 0.4);
+  --loom-hero-gradient: linear-gradient(180deg, #18243a 0%, #121b2b 100%);
+  --loom-loading-gradient: linear-gradient(90deg, #1c2840 25%, #243553 37%, #1c2840 63%);
+  --loom-selected-surface: rgb(122 162 255 / 0.18);
+  --loom-selected-border: rgb(122 162 255 / 0.35);
+  --loom-selected-text: #dbe7ff;
+  --loom-badge-bg: rgb(122 162 255 / 0.16);
+  --loom-badge-border: rgb(122 162 255 / 0.28);
+  --loom-badge-text: #dbe7ff;
+  --loom-avatar-bg: #20304b;
+  --loom-avatar-bg-strong: #2c4166;
+  --loom-avatar-text: #dfe8fb;
+  --loom-card-bg-subtle: #172233;
+  --loom-card-bg-muted: #1a2537;
+  --loom-card-border-subtle: #2a3954;
+  --loom-progress-track: #233146;
+  --loom-check-border: #6f84a6;
+  --loom-item-check-border: #6d85aa;
+  --loom-home-pill-bg: #223453;
+  --loom-home-pill-text: #c4d3f2;
+  --loom-home-pill-muted-bg: #1d2a40;
+  --loom-home-pill-muted-text: #a5b4cc;
+  --loom-calendar-status-done-bg: #283447;
+  --loom-calendar-status-done-border: #4a5e7d;
+  --loom-calendar-status-done-text: #b3bfd3;
+  --loom-calendar-status-inbox-bg: #1c3159;
+  --loom-calendar-status-inbox-border: #5d88db;
+  --loom-calendar-status-inbox-text: #cfe0ff;
+  --loom-calendar-status-planned-bg: #292a59;
+  --loom-calendar-status-planned-border: #7d81dd;
+  --loom-calendar-status-planned-text: #d7d8ff;
+  --loom-calendar-status-progress-bg: #183f3d;
+  --loom-calendar-status-progress-border: #37a28b;
+  --loom-calendar-status-progress-text: #c8fff3;
+  --loom-calendar-status-waiting-bg: #4a3520;
+  --loom-calendar-status-waiting-border: #d09039;
+  --loom-calendar-status-waiting-text: #ffe1b5;
+  --loom-calendar-priority-low-bg: #193827;
+  --loom-calendar-priority-low-border: #5aa06f;
+  --loom-calendar-priority-low-text: #c7f0d4;
+  --loom-calendar-priority-medium-bg: #4a3520;
+  --loom-calendar-priority-medium-border: #d09039;
+  --loom-calendar-priority-medium-text: #ffe1b5;
+  --loom-calendar-priority-high-bg: #4d2328;
+  --loom-calendar-priority-high-border: #d86d7a;
+  --loom-calendar-priority-high-text: #ffd4da;
+  --loom-calendar-due-none-bg: #243247;
+  --loom-calendar-due-none-border: #495c77;
+  --loom-calendar-due-none-text: #c0ccdb;
+  --loom-calendar-due-overdue-bg: #4d2328;
+  --loom-calendar-due-overdue-border: #d86d7a;
+  --loom-calendar-due-overdue-text: #ffd4da;
+  --loom-calendar-due-soon-bg: #4a3520;
+  --loom-calendar-due-soon-border: #d09039;
+  --loom-calendar-due-soon-text: #ffe1b5;
+  --loom-calendar-due-week-bg: #1c3159;
+  --loom-calendar-due-week-border: #5d88db;
+  --loom-calendar-due-week-text: #d6e5ff;
+  --loom-calendar-due-future-bg: #183f3d;
+  --loom-calendar-due-future-border: #37a28b;
+  --loom-calendar-due-future-text: #c8fff3;
+  --loom-calendar-visibility-private-bg: #4a2437;
+  --loom-calendar-visibility-private-border: #d46897;
+  --loom-calendar-visibility-private-text: #ffd2e5;
+  --loom-calendar-visibility-family-bg: #1c3159;
+  --loom-calendar-visibility-family-border: #5d88db;
+  --loom-calendar-visibility-family-text: #d6e5ff;
+  --loom-calendar-visibility-selected-bg: #352857;
+  --loom-calendar-visibility-selected-border: #9d79ec;
+  --loom-calendar-visibility-selected-text: #eadcff;
+  --loom-calendar-default-bg: #183f3d;
+  --loom-calendar-default-border: #37a28b;
+  --loom-calendar-default-text: #c8fff3;
+  --loom-calendar-label-text: #e8fff8;
+  --loom-calendar-unassigned-bg: #1a2537;
+}
+
+html[data-theme="hearth"] {
+  --loom-base-bg: #f8f3ec;
+  --loom-base-surface: #fffdfa;
+  --loom-base-surface-soft: #f3ebe1;
+  --loom-base-surface-strong: #eadfce;
+  --loom-base-text: #2f261f;
+  --loom-base-text-muted: #7e695b;
+  --loom-base-text-soft: #a08878;
+  --loom-base-border: #dfd2c0;
+  --loom-base-border-strong: #cbb89f;
+  --loom-base-primary: #4f7a72;
+  --loom-base-primary-hover: #456c64;
+  --loom-base-primary-soft: #e4f0ed;
+  --loom-base-primary-strong: #32534d;
+  --loom-base-danger: #b84d4f;
+  --loom-base-danger-soft: #fff1f0;
+  --loom-base-danger-border: #efc6c3;
+  --loom-base-success: #4b7c52;
+  --loom-base-success-soft: #e6f2e7;
+  --loom-base-success-border: #b8d5bc;
+  --loom-base-warning: #9c6a28;
+  --loom-base-warning-soft: #fcf2df;
+  --loom-base-info-soft: #ece8ff;
+  --loom-base-info-border: #d7cff4;
+  --loom-base-overlay: rgb(47 38 31 / 0.22);
+  --loom-base-focus-ring: rgb(79 122 114 / 0.22);
+  --loom-shadow-sm: 0 1px 2px rgb(74 51 29 / 0.03), 0 12px 24px rgb(74 51 29 / 0.06);
+  --loom-shadow-md: 0 20px 44px rgb(74 51 29 / 0.12);
+  --loom-hero-gradient: linear-gradient(180deg, #fffaf4 0%, #f4ebe1 100%);
+  --loom-loading-gradient: linear-gradient(90deg, #efe5d9 25%, #f7f0e7 37%, #efe5d9 63%);
+  --loom-selected-surface: #f7efe3;
+  --loom-selected-border: #d7c8b1;
+  --loom-selected-text: #5d4737;
+  --loom-badge-bg: #efe7d8;
+  --loom-badge-border: #dbcdb8;
+  --loom-badge-text: #6c5645;
+  --loom-avatar-bg: #eadccf;
+  --loom-avatar-bg-strong: #dcc8b5;
+  --loom-avatar-text: #5a4a3e;
+  --loom-card-bg-subtle: #faf5ef;
+  --loom-card-bg-muted: #f4ebe1;
+  --loom-card-border-subtle: #e5d8c8;
+  --loom-progress-track: #eadfce;
+  --loom-check-border: #b9ab97;
+  --loom-item-check-border: #c4b59d;
+  --loom-home-pill-bg: #ede3d5;
+  --loom-home-pill-text: #735e4f;
+  --loom-home-pill-muted-bg: #f2e8db;
+  --loom-home-pill-muted-text: #8c7566;
+  --loom-radius-sm: 12px;
+  --loom-radius-md: 20px;
+  --loom-radius-lg: 26px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --loom-motion-fast: 1ms;
+    --loom-motion-base: 1ms;
+    --loom-motion-slow: 1ms;
+  }
+}

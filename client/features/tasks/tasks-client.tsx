@@ -1391,28 +1391,60 @@ export function TasksClient({
   function getCalendarTaskPalette(task: TaskRow) {
     if (task.status === "done") {
       return {
-        background: "#ececec",
-        borderColor: "#d4d4d4",
-        textColor: "#7a7a7a"
+        background: "var(--loom-calendar-status-done-bg)",
+        borderColor: "var(--loom-calendar-status-done-border)",
+        textColor: "var(--loom-calendar-status-done-text)"
       };
     }
 
     if (calendarTaskColorBy === "status") {
       const palette: Record<TaskStatus, { background: string; borderColor: string; textColor: string }> = {
-        inbox: { background: "#e0ecff", borderColor: "#7aa6ff", textColor: "#1f4ea3" },
-        planned: { background: "#e7e8ff", borderColor: "#8b90ff", textColor: "#4a4fb8" },
-        in_progress: { background: "#def7f1", borderColor: "#3ab99c", textColor: "#136b58" },
-        waiting: { background: "#fff2de", borderColor: "#f0a647", textColor: "#9a5d10" },
-        done: { background: "#ececec", borderColor: "#d4d4d4", textColor: "#7a7a7a" }
+        inbox: {
+          background: "var(--loom-calendar-status-inbox-bg)",
+          borderColor: "var(--loom-calendar-status-inbox-border)",
+          textColor: "var(--loom-calendar-status-inbox-text)"
+        },
+        planned: {
+          background: "var(--loom-calendar-status-planned-bg)",
+          borderColor: "var(--loom-calendar-status-planned-border)",
+          textColor: "var(--loom-calendar-status-planned-text)"
+        },
+        in_progress: {
+          background: "var(--loom-calendar-status-progress-bg)",
+          borderColor: "var(--loom-calendar-status-progress-border)",
+          textColor: "var(--loom-calendar-status-progress-text)"
+        },
+        waiting: {
+          background: "var(--loom-calendar-status-waiting-bg)",
+          borderColor: "var(--loom-calendar-status-waiting-border)",
+          textColor: "var(--loom-calendar-status-waiting-text)"
+        },
+        done: {
+          background: "var(--loom-calendar-status-done-bg)",
+          borderColor: "var(--loom-calendar-status-done-border)",
+          textColor: "var(--loom-calendar-status-done-text)"
+        }
       };
       return palette[task.status];
     }
 
     if (calendarTaskColorBy === "priority") {
       const palette = {
-        low: { background: "#e8f6ed", borderColor: "#69b983", textColor: "#1f6f3f" },
-        medium: { background: "#fff4de", borderColor: "#f0b14d", textColor: "#9a6511" },
-        high: { background: "#ffe5e5", borderColor: "#ef6b6b", textColor: "#a52a2a" }
+        low: {
+          background: "var(--loom-calendar-priority-low-bg)",
+          borderColor: "var(--loom-calendar-priority-low-border)",
+          textColor: "var(--loom-calendar-priority-low-text)"
+        },
+        medium: {
+          background: "var(--loom-calendar-priority-medium-bg)",
+          borderColor: "var(--loom-calendar-priority-medium-border)",
+          textColor: "var(--loom-calendar-priority-medium-text)"
+        },
+        high: {
+          background: "var(--loom-calendar-priority-high-bg)",
+          borderColor: "var(--loom-calendar-priority-high-border)",
+          textColor: "var(--loom-calendar-priority-high-text)"
+        }
       };
       return palette[task.priority];
     }
@@ -1420,29 +1452,61 @@ export function TasksClient({
     if (calendarTaskColorBy === "due_proximity") {
       const due = task.dueAt ? new Date(task.dueAt) : null;
       if (!due) {
-        return { background: "#f2f4f7", borderColor: "#cfd6df", textColor: "#566170" };
+        return {
+          background: "var(--loom-calendar-due-none-bg)",
+          borderColor: "var(--loom-calendar-due-none-border)",
+          textColor: "var(--loom-calendar-due-none-text)"
+        };
       }
       if (isOverdue(task, now)) {
-        return { background: "#ffe5e5", borderColor: "#ef6b6b", textColor: "#a52a2a" };
+        return {
+          background: "var(--loom-calendar-due-overdue-bg)",
+          borderColor: "var(--loom-calendar-due-overdue-border)",
+          textColor: "var(--loom-calendar-due-overdue-text)"
+        };
       }
       const tomorrow = new Date(todayStart);
       tomorrow.setDate(todayStart.getDate() + 1);
       const nextWeek = new Date(todayStart);
       nextWeek.setDate(todayStart.getDate() + 7);
       if (due < tomorrow) {
-        return { background: "#fff1db", borderColor: "#f59e0b", textColor: "#9a6511" };
+        return {
+          background: "var(--loom-calendar-due-soon-bg)",
+          borderColor: "var(--loom-calendar-due-soon-border)",
+          textColor: "var(--loom-calendar-due-soon-text)"
+        };
       }
       if (due <= nextWeek) {
-        return { background: "#e4f0ff", borderColor: "#60a5fa", textColor: "#1d4ed8" };
+        return {
+          background: "var(--loom-calendar-due-week-bg)",
+          borderColor: "var(--loom-calendar-due-week-border)",
+          textColor: "var(--loom-calendar-due-week-text)"
+        };
       }
-      return { background: "#e6f8f1", borderColor: "#3ab99c", textColor: "#136b58" };
+      return {
+        background: "var(--loom-calendar-due-future-bg)",
+        borderColor: "var(--loom-calendar-due-future-border)",
+        textColor: "var(--loom-calendar-due-future-text)"
+      };
     }
 
     if (calendarTaskColorBy === "visibility" && visibilityMode === "family") {
       const palette = {
-        private: { background: "#ffe7f1", borderColor: "#ef5d95", textColor: "#a52b5f" },
-        family: { background: "#e6efff", borderColor: "#4f7df3", textColor: "#234da7" },
-        selected_members: { background: "#efe8ff", borderColor: "#8b5cf6", textColor: "#5b33b6" }
+        private: {
+          background: "var(--loom-calendar-visibility-private-bg)",
+          borderColor: "var(--loom-calendar-visibility-private-border)",
+          textColor: "var(--loom-calendar-visibility-private-text)"
+        },
+        family: {
+          background: "var(--loom-calendar-visibility-family-bg)",
+          borderColor: "var(--loom-calendar-visibility-family-border)",
+          textColor: "var(--loom-calendar-visibility-family-text)"
+        },
+        selected_members: {
+          background: "var(--loom-calendar-visibility-selected-bg)",
+          borderColor: "var(--loom-calendar-visibility-selected-border)",
+          textColor: "var(--loom-calendar-visibility-selected-text)"
+        }
       };
       return palette[task.visibility];
     }
@@ -1457,14 +1521,14 @@ export function TasksClient({
                 .map((color, index) => `${color}22 ${Math.round(index * (100 / colors.length))}%`)
                 .join(", ")})`,
         borderColor: colors[0],
-        textColor: "#0f5132"
+        textColor: "var(--loom-calendar-label-text)"
       };
     }
 
     return {
-      background: "#e6f8f1",
-      borderColor: "#3ab99c",
-      textColor: "#136b58"
+      background: "var(--loom-calendar-default-bg)",
+      borderColor: "var(--loom-calendar-default-border)",
+      textColor: "var(--loom-calendar-default-text)"
     };
   }
 
@@ -1473,7 +1537,7 @@ export function TasksClient({
     const isAssignedToCurrentUser = !task.assignedToUserId || task.assignedToUserId === currentUserId;
 
     return {
-      "--calendar-task-background": isAssignedToCurrentUser ? palette.background : "#ffffff",
+      "--calendar-task-background": isAssignedToCurrentUser ? palette.background : "var(--loom-calendar-unassigned-bg)",
       "--calendar-task-border": palette.borderColor,
       "--calendar-task-text": palette.textColor,
       "--calendar-task-decoration": task.status === "done" ? "line-through" : "none"

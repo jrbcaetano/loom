@@ -165,18 +165,45 @@ function mixRgb(from: readonly [number, number, number], to: readonly [number, n
   return `rgb(${r} ${g} ${b})`;
 }
 
-const ACTIVE_ROW_COLOR: readonly [number, number, number] = [255, 255, 255];
-const COMPLETED_ROW_COLOR: readonly [number, number, number] = [243, 245, 247];
+function getThemeRowColors() {
+  if (typeof document === "undefined") {
+    return {
+      active: [255, 255, 255] as const,
+      completed: [243, 245, 247] as const
+    };
+  }
+
+  const theme = document.documentElement.dataset.theme;
+  if (theme === "loom-dark") {
+    return {
+      active: [21, 31, 48] as const,
+      completed: [27, 40, 64] as const
+    };
+  }
+
+  if (theme === "hearth") {
+    return {
+      active: [255, 253, 250] as const,
+      completed: [243, 235, 225] as const
+    };
+  }
+
+  return {
+    active: [255, 255, 255] as const,
+    completed: [243, 245, 247] as const
+  };
+}
 
 function getRowBackgroundColor(isCompletedSection: boolean, swipeOffset: number) {
+  const colors = getThemeRowColors();
   if (!swipeOffset) {
-    return isCompletedSection ? mixRgb(COMPLETED_ROW_COLOR, COMPLETED_ROW_COLOR, 1) : mixRgb(ACTIVE_ROW_COLOR, ACTIVE_ROW_COLOR, 1);
+    return isCompletedSection ? mixRgb(colors.completed, colors.completed, 1) : mixRgb(colors.active, colors.active, 1);
   }
 
   const progress = Math.min(1, Math.abs(swipeOffset) / 88);
   return isCompletedSection
-    ? mixRgb(COMPLETED_ROW_COLOR, ACTIVE_ROW_COLOR, progress)
-    : mixRgb(ACTIVE_ROW_COLOR, COMPLETED_ROW_COLOR, progress);
+    ? mixRgb(colors.completed, colors.active, progress)
+    : mixRgb(colors.active, colors.completed, progress);
 }
 
 export function ListItemsClient({
