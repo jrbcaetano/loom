@@ -1,95 +1,159 @@
-# Loom MVP
+# Loom
 
-Loom is a mobile-first family management web app built with Next.js + Supabase.
+Loom is a mobile-first family coordination web app built with Next.js and Supabase.
 
-## Stack
+The project has grown beyond the original MVP baseline and now covers shared family workflows across planning, communication, household operations, and product-level administration.
 
-- Frontend: Next.js (App Router), TypeScript, TailwindCSS
-- Data/Auth: Supabase Postgres, Supabase Auth, Supabase Realtime, RLS
+## Current Product Scope
+
+### Account and access
+
+- Email/password authentication
+- Google sign-in and sign-up
+- Forgot password flow
+- Invite-only access mode with activation workflow
+- Product admin area for access management
+
+### Family workspace
+
+- Family onboarding
+- Family member management
+- Family settings
+- Multiple family support with active family switching
+
+### Core feature areas
+
+- Home dashboard
+- Tasks
+- Lists
+- Calendar
+- Notifications
+- Messages
+- Meals
+- Chores
+- Rewards
+- Notes
+- Expenses
+- Documents
+- Routines
+
+### Tasking and productivity
+
+- Task creation and editing
+- Task comments and audit trail
+- Status workflows
+- Personal and family task labels
+- Task drawer interactions and quick-add flows
+- Calendar-style task visualization
+
+### Shared records and planning
+
+- Shared lists with inline item editing
+- Event scheduling and recurrence support
+- External calendar support
+- Notes, documents, expenses, and routines
+- Meal planning and recipe management
+
+### Preferences and UX
+
+- Profile editing
+- Avatar upload
+- Language selection
+- Regional date and time preferences
+- Theme selection
+- Density selection
+
+## Theme System
+
+The app now includes a theme and density system designed to scale with future feature work.
+
+### Themes
+
+- `Loom`
+- `Loom Dark`
+- `Hearth`
+
+### Density modes
+
+- `Comfortable`
+- `Compact`
+
+Theme and density are independent preferences, so combinations like dark plus compact are supported.
+
+The styling system is token-driven and shared across desktop and mobile layouts so new feature work can inherit the active presentation mode without per-theme UI logic.
+
+## Tech Stack
+
+- Frontend: Next.js App Router, TypeScript
+- Styling: shared CSS layers with app-level design tokens and theme tokens
+- Data/Auth/Storage: Supabase Postgres, Supabase Auth, Supabase Storage, RLS
+- Realtime: Supabase Realtime
 - Client state/forms: React Query, React Hook Form, Zod
-- i18n: dictionary-based locale system with `en` default and runtime language switch
+- Internationalization: dictionary-based locale system with English and Portuguese
 
-## Implemented MVP Scope
+## Project Structure
 
-- Authentication: register, login, logout, forgot password
-- Onboarding: create family if user has none
-- Family management:
-  - family settings
-  - member listing
-  - invite by email
-- Lists:
-  - create/edit/archive lists
-  - add/complete/delete list items
-  - realtime item updates
-- Tasks:
-  - create/edit/archive tasks
-  - assign users
-  - quick completion
-  - filters (mine/status/priority)
-  - realtime updates
-- Calendar:
-  - create/edit/archive events
-  - agenda + month view
-- Notifications:
-  - in-app notification center
-  - mark one/all as read
-- Profile:
-  - update name
-  - update locale
-  - avatar upload (Supabase Storage)
-- Visibility model in DB:
-  - `private`, `family`, `selected_members`
+- `client/`: Next.js application
+- `server/`: server-side companion workspace
+- `client/app/`: routes, layouts, and API endpoints
+- `client/features/`: feature modules
+- `client/styles/`: shared tokens, design-system, layout, components, and themes
+- `client/supabase/migrations/`: database migrations
+- `docs/`: project and operational documentation
 
-## Database
+## Current Architecture Notes
 
-Migration file for the Loom family domain:
+- App access is enforced server-side and in the database layer.
+- RLS is the source of truth for data access.
+- Feature services and API routes validate input with Zod.
+- Shared visual styling is centralized in token-based CSS layers.
+- Theme and density are applied at the root layout before paint.
+- The app is designed for both mobile and desktop, with shared theme behavior across both.
+
+## Database and Migrations
+
+The base family-domain reset is:
 
 - `client/supabase/migrations/20260307203000_loom_family_mvp_reset.sql`
 
-This migration:
+Important later migrations now cover:
 
-- removes old PoC `spaces` domain objects
-- creates Loom enums/tables:
-  - `profiles`
-  - `families`
-  - `family_members`
-  - `lists`
-  - `list_items`
-  - `tasks`
-  - `events`
-  - `entity_shares`
-  - `notifications`
-  - `user_settings`
-- applies RLS and permission helper functions
-- adds onboarding/member RPCs
-- enables realtime publication for lists/tasks/events/notifications
+- feature domains and module enablement
+- regional user settings
+- task comments and audit entries
+- push notifications
+- theme preferences
+- density preferences
 
-## Supabase Manual Setup
+Recent preference-related migrations:
+
+- `client/supabase/migrations/20260320173000_user_theme_system.sql`
+- `client/supabase/migrations/20260321100000_user_density_preference.sql`
+
+## Supabase Setup
 
 1. Create a Supabase project.
-2. In `SQL Editor`, run:
-   - `client/supabase/migrations/20260307203000_loom_family_mvp_reset.sql`
-3. In `Authentication > Providers`, ensure `Email` is enabled.
-4. Optional for avatars:
-   - create public storage bucket named `avatars`.
-5. Confirm URL + anon key values for environment variables.
+2. Run the SQL migrations from `client/supabase/migrations/` in order.
+3. Enable the authentication providers you intend to use.
+4. Create the `avatars` public storage bucket if profile uploads are required.
+5. Configure the client environment variables.
 
 ## Environment Variables
 
-Create `client/.env.local`:
+Create `client/.env.local` with:
 
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 
-Reference template:
+Reference:
 
 - `client/.env.example`
 
-## Local Run
+## Local Development
 
-1. Install dependencies:
+1. Install client dependencies:
    - `npm install --prefix client`
-2. Run app:
+2. Start the client:
    - `npm run dev:client`
 3. Open:
    - `http://localhost:3000`
@@ -98,10 +162,9 @@ Reference template:
 
 - `npm run build --prefix client`
 
-## Notes
+## Operational Notes
 
-- RLS is the source of truth for data access.
-- API routes and feature services validate input with Zod.
-- Realtime currently targets list and task collaboration flows.
 - Product admin and invite-only setup guide:
   - `docs/admin-access-setup.md`
+- Theme system implementation notes:
+  - `docs/theme-system-implementation-plan.md`
