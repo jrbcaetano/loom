@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ["pdf-parse", "tesseract.js"]
+  serverExternalPackages: ["@napi-rs/canvas", "pdf-parse", "tesseract.js"]
 };
 
 export default nextConfig;

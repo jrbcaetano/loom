@@ -86,6 +86,92 @@ const LIDL_STOP_PREFIXES = [
 ];
 
 const IMAGE_MIME_PREFIX = "image/";
+const OCR_LANGUAGE = "por";
+const OCR_TIMEOUT_MS = 60_000;
+const OCR_MAX_IMAGE_DIMENSION = 1800;
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string) {
+  let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutHandle = setTimeout(() => {
+      reject(new Error(message));
+    }, timeoutMs);
+  });
+
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timeoutHandle) {
+      clearTimeout(timeoutHandle);
+    }
+  }
+}
+
+async function ensurePdfRuntimeGlobals() {
+  if (
+    typeof globalThis.DOMMatrix !== "undefined" &&
+    typeof globalThis.ImageData !== "undefined" &&
+    typeof globalThis.Path2D !== "undefined"
+  ) {
+    return;
+  }
+
+  const { DOMMatrix, ImageData, Path2D } = await import("@napi-rs/canvas");
+
+  if (typeof globalThis.DOMMatrix === "undefined") {
+    globalThis.DOMMatrix = DOMMatrix as unknown as typeof globalThis.DOMMatrix;
+  }
+  if (typeof globalThis.ImageData === "undefined") {
+    globalThis.ImageData = ImageData as unknown as typeof globalThis.ImageData;
+  }
+  if (typeof globalThis.Path2D === "undefined") {
+    globalThis.Path2D = Path2D as unknown as typeof globalThis.Path2D;
+  }
+}
+
+async function prepareImageForOcr(file: File) {
+  const buffer = Buffer.from(await file.arrayBuffer());
+
+  try {
+    const { createCanvas, loadImage } = await import("@napi-rs/canvas");
+    const image = await loadImage(buffer);
+    const largestSide = Math.max(image.width, image.height);
+
+    if (!largestSide) {
+      return buffer;
+    }
+
+    const scale = Math.min(1, OCR_MAX_IMAGE_DIMENSION / largestSide);
+    const width = Math.max(1, Math.round(image.width * scale));
+    const height = Math.max(1, Math.round(image.height * scale));
+    const canvas = createCanvas(width, height);
+    const context = canvas.getContext("2d");
+
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = "high";
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, width, height);
+    context.drawImage(image, 0, 0, width, height);
+
+    const imageData = context.getImageData(0, 0, width, height);
+    const pixels = imageData.data;
+
+    for (let index = 0; index < pixels.length; index += 4) {
+      const grayscale = Math.round(
+        pixels[index] * 0.299 + pixels[index + 1] * 0.587 + pixels[index + 2] * 0.114
+      );
+      pixels[index] = grayscale;
+      pixels[index + 1] = grayscale;
+      pixels[index + 2] = grayscale;
+    }
+
+    context.putImageData(imageData, 0, 0);
+    return canvas.toBuffer("image/png");
+  } catch {
+    return buffer;
+  }
+}
 
 function normalizeSectionHeading(value: string) {
   return value
@@ -490,6 +576,7 @@ function shouldUseLidlParser(text: string, storeHint?: string | null) {
 }
 
 async function extractTextFromPdf(file: File) {
+  await ensurePdfRuntimeGlobals();
   const { PDFParse } = await import("pdf-parse");
   const buffer = Buffer.from(await file.arrayBuffer());
   const parser = new PDFParse({ data: buffer });
@@ -503,13 +590,31 @@ async function extractTextFromPdf(file: File) {
 }
 
 async function extractTextFromImage(file: File) {
-  const { createWorker } = await import("tesseract.js");
-  const worker = await createWorker("por+eng");
+  const imageBuffer = await prepareImageForOcr(file);
+  const { PSM, createWorker } = await import("tesseract.js");
+  const worker = await withTimeout(
+    createWorker(OCR_LANGUAGE, 1, {
+      langPath: process.cwd(),
+      gzip: false,
+      cachePath: process.cwd()
+    }),
+    OCR_TIMEOUT_MS,
+    "Image OCR timed out while starting the local recognition worker."
+  );
 
   try {
+    await worker.setParameters({
+      tessedit_pageseg_mode: PSM.SINGLE_BLOCK
+    });
+
+    const recognizeResult = await withTimeout(
+      worker.recognize(imageBuffer),
+      OCR_TIMEOUT_MS,
+      "Image OCR timed out while reading the uploaded receipt."
+    );
     const {
       data: { text }
-    } = await worker.recognize(Buffer.from(await file.arrayBuffer()));
+    } = recognizeResult;
     return text;
   } finally {
     await worker.terminate();

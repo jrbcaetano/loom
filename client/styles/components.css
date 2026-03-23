@@ -2464,7 +2464,7 @@
 
 .loom-lists-summary-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 0.75rem;
   flex-wrap: wrap;
@@ -2476,6 +2476,8 @@
   justify-content: flex-end;
   gap: 0.6rem;
   flex-wrap: wrap;
+  margin-left: auto;
+  max-width: 100%;
 }
 
 .loom-lists-cost-pill {

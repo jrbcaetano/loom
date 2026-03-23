@@ -3,6 +3,7 @@ import { importRecentPurchaseItems } from "@/features/lists/server";
 import { parseRecentPurchaseFiles } from "@/features/lists/recent-purchases-catalog";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 type RouteParams = {
   params: Promise<{ listId: string }>;
