@@ -577,15 +577,42 @@ function shouldUseLidlParser(text: string, storeHint?: string | null) {
 
 async function extractTextFromPdf(file: File) {
   await ensurePdfRuntimeGlobals();
-  const { PDFParse } = await import("pdf-parse");
-  const buffer = Buffer.from(await file.arrayBuffer());
-  const parser = new PDFParse({ data: buffer });
+  const [{ getDocument }, workerModule] = await Promise.all([
+    import("pdfjs-dist/legacy/build/pdf.mjs"),
+    import("pdfjs-dist/legacy/build/pdf.worker.mjs")
+  ]);
+  (globalThis as typeof globalThis & { pdfjsWorker?: unknown }).pdfjsWorker ??= workerModule;
+  const data = new Uint8Array(await file.arrayBuffer());
+  const loadingTask = getDocument({
+    data,
+    isEvalSupported: false,
+    useWorkerFetch: false
+  });
 
   try {
-    const result = await parser.getText();
-    return result.text;
+    const pdf = await loadingTask.promise;
+    const pageTexts: string[] = [];
+
+    try {
+      for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+        const page = await pdf.getPage(pageNumber);
+        const textContent = await page.getTextContent();
+        const pageText = textContent.items
+          .map((item) => ("str" in item ? item.str : ""))
+          .filter(Boolean)
+          .join("\n");
+
+        if (pageText) {
+          pageTexts.push(pageText);
+        }
+      }
+    } finally {
+      await pdf.destroy();
+    }
+
+    return pageTexts.join("\n");
   } finally {
-    await parser.destroy();
+    await loadingTask.destroy();
   }
 }
 
