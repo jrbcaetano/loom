@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { importRecentPurchaseItems } from "@/features/lists/server";
-import { parseRecentPurchaseFiles } from "@/features/lists/recent-purchases-catalog";
+import { parseRecentPurchaseFiles, parseRecentPurchaseTexts } from "@/features/lists/recent-purchases-catalog";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -13,27 +13,44 @@ export async function POST(request: Request, { params }: RouteParams) {
   const { listId } = await params;
 
   try {
-    const formData = await request.formData();
-    const storeHint = formData.get("storeHint");
-    const files = formData
-      .getAll("files")
-      .filter((value): value is File => value instanceof File && value.size > 0);
+    const contentType = request.headers.get("content-type") ?? "";
+    const parsed = contentType.includes("application/json")
+      ? await (async () => {
+          const body = (await request.json()) as { storeHint?: unknown; texts?: unknown };
+          const texts = Array.isArray(body.texts) ? body.texts.filter((value): value is string => typeof value === "string") : [];
 
-    if (files.length === 0) {
-      return NextResponse.json({ error: "At least one receipt file is required." }, { status: 400 });
-    }
+          if (texts.length === 0) {
+            throw new Error("At least one extracted receipt text is required.");
+          }
 
-    const supportedFiles = files.filter((file) => {
-      const lowerName = file.name.toLowerCase();
-      return file.type === "application/pdf" || lowerName.endsWith(".pdf") || file.type.startsWith("image/");
-    });
-    if (supportedFiles.length !== files.length) {
-      return NextResponse.json({ error: "Only PDF and image files are supported." }, { status: 400 });
-    }
+          return parseRecentPurchaseTexts(texts, {
+            storeHint: typeof body.storeHint === "string" ? body.storeHint : null
+          });
+        })()
+      : await (async () => {
+          const formData = await request.formData();
+          const storeHint = formData.get("storeHint");
+          const files = formData
+            .getAll("files")
+            .filter((value): value is File => value instanceof File && value.size > 0);
 
-    const parsed = await parseRecentPurchaseFiles(supportedFiles, {
-      storeHint: typeof storeHint === "string" ? storeHint : null
-    });
+          if (files.length === 0) {
+            throw new Error("At least one receipt file is required.");
+          }
+
+          const supportedFiles = files.filter((file) => {
+            const lowerName = file.name.toLowerCase();
+            return file.type === "application/pdf" || lowerName.endsWith(".pdf") || file.type.startsWith("image/");
+          });
+          if (supportedFiles.length !== files.length) {
+            throw new Error("Only PDF and image files are supported.");
+          }
+
+          return await parseRecentPurchaseFiles(supportedFiles, {
+            storeHint: typeof storeHint === "string" ? storeHint : null
+          });
+        })();
+
     const result = await importRecentPurchaseItems(listId, parsed.items);
     return NextResponse.json({
       ...result,

@@ -430,30 +430,82 @@ export function ListItemsClient({
 
   const importRecentPurchasesMutation = useMutation({
     mutationFn: async (files: File[]) => {
-      const formData = new FormData();
-      for (const file of files) {
-        formData.append("files", file);
-      }
-      formData.append("storeHint", importStoreHint);
-
-      const response = await fetch(`/api/lists/${listId}/recent-purchases`, {
-        method: "POST",
-        body: formData
-      });
-
-      const payload = (await response.json()) as {
-        insertedCount?: number;
-        updatedCount?: number;
-        totalCount?: number;
-        notImportedCount?: number;
-        error?: string;
+      const pdfFiles = files.filter((file) => file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf"));
+      const imageFiles = files.filter((file) => file.type.startsWith("image/"));
+      const totals = {
+        insertedCount: 0,
+        updatedCount: 0,
+        totalCount: 0,
+        notImportedCount: 0
       };
 
-      if (!response.ok) {
-        throw new Error(payload.error ?? "Failed to import recent purchases");
+      if (pdfFiles.length > 0) {
+        const formData = new FormData();
+        for (const file of pdfFiles) {
+          formData.append("files", file);
+        }
+        formData.append("storeHint", importStoreHint);
+
+        const response = await fetch(`/api/lists/${listId}/recent-purchases`, {
+          method: "POST",
+          body: formData
+        });
+
+        const payload = (await response.json()) as {
+          insertedCount?: number;
+          updatedCount?: number;
+          totalCount?: number;
+          notImportedCount?: number;
+          error?: string;
+        };
+
+        if (!response.ok) {
+          throw new Error(payload.error ?? "Failed to import recent purchases");
+        }
+
+        totals.insertedCount += payload.insertedCount ?? 0;
+        totals.updatedCount += payload.updatedCount ?? 0;
+        totals.totalCount += payload.totalCount ?? 0;
+        totals.notImportedCount += payload.notImportedCount ?? 0;
       }
 
-      return payload;
+      if (imageFiles.length > 0) {
+        const { extractReceiptTextsFromImagesInBrowser } = await import("./recent-purchases-browser");
+        const texts = await extractReceiptTextsFromImagesInBrowser(imageFiles);
+        const response = await fetch(`/api/lists/${listId}/recent-purchases`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            storeHint: importStoreHint,
+            texts
+          })
+        });
+
+        const payload = (await response.json()) as {
+          insertedCount?: number;
+          updatedCount?: number;
+          totalCount?: number;
+          notImportedCount?: number;
+          error?: string;
+        };
+
+        if (!response.ok) {
+          throw new Error(payload.error ?? "Failed to import recent purchases");
+        }
+
+        totals.insertedCount += payload.insertedCount ?? 0;
+        totals.updatedCount += payload.updatedCount ?? 0;
+        totals.totalCount += payload.totalCount ?? 0;
+        totals.notImportedCount += payload.notImportedCount ?? 0;
+      }
+
+      if (totals.totalCount === 0 && totals.notImportedCount === 0) {
+        throw new Error("Only PDF and image files are supported.");
+      }
+
+      return totals;
     },
     onSuccess: () => {
       setShowImportPanel(false);

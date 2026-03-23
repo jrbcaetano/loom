@@ -9,7 +9,7 @@ export type RecentPurchaseParseResult = {
   notImportedCount: number;
 };
 
-type ParseOptions = {
+export type ParseOptions = {
   storeHint?: string | null;
 };
 
@@ -657,11 +657,21 @@ function isImageFile(file: File) {
 }
 
 export async function parseRecentPurchaseFiles(files: File[], options: ParseOptions = {}) {
-  const items = new Map<string, RecentPurchaseCatalogItem>();
-  let notImportedCount = 0;
+  const extractedTexts: string[] = [];
 
   for (const file of files) {
     const extractedText = isPdfFile(file) ? await extractTextFromPdf(file) : isImageFile(file) ? await extractTextFromImage(file) : "";
+    extractedTexts.push(extractedText);
+  }
+
+  return parseRecentPurchaseTexts(extractedTexts, options);
+}
+
+export function parseRecentPurchaseTexts(texts: string[], options: ParseOptions = {}) {
+  const items = new Map<string, RecentPurchaseCatalogItem>();
+  let notImportedCount = 0;
+
+  for (const extractedText of texts) {
     const text = normalizeExtractedText(extractedText);
     if (!text.trim()) {
       notImportedCount += 1;
