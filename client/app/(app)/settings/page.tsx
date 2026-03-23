@@ -10,6 +10,8 @@ import { RegionalSettingsForm } from "@/features/profile/regional-settings-form"
 import { ThemeSettingsForm } from "@/features/theme/theme-settings-form";
 import { DensitySettingsForm } from "@/features/theme/density-settings-form";
 import { getRequestDensity, getRequestTheme } from "@/lib/theme/server";
+import { getHomeDashboardPreferences } from "@/features/home/server";
+import { HomeDashboardSettingsForm } from "@/features/home/home-dashboard-settings-form";
 
 export default async function SettingsPage() {
   const user = await requireUser();
@@ -19,6 +21,7 @@ export default async function SettingsPage() {
   const density = await getRequestDensity();
   const { t } = await getServerI18n();
   const context = await getActiveFamilyContext(user.id);
+  const homeDashboard = await getHomeDashboardPreferences(user.id);
 
   return (
     <div className="loom-module-page">
@@ -75,6 +78,16 @@ export default async function SettingsPage() {
         <p className="loom-muted small mt-2 mb-0">{t("settings.personalTaskLabelsHint", "These labels only apply to your own task organization.")}</p>
         <div className="mt-3">
           <TaskLabelsManager scope="personal" />
+        </div>
+      </section>
+
+      <section className="loom-card p-5">
+        <h2 className="loom-section-title">{t("settings.homeDashboard", "Home dashboard")}</h2>
+        <p className="loom-muted small mt-2 mb-0">
+          {t("settings.homeDashboardHint", "Pick the widgets you want on Home, choose their order, and set up the weather card.")}
+        </p>
+        <div className="mt-3">
+          <HomeDashboardSettingsForm initialDashboard={homeDashboard} />
         </div>
       </section>
 

@@ -317,6 +317,150 @@
   }
 }
 
+.loom-startup-loading {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  background:
+    radial-gradient(circle at top, color-mix(in srgb, var(--loom-color-primary) 10%, transparent), transparent 42%),
+    linear-gradient(180deg, var(--loom-color-bg) 0%, var(--loom-color-surface-soft) 100%);
+}
+
+.loom-startup-loading-card {
+  width: min(100%, 31rem);
+  border: 1px solid var(--loom-card-border-subtle);
+  border-radius: 28px;
+  background: color-mix(in srgb, var(--loom-color-surface) 92%, transparent);
+  box-shadow: var(--loom-shadow-lg);
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  backdrop-filter: blur(10px);
+}
+
+.loom-startup-loading-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.6rem;
+}
+
+.loom-startup-loading-logo-wrap {
+  width: 5.75rem;
+  height: 5.75rem;
+  border-radius: 24px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--loom-color-surface) 86%, white), var(--loom-color-surface-soft));
+  border: 1px solid var(--loom-card-border-subtle);
+}
+
+.loom-startup-loading-logo {
+  width: auto;
+  height: auto;
+  animation: loom-startup-bob 1.8s ease-in-out infinite;
+}
+
+.loom-startup-loading-eyebrow {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--loom-color-text-muted);
+}
+
+.loom-startup-loading-title {
+  margin: 0;
+  font-size: clamp(1.55rem, 4vw, 2.05rem);
+  line-height: 1.08;
+  font-weight: 600;
+  max-width: 12ch;
+}
+
+.loom-startup-loading-progress {
+  width: 100%;
+  height: 0.7rem;
+  border-radius: 999px;
+  background: var(--loom-card-bg-muted);
+  overflow: hidden;
+}
+
+.loom-startup-loading-progress-bar {
+  display: block;
+  width: 42%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--loom-color-primary), color-mix(in srgb, var(--loom-color-primary) 62%, white));
+  animation: loom-startup-progress 1.6s ease-in-out infinite;
+}
+
+.loom-startup-loading-messages {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.loom-startup-loading-message {
+  margin: 0;
+  border-radius: 16px;
+  border: 1px solid var(--loom-card-border-subtle);
+  background: var(--loom-card-bg-subtle);
+  padding: 0.8rem 0.95rem;
+  color: var(--loom-color-text-muted);
+  animation: loom-startup-message 1.8s ease-in-out infinite;
+}
+
+@keyframes loom-startup-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes loom-startup-progress {
+  0% {
+    transform: translateX(-115%);
+  }
+
+  100% {
+    transform: translateX(320%);
+  }
+}
+
+@keyframes loom-startup-message {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: translateX(0);
+  }
+
+  50% {
+    opacity: 1;
+    transform: translateX(4px);
+  }
+}
+
+@media (max-width: 640px) {
+  .loom-startup-loading-card {
+    padding: 1.25rem;
+    border-radius: 24px;
+  }
+
+  .loom-startup-loading-logo-wrap {
+    width: 5rem;
+    height: 5rem;
+  }
+}
+
 @media (min-width: 960px) {
   .loom-sidebar-footer {
     overflow: visible;
@@ -777,6 +921,71 @@
   height: 100%;
   background: #4f7df3;
   border-radius: inherit;
+}
+
+.loom-home-layout-weather {
+  display: flex;
+  flex-direction: column;
+}
+
+.loom-weather-widget {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.loom-weather-widget-temp {
+  margin: 0;
+  font-size: clamp(2.5rem, 8vw, 4rem);
+  line-height: 0.95;
+  font-weight: 600;
+  color: var(--loom-color-primary);
+}
+
+.loom-weather-widget-temp span {
+  font-size: 0.42em;
+  margin-left: 0.18rem;
+  color: var(--loom-color-text-muted);
+}
+
+.loom-weather-widget-summary {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.loom-weather-widget-stat {
+  font-size: 1rem !important;
+  color: var(--loom-color-text) !important;
+}
+
+.loom-dashboard-widget-config {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  border: 1px solid var(--loom-card-border-subtle);
+  border-radius: 16px;
+  padding: 0.9rem;
+  background: var(--loom-card-bg-subtle);
+}
+
+.loom-dashboard-widget-config-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.loom-dashboard-widget-config-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.loom-dashboard-widget-settings {
+  border: 1px solid var(--loom-card-border-subtle);
+  border-radius: 16px;
+  padding: 1rem;
+  background: var(--loom-card-bg-subtle);
 }
 
 .loom-quick-grid {
@@ -1986,35 +2195,11 @@
 @media (min-width: 1100px) {
   .loom-home-layout {
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    grid-template-areas:
-      "upcoming quick shopping"
-      "upcoming tasks meals"
-      "chores chores chores";
     align-items: start;
   }
 
-  .loom-home-layout-upcoming {
-    grid-area: upcoming;
-  }
-
-  .loom-home-layout-quick {
-    grid-area: quick;
-  }
-
-  .loom-home-layout-shopping {
-    grid-area: shopping;
-  }
-
-  .loom-home-layout-tasks {
-    grid-area: tasks;
-  }
-
-  .loom-home-layout-meals {
-    grid-area: meals;
-  }
-
   .loom-home-layout-chores {
-    grid-area: chores;
+    grid-column: 1 / -1;
   }
 
   .loom-home-grid-top {

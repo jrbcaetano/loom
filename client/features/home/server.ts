@@ -1,5 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
 import { isSystemShoppingListTitle } from "@/features/lists/display";
+import {
+  getDefaultHomeDashboardPreferences,
+  normalizeHomeDashboardPreferences,
+  type HomeDashboardPreferences
+} from "@/features/home/dashboard";
 
 export async function getHomeSnapshot(familyId: string, userId: string) {
   const supabase = await createClient();
@@ -160,4 +165,19 @@ export async function getHomeSnapshot(familyId: string, userId: string) {
       }))
     }
   };
+}
+
+export async function getHomeDashboardPreferences(userId: string): Promise<HomeDashboardPreferences> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("user_settings")
+    .select("home_dashboard")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return normalizeHomeDashboardPreferences(data?.home_dashboard ?? getDefaultHomeDashboardPreferences());
 }
