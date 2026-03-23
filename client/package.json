@@ -18,9 +18,11 @@
     "date-fns": "^4.1.0",
     "next": "^15.2.0",
     "next-intl": "^4.8.3",
+    "pdf-parse": "^2.4.5",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-hook-form": "^7.71.2",
+    "tesseract.js": "^7.0.0",
     "web-push": "^3.6.7",
     "zod": "^4.3.6"
   },

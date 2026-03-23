@@ -85,14 +85,14 @@ begin
     ('cf58f041-d4df-4322-9f0f-dd9523da7661', v_family_id, v_admin_user, 'House Supplies', '[MOCK] Shared household items', 'family', v_admin_user, v_admin_user),
     ('986648bc-d0ed-4e4e-b906-4f8b8bbadcb3', v_family_id, v_admin_user, 'Admin Private', '[MOCK] Private checklist', 'private', v_admin_user, v_admin_user);
 
-  insert into public.list_items (list_id, text, quantity, category, is_completed, sort_order, created_by)
+  insert into public.list_items (list_id, text, quantity, price, category, is_completed, sort_order, created_by)
   values
-    ('b1ba0e26-fef8-4eb3-bc1f-2f7ff6aa72be', 'Milk', '2', 'Dairy', false, 1, v_admin_user),
-    ('b1ba0e26-fef8-4eb3-bc1f-2f7ff6aa72be', 'Eggs', '12', 'Dairy', false, 2, v_admin_user),
-    ('b1ba0e26-fef8-4eb3-bc1f-2f7ff6aa72be', 'Bread', '1', 'Bakery', true, 3, v_admin_user),
-    ('b1ba0e26-fef8-4eb3-bc1f-2f7ff6aa72be', 'Apples', '6', 'Produce', false, 4, v_admin_user),
-    ('cf58f041-d4df-4322-9f0f-dd9523da7661', 'Dish soap', '2', 'Cleaning', false, 1, v_admin_user),
-    ('cf58f041-d4df-4322-9f0f-dd9523da7661', 'Laundry detergent', '1', 'Cleaning', false, 2, v_admin_user);
+    ('b1ba0e26-fef8-4eb3-bc1f-2f7ff6aa72be', 'Milk', '2', 1.35, 'Dairy', false, 1, v_admin_user),
+    ('b1ba0e26-fef8-4eb3-bc1f-2f7ff6aa72be', 'Eggs', '12', 0.22, 'Dairy', false, 2, v_admin_user),
+    ('b1ba0e26-fef8-4eb3-bc1f-2f7ff6aa72be', 'Bread', '1', 1.10, 'Bakery', true, 3, v_admin_user),
+    ('b1ba0e26-fef8-4eb3-bc1f-2f7ff6aa72be', 'Apples', '6', 0.30, 'Produce', false, 4, v_admin_user),
+    ('cf58f041-d4df-4322-9f0f-dd9523da7661', 'Dish soap', '2', 3.99, 'Cleaning', false, 1, v_admin_user),
+    ('cf58f041-d4df-4322-9f0f-dd9523da7661', 'Laundry detergent', '1', 8.49, 'Cleaning', false, 2, v_admin_user);
 
   -- Tasks
   insert into public.tasks (

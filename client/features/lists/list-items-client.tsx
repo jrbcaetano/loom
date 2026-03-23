@@ -13,6 +13,12 @@ import { useI18n } from "@/lib/i18n/context";
 const addItemSchema = z.object({
   text: z.string().trim().min(1).max(240),
   quantity: z.string().trim().max(120).optional(),
+  price: z
+    .string()
+    .trim()
+    .max(20)
+    .refine((value) => value.length === 0 || /^\d+(?:[.,]\d{1,2})?$/.test(value), "Enter a valid price")
+    .optional(),
   category: z.string().trim().max(120).optional()
 });
 
@@ -28,6 +34,7 @@ type ListItem = {
   id: string;
   text: string;
   quantity: string | null;
+  price: string | number | null;
   category: string | null;
   isCompleted: boolean;
   sortOrder: number;
@@ -157,6 +164,46 @@ function parseQuantityForQuickAdjust(value: string | null | undefined) {
   return { canAdjust: false, value: 0, raw: trimmed };
 }
 
+function parseQuantityMultiplier(value: string | null | undefined) {
+  const trimmed = value?.trim() ?? "";
+  if (!trimmed) {
+    return 1;
+  }
+
+  if (/^\d+$/.test(trimmed)) {
+    return Math.max(1, Number.parseInt(trimmed, 10));
+  }
+
+  return 1;
+}
+
+function parsePriceValue(value: string | number | null | undefined) {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : null;
+  }
+
+  const trimmed = value?.trim() ?? "";
+  if (!trimmed) {
+    return null;
+  }
+
+  const normalized = trimmed.replace(",", ".");
+  if (!/^\d+(?:\.\d{1,2})?$/.test(normalized)) {
+    return null;
+  }
+
+  const parsed = Number.parseFloat(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function normalizePriceInputValue(value: string | number | null | undefined) {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? String(value) : "";
+  }
+
+  return value ?? "";
+}
+
 function mixRgb(from: readonly [number, number, number], to: readonly [number, number, number], progress: number) {
   const clamped = Math.max(0, Math.min(1, progress));
   const r = Math.round(from[0] + (to[0] - from[0]) * clamped);
@@ -229,6 +276,9 @@ export function ListItemsClient({
   const [similarItemSuggestions, setSimilarItemSuggestions] = useState<SimilarSuggestion[]>([]);
   const [pendingAddValues, setPendingAddValues] = useState<AddItemValues | null>(null);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [showImportPanel, setShowImportPanel] = useState(false);
+  const [importFiles, setImportFiles] = useState<File[]>([]);
+  const [importStoreHint, setImportStoreHint] = useState("");
   const [swipePreview, setSwipePreview] = useState<{ itemId: string; offset: number } | null>(null);
   const [touchTracking, setTouchTracking] = useState<{
     itemId: string;
@@ -240,12 +290,12 @@ export function ListItemsClient({
 
   const form = useForm<AddItemValues>({
     resolver: zodResolver(addItemSchema),
-    defaultValues: { text: "", quantity: "", category: "" }
+    defaultValues: { text: "", quantity: "", price: "", category: "" }
   });
 
   const editForm = useForm<EditItemValues>({
     resolver: zodResolver(editItemSchema),
-    defaultValues: { itemId: "", text: "", quantity: "", category: "" }
+    defaultValues: { itemId: "", text: "", quantity: "", price: "", category: "" }
   });
 
   const queryKey = ["list-items", listId] as const;
@@ -316,6 +366,10 @@ export function ListItemsClient({
           nextItem.quantity = typeof body.quantity === "string" ? body.quantity : body.quantity === null ? null : item.quantity;
         }
 
+        if (Object.prototype.hasOwnProperty.call(body, "price")) {
+          nextItem.price = typeof body.price === "string" ? body.price : body.price === null ? null : item.price;
+        }
+
         if (Object.prototype.hasOwnProperty.call(body, "category")) {
           nextItem.category = typeof body.category === "string" ? body.category : body.category === null ? null : item.category;
         }
@@ -354,6 +408,58 @@ export function ListItemsClient({
     },
     onSuccess: () => {
       router.push("/lists");
+      router.refresh();
+    }
+  });
+
+  const deleteItemMutation = useMutation({
+    mutationFn: async (itemId: string) => {
+      const response = await fetch(`/api/lists/${listId}/items?itemId=${encodeURIComponent(itemId)}`, {
+        method: "DELETE"
+      });
+      const payload = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Failed to delete item");
+      }
+    },
+    onSuccess: () => {
+      closeEdit();
+      queryClient.invalidateQueries({ queryKey });
+    }
+  });
+
+  const importRecentPurchasesMutation = useMutation({
+    mutationFn: async (files: File[]) => {
+      const formData = new FormData();
+      for (const file of files) {
+        formData.append("files", file);
+      }
+      formData.append("storeHint", importStoreHint);
+
+      const response = await fetch(`/api/lists/${listId}/recent-purchases`, {
+        method: "POST",
+        body: formData
+      });
+
+      const payload = (await response.json()) as {
+        insertedCount?: number;
+        updatedCount?: number;
+        totalCount?: number;
+        notImportedCount?: number;
+        error?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Failed to import recent purchases");
+      }
+
+      return payload;
+    },
+    onSuccess: () => {
+      setShowImportPanel(false);
+      setImportFiles([]);
+      setImportStoreHint("");
+      queryClient.invalidateQueries({ queryKey });
       router.refresh();
     }
   });
@@ -615,6 +721,14 @@ export function ListItemsClient({
   }, [items]);
 
   const textInputValue = form.watch("text");
+  const priceFormatter = useMemo(
+    () =>
+      new Intl.NumberFormat(locale, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      }),
+    [locale]
+  );
   const textSuggestions = useMemo(() => {
     const normalized = normalizeItemName(textInputValue ?? "");
     if (!normalized || normalized.length < 2) {
@@ -634,6 +748,18 @@ export function ListItemsClient({
 
     return (items ?? []).some((item) => normalizeItemName(item.text) === normalized);
   }, [items, textInputValue]);
+  const remainingExpectedCost = useMemo(
+    () =>
+      activeItems.reduce((sum, item) => {
+        const price = parsePriceValue(item.price);
+        if (price === null) {
+          return sum;
+        }
+
+        return sum + price * parseQuantityMultiplier(item.quantity);
+      }, 0),
+    [activeItems]
+  );
 
   const completedGrouped = useMemo(() => {
     if (!isSystemShoppingList) {
@@ -693,6 +819,7 @@ export function ListItemsClient({
   function applyItemSuggestion(item: ListItem) {
     form.setValue("text", item.text, { shouldDirty: true, shouldValidate: true });
     form.setValue("quantity", item.quantity ?? "", { shouldDirty: true });
+    form.setValue("price", normalizePriceInputValue(item.price), { shouldDirty: true });
     form.setValue("category", item.category ?? "", { shouldDirty: true });
     setIsItemMenuOpen(false);
     if (item.category?.trim()) {
@@ -720,6 +847,7 @@ export function ListItemsClient({
     const suggestedCategory = applyCategorySuggestion(values.text);
     addMutation.mutate({
       ...values,
+      price: values.price?.trim() || undefined,
       category: values.category?.trim() || suggestedCategory || undefined
     });
   }
@@ -730,6 +858,7 @@ export function ListItemsClient({
       {
         itemId,
         quantity: values.quantity?.trim() || null,
+        price: values.price?.trim() || null,
         category: values.category?.trim() || suggestedCategory || null,
         isCompleted: false
       },
@@ -762,12 +891,12 @@ export function ListItemsClient({
 
   function closeEdit() {
     setEditingItemId(null);
-    editForm.reset({ itemId: "", text: "", quantity: "", category: "" });
+    editForm.reset({ itemId: "", text: "", quantity: "", price: "", category: "" });
   }
 
   function closeComposer() {
     setShowComposer(false);
-    form.reset({ text: "", quantity: "", category: "" });
+    form.reset({ text: "", quantity: "", price: "", category: "" });
     setCategoryQuery("");
     setIsCategoryMenuOpen(false);
     setIsItemMenuOpen(false);
@@ -785,6 +914,20 @@ export function ListItemsClient({
     closeEdit();
   }
 
+  function closeImportPanel() {
+    setShowImportPanel(false);
+    setImportFiles([]);
+    setImportStoreHint("");
+  }
+
+  function submitImportRecentPurchases() {
+    if (importFiles.length === 0) {
+      return;
+    }
+
+    importRecentPurchasesMutation.mutate(importFiles);
+  }
+
   function startEdit(item: ListItem) {
     setShowComposer(false);
     setEditingItemId(item.id);
@@ -792,6 +935,7 @@ export function ListItemsClient({
       itemId: item.id,
       text: item.text,
       quantity: item.quantity ?? "",
+      price: normalizePriceInputValue(item.price),
       category: item.category ?? ""
     });
   }
@@ -802,6 +946,7 @@ export function ListItemsClient({
         itemId: values.itemId,
         text: values.text,
         quantity: values.quantity?.trim() || null,
+        price: values.price?.trim() || null,
         category: values.category?.trim() || null
       },
       {
@@ -810,6 +955,14 @@ export function ListItemsClient({
         }
       }
     );
+  }
+
+  function confirmDeleteItem(itemId: string) {
+    if (!window.confirm(t("common.deleteConfirm"))) {
+      return;
+    }
+
+    deleteItemMutation.mutate(itemId);
   }
 
   function setItemCompletion(itemId: string, isCompleted: boolean) {
@@ -847,6 +1000,15 @@ export function ListItemsClient({
     }
 
     return date.toLocaleString(locale);
+  }
+
+  function formatPrice(value: string | number | null | undefined) {
+    const numericValue = typeof value === "number" ? value : parsePriceValue(value);
+    if (numericValue === null) {
+      return null;
+    }
+
+    return priceFormatter.format(numericValue);
   }
 
   function handleRowTouchStart(event: ReactTouchEvent<HTMLDivElement>, itemId: string, isCompletedSection: boolean) {
@@ -931,6 +1093,7 @@ export function ListItemsClient({
     const { level2 } = splitCategoryLevels(displayCategory);
     const swipeOffset = swipePreview?.itemId === item.id ? swipePreview.offset : 0;
     const quantityState = parseQuantityForQuickAdjust(item.quantity);
+    const formattedPrice = formatPrice(item.price);
     const swipeProgress = Math.min(1, Math.abs(swipeOffset) / 88);
     const rowBackgroundColor = getRowBackgroundColor(isCompletedSection, swipeOffset);
     const rowStyle: { transform?: string; backgroundColor: string } = {
@@ -971,6 +1134,7 @@ export function ListItemsClient({
             </span>
 
             <span className="loom-inline-actions">
+              {formattedPrice ? <span className="loom-lists-price-badge">{formattedPrice}</span> : null}
               {quantityState.canAdjust ? (
                 <span className="loom-lists-qty-stepper">
                   <button
@@ -1023,11 +1187,15 @@ export function ListItemsClient({
 
   return (
     <div className="loom-stack">
-      <div className="loom-row-between">
+      <div className="loom-lists-summary-row">
         <p className="loom-lists-detail-summary">
           {activeItems.length} {t("lists.remaining")} - {completedItems.length} {t("lists.completed")}
         </p>
         <div className="loom-lists-summary-actions">
+          <div className="loom-lists-cost-pill">
+            <span className="loom-lists-cost-pill-label">{t("lists.expectedCost", "Expected cost")}</span>
+            <strong className="loom-lists-cost-pill-value">{formatPrice(remainingExpectedCost) ?? "0.00"}</strong>
+          </div>
           {isSystemShoppingList ? (
             <button type="button" className="loom-lists-plus-button" aria-label={t("lists.addItem")} onClick={openAddPanel}>
               +
@@ -1037,9 +1205,23 @@ export function ListItemsClient({
       </div>
 
       {form.formState.errors.text ? <p className="loom-feedback-error">{form.formState.errors.text.message}</p> : null}
+      {form.formState.errors.price ? <p className="loom-feedback-error">{form.formState.errors.price.message}</p> : null}
       {addMutation.error ? <p className="loom-feedback-error">{addMutation.error.message}</p> : null}
       {updateMutation.error ? <p className="loom-feedback-error">{updateMutation.error.message}</p> : null}
       {deleteListMutation.error ? <p className="loom-feedback-error">{deleteListMutation.error.message}</p> : null}
+      {deleteItemMutation.error ? <p className="loom-feedback-error">{deleteItemMutation.error.message}</p> : null}
+      {importRecentPurchasesMutation.data ? (
+        <p className="loom-muted small">
+          {t(
+            "lists.importRecentPurchasesDone",
+            "Import finished: {inserted} created, {updated} updated, {notImported} not imported."
+          )
+            .replace("{count}", String(importRecentPurchasesMutation.data.totalCount ?? 0))
+            .replace("{inserted}", String(importRecentPurchasesMutation.data.insertedCount ?? 0))
+            .replace("{updated}", String(importRecentPurchasesMutation.data.updatedCount ?? 0))
+            .replace("{notImported}", String(importRecentPurchasesMutation.data.notImportedCount ?? 0))}
+        </p>
+      ) : null}
       {isPending ? <p className="loom-muted">{t("common.loading")}</p> : null}
       {error ? <p className="loom-feedback-error">{error.message}</p> : null}
 
@@ -1147,6 +1329,7 @@ export function ListItemsClient({
                 ) : null}
               </div>
               <input className="loom-input" type="text" placeholder={t("lists.form.quantity")} {...form.register("quantity")} />
+              <input className="loom-input" type="text" inputMode="decimal" placeholder={t("lists.form.price", "Price")} {...form.register("price")} />
               {isMobileCategoryPicker ? (
                 <select
                   className="loom-input"
@@ -1267,6 +1450,10 @@ export function ListItemsClient({
               <input className="loom-input" type="text" {...editForm.register("quantity")} />
             </label>
             <label className="loom-lists-inline-field">
+              <span className="loom-lists-inline-label">{t("lists.form.price", "Price")}</span>
+              <input className="loom-input" type="text" inputMode="decimal" {...editForm.register("price")} />
+            </label>
+            <label className="loom-lists-inline-field">
               <span className="loom-lists-inline-label">{t("common.category")}</span>
               <select className="loom-input" {...editForm.register("category")}>
                 <option value="">{t("lists.form.noCategory")}</option>
@@ -1290,6 +1477,14 @@ export function ListItemsClient({
             <div className="loom-form-actions">
               <button className="loom-button-ghost" type="button" onClick={closeEdit}>
                 {t("common.cancel")}
+              </button>
+              <button
+                className="loom-button-ghost loom-signout-danger"
+                type="button"
+                onClick={() => confirmDeleteItem(editingItem.id)}
+                disabled={deleteItemMutation.isPending}
+              >
+                {deleteItemMutation.isPending ? t("common.deleting", "Deleting...") : t("common.delete")}
               </button>
               <button className="loom-button-primary" type="submit" disabled={updateMutation.isPending}>
                 {t("common.saveChanges")}
@@ -1346,9 +1541,84 @@ export function ListItemsClient({
         ) : null}
       </ResponsivePanel>
 
+      <ResponsivePanel isOpen={showImportPanel} title={t("lists.importRecentPurchases", "Import recent purchases")} onClose={closeImportPanel}>
+        <div className="loom-form-stack">
+          {importRecentPurchasesMutation.error ? <p className="loom-feedback-error">{importRecentPurchasesMutation.error.message}</p> : null}
+          <p className="loom-muted small m-0">
+            {t(
+              "lists.importRecentPurchasesHint",
+              "Upload one or more supermarket receipt PDFs. Imported items will be added as completed entries with detected category and price."
+            )}
+          </p>
+
+          <label className="loom-field">
+            <span>{t("lists.importRecentPurchasesFiles", "Receipt PDFs")}</span>
+            <input
+              className="loom-input"
+              type="file"
+              accept="application/pdf,.pdf,image/*"
+              multiple
+              onChange={(event) => {
+                setImportFiles(Array.from(event.target.files ?? []));
+              }}
+            />
+          </label>
+
+          <label className="loom-field">
+            <span>{t("lists.importRecentPurchasesStore", "Supermarket (optional)")}</span>
+            <input
+              className="loom-input"
+              type="text"
+              value={importStoreHint}
+              placeholder={t("lists.importRecentPurchasesStorePlaceholder", "Example: Continente")}
+              onChange={(event) => setImportStoreHint(event.target.value)}
+            />
+          </label>
+
+          {importFiles.length > 0 ? (
+            <div className="loom-stack-sm">
+              {importFiles.map((file) => (
+                <p key={`${file.name}-${file.size}-${file.lastModified}`} className="loom-muted small m-0">
+                  {file.name}
+                </p>
+              ))}
+            </div>
+          ) : null}
+
+          <div className="loom-form-actions">
+            <button className="loom-button-ghost" type="button" onClick={closeImportPanel}>
+              {t("common.cancel")}
+            </button>
+            <button
+              className="loom-button-primary"
+              type="button"
+              onClick={submitImportRecentPurchases}
+              disabled={importRecentPurchasesMutation.isPending || importFiles.length === 0}
+            >
+              {importRecentPurchasesMutation.isPending
+                ? t("lists.importRecentPurchasesLoading", "Importing recent purchases...")
+                : t("lists.importRecentPurchasesAction", "Import PDFs")}
+            </button>
+          </div>
+        </div>
+      </ResponsivePanel>
+
       <button className="loom-lists-action-add" type="button" onClick={openAddPanel}>
         + {t("lists.addItem")}
       </button>
+
+      {isSystemShoppingList ? (
+        <button
+          className="loom-button-ghost"
+          type="button"
+          onClick={() => setShowImportPanel(true)}
+          disabled={importRecentPurchasesMutation.isPending}
+        >
+          {importRecentPurchasesMutation.isPending
+            ? t("lists.importRecentPurchasesLoading", "Importing recent purchases...")
+            : t("lists.importRecentPurchases", "Import recent purchases")}
+        </button>
+      ) : null}
 
       {canDelete ? (
         <button className="loom-lists-action-delete" type="button" onClick={confirmDeleteList} disabled={deleteListMutation.isPending}>

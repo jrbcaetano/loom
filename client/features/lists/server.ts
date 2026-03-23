@@ -4,6 +4,7 @@ import { nonEmptyTextSchema, visibilitySchema } from "@/features/shared/validati
 import type { AppLocale } from "@/lib/i18n/config";
 import { SHOPPING_LIST_CATEGORY_DEFAULTS, type ReferenceValue } from "@/config/reference-data";
 import { SYSTEM_SHOPPING_LIST_TITLE, isSystemShoppingListTitle } from "@/features/lists/display";
+import type { RecentPurchaseCatalogItem } from "@/features/lists/recent-purchases-catalog";
 
 export type ListSummary = {
   id: string;
@@ -20,6 +21,7 @@ export type ListItem = {
   id: string;
   text: string;
   quantity: string | null;
+  price: string | null;
   category: string | null;
   isCompleted: boolean;
   sortOrder: number;
@@ -82,6 +84,7 @@ const listItemSchema = z.object({
   listId: z.string().uuid(),
   text: nonEmptyTextSchema.max(240),
   quantity: z.string().trim().max(120).optional().nullable(),
+  price: z.string().trim().max(20).optional().nullable(),
   category: z.string().trim().max(120).optional().nullable()
 });
 
@@ -89,6 +92,7 @@ const listItemUpdateSchema = z.object({
   itemId: z.string().uuid(),
   text: z.string().trim().max(240).optional(),
   quantity: z.string().trim().max(120).optional().nullable(),
+  price: z.string().trim().max(20).optional().nullable(),
   category: z.string().trim().max(120).optional().nullable(),
   isCompleted: z.boolean().optional(),
   sortOrder: z.number().int().min(0).optional()
@@ -96,6 +100,20 @@ const listItemUpdateSchema = z.object({
 
 function normalizeListItemText(value: string) {
   return value.trim().toLocaleLowerCase();
+}
+
+function normalizeListItemPrice(value: string | null | undefined) {
+  const trimmed = value?.trim() ?? "";
+  if (!trimmed) {
+    return null;
+  }
+
+  const normalized = trimmed.replace(",", ".");
+  if (!/^\d+(?:\.\d{1,2})?$/.test(normalized)) {
+    throw new Error("Invalid price. Use up to 2 decimal places.");
+  }
+
+  return normalized;
 }
 
 async function currentUserId(supabase: Awaited<ReturnType<typeof createClient>>) {
@@ -212,6 +230,95 @@ async function syncListCategories(
         label: trimmed,
         created_by: userId
       });
+    }
+  }
+
+  if (translationRows.length > 0) {
+    const { error: translationError } = await supabase.from("list_category_translations").insert(translationRows);
+    if (translationError) {
+      throw new Error(translationError.message);
+    }
+  }
+}
+
+async function ensureCategoriesPresent(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  listId: string,
+  categories: ReferenceValue[],
+  userId: string
+) {
+  const normalized = normalizeCategories(categories);
+  if (normalized.length === 0) {
+    return;
+  }
+
+  const { data: existingCategories, error: existingCategoriesError } = await supabase
+    .from("list_categories")
+    .select("id, name, list_category_translations(locale, label)")
+    .eq("list_id", listId);
+
+  if (existingCategoriesError) {
+    throw new Error(existingCategoriesError.message);
+  }
+
+  const categoryMap = new Map(
+    (existingCategories ?? []).map((category) => [
+      category.name.trim().toLowerCase(),
+      {
+        id: category.id,
+        translations: Object.fromEntries((category.list_category_translations ?? []).map((item) => [item.locale, item.label])) as Record<string, string>
+      }
+    ])
+  );
+
+  const missingRows = normalized
+    .filter((category) => !categoryMap.has(category.value.toLowerCase()))
+    .map((category) => ({
+      list_id: listId,
+      name: category.value,
+      created_by: userId
+    }));
+
+  if (missingRows.length > 0) {
+    const { data: insertedCategories, error: insertError } = await supabase.from("list_categories").insert(missingRows).select("id, name");
+    if (insertError) {
+      throw new Error(insertError.message);
+    }
+
+    for (const category of insertedCategories ?? []) {
+      categoryMap.set(category.name.trim().toLowerCase(), {
+        id: category.id,
+        translations: {}
+      });
+    }
+  }
+
+  const translationRows: Array<{
+    list_category_id: string;
+    locale: string;
+    label: string;
+    created_by: string;
+  }> = [];
+
+  for (const category of normalized) {
+    const existing = categoryMap.get(category.value.toLowerCase());
+    if (!existing) {
+      continue;
+    }
+
+    for (const [locale, label] of Object.entries(category.translations ?? {})) {
+      const trimmed = label.trim();
+      if (!trimmed || existing.translations[locale]) {
+        continue;
+      }
+
+      translationRows.push({
+        list_category_id: existing.id,
+        locale,
+        label: trimmed,
+        created_by: userId
+      });
+      existing.translations[locale] = trimmed;
     }
   }
 
@@ -447,7 +554,7 @@ export async function getListById(listId: string, locale: AppLocale = "en"): Pro
 
   const { data: items, error: itemsError } = await supabase
     .from("list_items")
-    .select("id, text, quantity, category, is_completed, sort_order, created_by, updated_by, created_at, updated_at")
+    .select("id, text, quantity, price, category, is_completed, sort_order, created_by, updated_by, created_at, updated_at")
     .eq("list_id", listId)
     .order("is_completed", { ascending: true })
     .order("sort_order", { ascending: true });
@@ -489,6 +596,7 @@ export async function getListById(listId: string, locale: AppLocale = "en"): Pro
       id: item.id,
       text: item.text,
       quantity: item.quantity,
+      price: item.price,
       category: item.category,
       isCompleted: item.is_completed,
       sortOrder: item.sort_order,
@@ -621,6 +729,7 @@ export async function addListItem(input: unknown) {
   const supabase = await createClient();
   const userId = await currentUserId(supabase);
   const category = await resolveAllowedCategory(supabase, parsed.listId, parsed.category ?? null);
+  const price = normalizeListItemPrice(parsed.price);
   const normalizedTargetText = normalizeListItemText(parsed.text);
 
   const { data: existingItems, error: existingItemsError } = await supabase
@@ -638,6 +747,7 @@ export async function addListItem(input: unknown) {
       .from("list_items")
       .update({
         quantity: parsed.quantity ?? null,
+        price,
         category,
         is_completed: false,
         completed_at: null,
@@ -664,6 +774,7 @@ export async function addListItem(input: unknown) {
       list_id: parsed.listId,
       text: parsed.text,
       quantity: parsed.quantity ?? null,
+      price,
       category,
       created_by: userId,
       updated_by: userId,
@@ -689,6 +800,7 @@ export async function updateListItem(input: unknown) {
 
   if (typeof parsed.text === "string") payload.text = parsed.text;
   if (parsed.quantity !== undefined) payload.quantity = parsed.quantity;
+  if (parsed.price !== undefined) payload.price = normalizeListItemPrice(parsed.price);
   if (parsed.category !== undefined) {
     const { data: existingItem, error: existingItemError } = await supabase.from("list_items").select("list_id").eq("id", parsed.itemId).single();
 
@@ -720,4 +832,101 @@ export async function deleteListItem(itemId: string) {
   if (error) {
     throw new Error(error.message);
   }
+}
+
+export async function importRecentPurchaseItems(listId: string, items: RecentPurchaseCatalogItem[]) {
+  const supabase = await createClient();
+  const userId = await currentUserId(supabase);
+
+  const { data: list, error: listError } = await supabase.from("lists").select("title").eq("id", listId).single();
+  if (listError) {
+    throw new Error(listError.message);
+  }
+
+  if (!isSystemShoppingListTitle(list.title)) {
+    throw new Error("Recent purchase import is only available for the Shopping List.");
+  }
+
+  if (items.length === 0) {
+    throw new Error("No purchasable items were found in the uploaded files.");
+  }
+
+  await ensureCategoriesPresent(supabase, listId, DEFAULT_SHOPPING_LIST_CATEGORIES, userId);
+
+  const { data: existingItems, error: existingItemsError } = await supabase
+    .from("list_items")
+    .select("id, text, sort_order")
+    .eq("list_id", listId)
+    .order("sort_order", { ascending: true });
+
+  if (existingItemsError) {
+    throw new Error(existingItemsError.message);
+  }
+
+  const existingItemMap = new Map<string, { id: string }>();
+  for (const item of existingItems ?? []) {
+    const key = normalizeListItemText(item.text);
+    if (!existingItemMap.has(key)) {
+      existingItemMap.set(key, { id: item.id });
+    }
+  }
+
+  let insertedCount = 0;
+  let updatedCount = 0;
+  let nextSortOrder = (existingItems ?? []).reduce((highest, item) => Math.max(highest, item.sort_order), -1) + 1;
+  const completedAt = new Date().toISOString();
+
+  for (const item of items) {
+    const normalizedText = normalizeListItemText(item.text);
+    const category = await resolveAllowedCategory(supabase, listId, item.category);
+    const price = normalizeListItemPrice(item.price);
+    const existingItem = existingItemMap.get(normalizedText);
+
+    if (existingItem) {
+      const { error: updateError } = await supabase
+        .from("list_items")
+        .update({
+          text: item.text,
+          quantity: null,
+          price,
+          category,
+          updated_by: userId
+        })
+        .eq("id", existingItem.id);
+
+      if (updateError) {
+        throw new Error(updateError.message);
+      }
+
+      updatedCount += 1;
+      continue;
+    }
+
+    const { error: insertError } = await supabase.from("list_items").insert({
+      list_id: listId,
+      text: item.text,
+      quantity: null,
+      price,
+      category,
+      is_completed: true,
+      completed_at: completedAt,
+      completed_by: userId,
+      created_by: userId,
+      updated_by: userId,
+      sort_order: nextSortOrder
+    });
+
+    if (insertError) {
+      throw new Error(insertError.message);
+    }
+
+    nextSortOrder += 1;
+    insertedCount += 1;
+  }
+
+  return {
+    insertedCount,
+    updatedCount,
+    totalCount: items.length
+  };
 }
