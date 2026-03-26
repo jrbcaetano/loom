@@ -28,6 +28,12 @@ type IpLocationResponse = {
   country_name?: string;
 };
 
+type HeaderLocationInput = {
+  city?: string | null;
+  region?: string | null;
+  country?: string | null;
+};
+
 export type WeatherWidgetData =
   | {
       status: "ready";
@@ -86,8 +92,53 @@ function buildLocationLabel(place: { name: string; admin1?: string; country?: st
   return [place.name, place.admin1, place.country].filter(Boolean).join(", ");
 }
 
+function isPublicIpAddress(ipAddress: string) {
+  const normalized = ipAddress.trim().toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+
+  if (
+    normalized === "127.0.0.1" ||
+    normalized === "::1" ||
+    normalized === "localhost" ||
+    normalized.startsWith("10.") ||
+    normalized.startsWith("192.168.") ||
+    normalized.startsWith("172.16.") ||
+    normalized.startsWith("172.17.") ||
+    normalized.startsWith("172.18.") ||
+    normalized.startsWith("172.19.") ||
+    normalized.startsWith("172.20.") ||
+    normalized.startsWith("172.21.") ||
+    normalized.startsWith("172.22.") ||
+    normalized.startsWith("172.23.") ||
+    normalized.startsWith("172.24.") ||
+    normalized.startsWith("172.25.") ||
+    normalized.startsWith("172.26.") ||
+    normalized.startsWith("172.27.") ||
+    normalized.startsWith("172.28.") ||
+    normalized.startsWith("172.29.") ||
+    normalized.startsWith("172.30.") ||
+    normalized.startsWith("172.31.") ||
+    normalized.startsWith("fc") ||
+    normalized.startsWith("fd")
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
+export function getLocationLabelFromHeaders(input: HeaderLocationInput): string | null {
+  const city = input.city?.trim() ?? "";
+  const region = input.region?.trim() ?? "";
+  const country = input.country?.trim() ?? "";
+  const label = [city, region, country].filter(Boolean).join(", ");
+  return label || null;
+}
+
 export async function getLocationLabelFromIp(ipAddress: string | null): Promise<string | null> {
-  if (!ipAddress) {
+  if (!ipAddress || !isPublicIpAddress(ipAddress)) {
     return null;
   }
 

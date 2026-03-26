@@ -23,6 +23,9 @@ export type ListItem = {
   quantity: string | null;
   price: string | null;
   category: string | null;
+  importSourceType: string | null;
+  importSourceName: string | null;
+  importedAt: string | null;
   isCompleted: boolean;
   sortOrder: number;
   createdAt: string;
@@ -554,7 +557,7 @@ export async function getListById(listId: string, locale: AppLocale = "en"): Pro
 
   const { data: items, error: itemsError } = await supabase
     .from("list_items")
-    .select("id, text, quantity, price, category, is_completed, sort_order, created_by, updated_by, created_at, updated_at")
+    .select("id, text, quantity, price, category, import_source_type, import_source_name, imported_at, is_completed, sort_order, created_by, updated_by, created_at, updated_at")
     .eq("list_id", listId)
     .order("is_completed", { ascending: true })
     .order("sort_order", { ascending: true });
@@ -598,6 +601,9 @@ export async function getListById(listId: string, locale: AppLocale = "en"): Pro
       quantity: item.quantity,
       price: item.price,
       category: item.category,
+      importSourceType: item.import_source_type,
+      importSourceName: item.import_source_name,
+      importedAt: item.imported_at,
       isCompleted: item.is_completed,
       sortOrder: item.sort_order,
       createdAt: item.created_at,
@@ -890,6 +896,9 @@ export async function importRecentPurchaseItems(listId: string, items: RecentPur
           quantity: null,
           price,
           category,
+          import_source_type: item.importSourceType ?? null,
+          import_source_name: item.importSourceName ?? null,
+          imported_at: item.importSourceType ? completedAt : null,
           updated_by: userId
         })
         .eq("id", existingItem.id);
@@ -908,6 +917,9 @@ export async function importRecentPurchaseItems(listId: string, items: RecentPur
       quantity: null,
       price,
       category,
+      import_source_type: item.importSourceType ?? null,
+      import_source_name: item.importSourceName ?? null,
+      imported_at: item.importSourceType ? completedAt : null,
       is_completed: true,
       completed_at: completedAt,
       completed_by: userId,

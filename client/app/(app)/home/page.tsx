@@ -6,7 +6,7 @@ import { getHomeDashboardPreferences, getHomeSnapshot } from "@/features/home/se
 import { getProductFeatureAvailability } from "@/features/admin/server";
 import { getServerI18n } from "@/lib/i18n/server";
 import type { HomeWidgetKey } from "@/features/home/dashboard";
-import { getLocationLabelFromIp, getWeatherWidgetData } from "@/features/home/weather";
+import { getLocationLabelFromHeaders, getLocationLabelFromIp, getWeatherWidgetData } from "@/features/home/weather";
 
 function formatDateKey(value: Date) {
   return value.toISOString().slice(0, 10);
@@ -54,15 +54,21 @@ export default async function HomePage() {
     getHomeDashboardPreferences(user.id)
   ]);
   const headerStore = await headers();
+  const headerLocationLabel = getLocationLabelFromHeaders({
+    city: headerStore.get("x-vercel-ip-city") ?? headerStore.get("x-city"),
+    region: headerStore.get("x-vercel-ip-country-region") ?? headerStore.get("x-region"),
+    country: headerStore.get("x-vercel-ip-country") ?? headerStore.get("x-country")
+  });
   const forwardedFor = headerStore.get("x-forwarded-for");
   const clientIp = forwardedFor?.split(",")[0]?.trim() ?? null;
-  const ipLocationLabel = !dashboard.settings.weather?.location ? await getLocationLabelFromIp(clientIp) : null;
+  const ipLocationLabel = !dashboard.settings.weather?.location && !headerLocationLabel ? await getLocationLabelFromIp(clientIp) : null;
+  const inferredLocationLabel = headerLocationLabel ?? ipLocationLabel;
 
   const weatherSettings = dashboard.settings.weather;
   const weather = dashboard.widgets.some((widget) => widget.key === "weather" && widget.enabled)
     ? await getWeatherWidgetData({
         locale,
-        location: weatherSettings?.location || ipLocationLabel || "",
+        location: weatherSettings?.location || inferredLocationLabel || "",
         unit: weatherSettings?.unit ?? "celsius"
       })
     : null;
@@ -307,7 +313,7 @@ export default async function HomePage() {
             <div className="loom-row-between">
               <div>
                 <h3 className="loom-section-title">{t("home.widgets.weather", "Weather")}</h3>
-                <p className="loom-muted small mt-1 mb-0">{weather?.locationLabel ?? weatherSettings?.location ?? ipLocationLabel ?? "Weather"}</p>
+                <p className="loom-muted small mt-1 mb-0">{weather?.locationLabel ?? weatherSettings?.location ?? inferredLocationLabel ?? "Weather"}</p>
               </div>
               <Link href="/settings" className="loom-subtle-link">
                 {t("common.edit", "Edit")}

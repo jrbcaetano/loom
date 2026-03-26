@@ -36,6 +36,9 @@ type ListItem = {
   quantity: string | null;
   price: string | number | null;
   category: string | null;
+  importSourceType: string | null;
+  importSourceName: string | null;
+  importedAt: string | null;
   isCompleted: boolean;
   sortOrder: number;
   createdAt: string;
@@ -170,8 +173,12 @@ function parseQuantityMultiplier(value: string | null | undefined) {
     return 1;
   }
 
-  if (/^\d+$/.test(trimmed)) {
-    return Math.max(1, Number.parseInt(trimmed, 10));
+  const normalized = trimmed.replace(",", ".");
+  if (/^\d+(?:\.\d+)?$/.test(normalized)) {
+    const parsed = Number.parseFloat(normalized);
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return parsed;
+    }
   }
 
   return 1;
@@ -276,9 +283,6 @@ export function ListItemsClient({
   const [similarItemSuggestions, setSimilarItemSuggestions] = useState<SimilarSuggestion[]>([]);
   const [pendingAddValues, setPendingAddValues] = useState<AddItemValues | null>(null);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
-  const [showImportPanel, setShowImportPanel] = useState(false);
-  const [importFiles, setImportFiles] = useState<File[]>([]);
-  const [importStoreHint, setImportStoreHint] = useState("");
   const [swipePreview, setSwipePreview] = useState<{ itemId: string; offset: number } | null>(null);
   const [touchTracking, setTouchTracking] = useState<{
     itemId: string;
@@ -425,94 +429,6 @@ export function ListItemsClient({
     onSuccess: () => {
       closeEdit();
       queryClient.invalidateQueries({ queryKey });
-    }
-  });
-
-  const importRecentPurchasesMutation = useMutation({
-    mutationFn: async (files: File[]) => {
-      const pdfFiles = files.filter((file) => file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf"));
-      const imageFiles = files.filter((file) => file.type.startsWith("image/"));
-      const totals = {
-        insertedCount: 0,
-        updatedCount: 0,
-        totalCount: 0,
-        notImportedCount: 0
-      };
-
-      if (pdfFiles.length > 0) {
-        const formData = new FormData();
-        for (const file of pdfFiles) {
-          formData.append("files", file);
-        }
-        formData.append("storeHint", importStoreHint);
-
-        const response = await fetch(`/api/lists/${listId}/recent-purchases`, {
-          method: "POST",
-          body: formData
-        });
-
-        const payload = (await response.json()) as {
-          insertedCount?: number;
-          updatedCount?: number;
-          totalCount?: number;
-          notImportedCount?: number;
-          error?: string;
-        };
-
-        if (!response.ok) {
-          throw new Error(payload.error ?? "Failed to import recent purchases");
-        }
-
-        totals.insertedCount += payload.insertedCount ?? 0;
-        totals.updatedCount += payload.updatedCount ?? 0;
-        totals.totalCount += payload.totalCount ?? 0;
-        totals.notImportedCount += payload.notImportedCount ?? 0;
-      }
-
-      if (imageFiles.length > 0) {
-        const { extractReceiptTextsFromImagesInBrowser } = await import("./recent-purchases-browser");
-        const texts = await extractReceiptTextsFromImagesInBrowser(imageFiles);
-        const response = await fetch(`/api/lists/${listId}/recent-purchases`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            storeHint: importStoreHint,
-            texts
-          })
-        });
-
-        const payload = (await response.json()) as {
-          insertedCount?: number;
-          updatedCount?: number;
-          totalCount?: number;
-          notImportedCount?: number;
-          error?: string;
-        };
-
-        if (!response.ok) {
-          throw new Error(payload.error ?? "Failed to import recent purchases");
-        }
-
-        totals.insertedCount += payload.insertedCount ?? 0;
-        totals.updatedCount += payload.updatedCount ?? 0;
-        totals.totalCount += payload.totalCount ?? 0;
-        totals.notImportedCount += payload.notImportedCount ?? 0;
-      }
-
-      if (totals.totalCount === 0 && totals.notImportedCount === 0) {
-        throw new Error("Only PDF and image files are supported.");
-      }
-
-      return totals;
-    },
-    onSuccess: () => {
-      setShowImportPanel(false);
-      setImportFiles([]);
-      setImportStoreHint("");
-      queryClient.invalidateQueries({ queryKey });
-      router.refresh();
     }
   });
 
@@ -966,20 +882,6 @@ export function ListItemsClient({
     closeEdit();
   }
 
-  function closeImportPanel() {
-    setShowImportPanel(false);
-    setImportFiles([]);
-    setImportStoreHint("");
-  }
-
-  function submitImportRecentPurchases() {
-    if (importFiles.length === 0) {
-      return;
-    }
-
-    importRecentPurchasesMutation.mutate(importFiles);
-  }
-
   function startEdit(item: ListItem) {
     setShowComposer(false);
     setEditingItemId(item.id);
@@ -1262,18 +1164,6 @@ export function ListItemsClient({
       {updateMutation.error ? <p className="loom-feedback-error">{updateMutation.error.message}</p> : null}
       {deleteListMutation.error ? <p className="loom-feedback-error">{deleteListMutation.error.message}</p> : null}
       {deleteItemMutation.error ? <p className="loom-feedback-error">{deleteItemMutation.error.message}</p> : null}
-      {importRecentPurchasesMutation.data ? (
-        <p className="loom-muted small">
-          {t(
-            "lists.importRecentPurchasesDone",
-            "Import finished: {inserted} created, {updated} updated, {notImported} not imported."
-          )
-            .replace("{count}", String(importRecentPurchasesMutation.data.totalCount ?? 0))
-            .replace("{inserted}", String(importRecentPurchasesMutation.data.insertedCount ?? 0))
-            .replace("{updated}", String(importRecentPurchasesMutation.data.updatedCount ?? 0))
-            .replace("{notImported}", String(importRecentPurchasesMutation.data.notImportedCount ?? 0))}
-        </p>
-      ) : null}
       {isPending ? <p className="loom-muted">{t("common.loading")}</p> : null}
       {error ? <p className="loom-feedback-error">{error.message}</p> : null}
 
@@ -1380,7 +1270,7 @@ export function ListItemsClient({
                   </div>
                 ) : null}
               </div>
-              <input className="loom-input" type="text" placeholder={t("lists.form.quantity")} {...form.register("quantity")} />
+              <input className="loom-input" type="text" inputMode="decimal" placeholder={t("lists.form.quantity")} {...form.register("quantity")} />
               <input className="loom-input" type="text" inputMode="decimal" placeholder={t("lists.form.price", "Price")} {...form.register("price")} />
               {isMobileCategoryPicker ? (
                 <select
@@ -1499,7 +1389,7 @@ export function ListItemsClient({
             </label>
             <label className="loom-lists-inline-field">
               <span className="loom-lists-inline-label">{t("lists.form.quantity")}</span>
-              <input className="loom-input" type="text" {...editForm.register("quantity")} />
+              <input className="loom-input" type="text" inputMode="decimal" {...editForm.register("quantity")} />
             </label>
             <label className="loom-lists-inline-field">
               <span className="loom-lists-inline-label">{t("lists.form.price", "Price")}</span>
@@ -1539,7 +1429,7 @@ export function ListItemsClient({
                 {deleteItemMutation.isPending ? t("common.deleting", "Deleting...") : t("common.delete")}
               </button>
               <button className="loom-button-primary" type="submit" disabled={updateMutation.isPending}>
-                {t("common.saveChanges")}
+                {t("common.save", "Save")}
               </button>
             </div>
           </form>
@@ -1593,84 +1483,9 @@ export function ListItemsClient({
         ) : null}
       </ResponsivePanel>
 
-      <ResponsivePanel isOpen={showImportPanel} title={t("lists.importRecentPurchases", "Import recent purchases")} onClose={closeImportPanel}>
-        <div className="loom-form-stack">
-          {importRecentPurchasesMutation.error ? <p className="loom-feedback-error">{importRecentPurchasesMutation.error.message}</p> : null}
-          <p className="loom-muted small m-0">
-            {t(
-              "lists.importRecentPurchasesHint",
-              "Upload one or more supermarket receipt PDFs. Imported items will be added as completed entries with detected category and price."
-            )}
-          </p>
-
-          <label className="loom-field">
-            <span>{t("lists.importRecentPurchasesFiles", "Receipt PDFs")}</span>
-            <input
-              className="loom-input"
-              type="file"
-              accept="application/pdf,.pdf,image/*"
-              multiple
-              onChange={(event) => {
-                setImportFiles(Array.from(event.target.files ?? []));
-              }}
-            />
-          </label>
-
-          <label className="loom-field">
-            <span>{t("lists.importRecentPurchasesStore", "Supermarket (optional)")}</span>
-            <input
-              className="loom-input"
-              type="text"
-              value={importStoreHint}
-              placeholder={t("lists.importRecentPurchasesStorePlaceholder", "Example: Continente")}
-              onChange={(event) => setImportStoreHint(event.target.value)}
-            />
-          </label>
-
-          {importFiles.length > 0 ? (
-            <div className="loom-stack-sm">
-              {importFiles.map((file) => (
-                <p key={`${file.name}-${file.size}-${file.lastModified}`} className="loom-muted small m-0">
-                  {file.name}
-                </p>
-              ))}
-            </div>
-          ) : null}
-
-          <div className="loom-form-actions">
-            <button className="loom-button-ghost" type="button" onClick={closeImportPanel}>
-              {t("common.cancel")}
-            </button>
-            <button
-              className="loom-button-primary"
-              type="button"
-              onClick={submitImportRecentPurchases}
-              disabled={importRecentPurchasesMutation.isPending || importFiles.length === 0}
-            >
-              {importRecentPurchasesMutation.isPending
-                ? t("lists.importRecentPurchasesLoading", "Importing recent purchases...")
-                : t("lists.importRecentPurchasesAction", "Import PDFs")}
-            </button>
-          </div>
-        </div>
-      </ResponsivePanel>
-
       <button className="loom-lists-action-add" type="button" onClick={openAddPanel}>
         + {t("lists.addItem")}
       </button>
-
-      {isSystemShoppingList ? (
-        <button
-          className="loom-button-ghost"
-          type="button"
-          onClick={() => setShowImportPanel(true)}
-          disabled={importRecentPurchasesMutation.isPending}
-        >
-          {importRecentPurchasesMutation.isPending
-            ? t("lists.importRecentPurchasesLoading", "Importing recent purchases...")
-            : t("lists.importRecentPurchases", "Import recent purchases")}
-        </button>
-      ) : null}
 
       {canDelete ? (
         <button className="loom-lists-action-delete" type="button" onClick={confirmDeleteList} disabled={deleteListMutation.isPending}>

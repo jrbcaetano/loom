@@ -2,6 +2,8 @@ export type RecentPurchaseCatalogItem = {
   text: string;
   price: string;
   category: string;
+  importSourceType?: "receipt_pdf";
+  importSourceName?: string | null;
 };
 
 export type RecentPurchaseParseResult = {
@@ -35,7 +37,8 @@ const SECTION_TO_CATEGORY: Record<string, string> = {
 
 const IGNORED_DESCRIPTIONS = new Set([
   "SACO COMPRAS REUTILIZAVEL",
-  "SACO COMPRAS REUTILIZAVEL2"
+  "SACO COMPRAS REUTILIZAVEL2",
+  "SACO REUTILIZAVEL MEDIO"
 ]);
 
 const STOP_PREFIXES = [
@@ -85,29 +88,6 @@ const LIDL_STOP_PREFIXES = [
   "DETALHES DA LOJA"
 ];
 
-const IMAGE_MIME_PREFIX = "image/";
-const OCR_LANGUAGE = "por";
-const OCR_TIMEOUT_MS = 60_000;
-const OCR_MAX_IMAGE_DIMENSION = 1800;
-
-async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string) {
-  let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
-
-  const timeoutPromise = new Promise<never>((_, reject) => {
-    timeoutHandle = setTimeout(() => {
-      reject(new Error(message));
-    }, timeoutMs);
-  });
-
-  try {
-    return await Promise.race([promise, timeoutPromise]);
-  } finally {
-    if (timeoutHandle) {
-      clearTimeout(timeoutHandle);
-    }
-  }
-}
-
 async function ensurePdfRuntimeGlobals() {
   if (
     typeof globalThis.DOMMatrix !== "undefined" &&
@@ -130,49 +110,6 @@ async function ensurePdfRuntimeGlobals() {
   }
 }
 
-async function prepareImageForOcr(file: File) {
-  const buffer = Buffer.from(await file.arrayBuffer());
-
-  try {
-    const { createCanvas, loadImage } = await import("@napi-rs/canvas");
-    const image = await loadImage(buffer);
-    const largestSide = Math.max(image.width, image.height);
-
-    if (!largestSide) {
-      return buffer;
-    }
-
-    const scale = Math.min(1, OCR_MAX_IMAGE_DIMENSION / largestSide);
-    const width = Math.max(1, Math.round(image.width * scale));
-    const height = Math.max(1, Math.round(image.height * scale));
-    const canvas = createCanvas(width, height);
-    const context = canvas.getContext("2d");
-
-    context.imageSmoothingEnabled = true;
-    context.imageSmoothingQuality = "high";
-    context.fillStyle = "#ffffff";
-    context.fillRect(0, 0, width, height);
-    context.drawImage(image, 0, 0, width, height);
-
-    const imageData = context.getImageData(0, 0, width, height);
-    const pixels = imageData.data;
-
-    for (let index = 0; index < pixels.length; index += 4) {
-      const grayscale = Math.round(
-        pixels[index] * 0.299 + pixels[index + 1] * 0.587 + pixels[index + 2] * 0.114
-      );
-      pixels[index] = grayscale;
-      pixels[index + 1] = grayscale;
-      pixels[index + 2] = grayscale;
-    }
-
-    context.putImageData(imageData, 0, 0);
-    return canvas.toBuffer("image/png");
-  } catch {
-    return buffer;
-  }
-}
-
 function normalizeSectionHeading(value: string) {
   return value
     .trim()
@@ -192,7 +129,12 @@ function normalizeItemKey(value: string) {
 }
 
 function normalizePrice(value: string) {
-  return value.replace(",", ".");
+  const trimmed = value.trim();
+  if (/^\d+\s\d{2}$/.test(trimmed)) {
+    return trimmed.replace(/\s/, ".");
+  }
+
+  return trimmed.replace(",", ".");
 }
 
 function normalizeStoreHint(value: string | null | undefined) {
@@ -205,7 +147,9 @@ function normalizeExtractedText(value: string) {
     .replace(/[“”]/g, '"')
     .replace(/[‘’]/g, "'")
     .replace(/[|]/g, "I")
-    .replace(/\u00a0/g, " ");
+    .replace(/\u00a0/g, " ")
+    .replace(/[€]/g, " ")
+    .replace(/[Ss](?=\d{2}\b)/g, "5");
 }
 
 function isTaxLine(value: string) {
@@ -213,7 +157,7 @@ function isTaxLine(value: string) {
 }
 
 function isPriceLine(value: string) {
-  return /^\d+(?:,\d{1,2})$/.test(value.trim());
+  return /^\d+(?:[.,]\d{1,2})$/.test(value.trim()) || /^\d+\s\d{2}$/.test(value.trim());
 }
 
 function stripLeadingTaxMarker(value: string) {
@@ -223,7 +167,7 @@ function stripLeadingTaxMarker(value: string) {
 function parseQuantityUnitPrice(value: string) {
   const match = value
     .trim()
-    .match(/^(\d+(?:,\d+)?)\s*X\s*(\d+(?:,\d{1,2}))(?:\s+\d+(?:,\d{1,2}))?$/i);
+    .match(/^(\d+(?:[.,]\d+)?)\s*X\s*(\d+(?:[.,]\d{1,2}))(?:\s+\d+(?:[.,]\d{1,2}|\s\d{2}))?$/i);
   if (!match) {
     return null;
   }
@@ -233,7 +177,7 @@ function parseQuantityUnitPrice(value: string) {
 
 function parseInlineDescriptionWithPrice(value: string) {
   const stripped = stripLeadingTaxMarker(value);
-  const match = stripped.match(/^(.*\D)\s+(\d+(?:,\d{1,2}))$/);
+  const match = stripped.match(/^(.*\D)\s+(\d+(?:[.,]\d{1,2}|\s\d{2}))\s*[A-Z]?$/);
   if (!match) {
     return null;
   }
@@ -250,7 +194,7 @@ function parseInlineDescriptionWithPrice(value: string) {
 }
 
 function findPriceInLine(value: string) {
-  const matches = value.match(/\d+(?:,\d{1,2})/g);
+  const matches = value.match(/\d+(?:[.,]\d{1,2})|\d+\s\d{2}/g);
   if (!matches || matches.length === 0) {
     return null;
   }
@@ -328,7 +272,7 @@ function inferCategoryFromDescription(description: string) {
 }
 
 function parseInlinePrice(value: string) {
-  const matches = value.match(/\d+(?:,\d{2})/g);
+  const matches = value.match(/\d+(?:[.,]\d{2})|\d+\s\d{2}/g);
   if (!matches || matches.length === 0) {
     return null;
   }
@@ -339,8 +283,11 @@ function parseInlinePrice(value: string) {
 function cleanLidlDescription(value: string) {
   return normalizeItemName(
     value
-      .replace(/\s+\d+(?:,\d{2})(?:\s*x\s*\d+)?\s*[A-Z]?$/i, "")
       .replace(/\s+\d+(?:,\d{2})\s*x\s*\d+\s+\d+(?:,\d{2})\s*[A-Z]?$/i, "")
+      .replace(/\s+\d+(?:,\d{2})(?:\s*x\s*\d+)?\s*[A-Z]?$/i, "")
+      .replace(/\b\d+(?:,\d{2})\b(?=.*\bx\s*\d+\b)/i, "")
+      .replace(/\s+\d+(?:,\d{2})\s*x$/i, "")
+      .replace(/\s+x$/i, "")
   );
 }
 
@@ -469,9 +416,17 @@ function parseLidlReceiptText(text: string): RecentPurchaseParseResult {
 
   const items = new Map<string, RecentPurchaseCatalogItem>();
   let notImportedCount = 0;
+  let hasReachedItemsSection = false;
 
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index];
+    if (!hasReachedItemsSection) {
+      if (line === "EUR") {
+        hasReachedItemsSection = true;
+      }
+      continue;
+    }
+
     if (shouldStopLidlLine(line)) {
       break;
     }
@@ -497,9 +452,25 @@ function parseLidlReceiptText(text: string): RecentPurchaseParseResult {
     }
 
     const inlinePrice = parseInlinePrice(line);
+    const nextLine = lines[index + 1] ?? "";
+    const splitQuantityPrice = line.match(/\d+(?:,\d{2})\s*x$/i) ? findPriceInLine(nextLine) : null;
+    if (splitQuantityPrice) {
+      const description = cleanLidlDescription(line);
+      if (description && !IGNORED_DESCRIPTIONS.has(description)) {
+        items.set(normalizeItemKey(description), {
+          text: description,
+          price: splitQuantityPrice,
+          category: inferCategoryFromDescription(description)
+        });
+      } else {
+        notImportedCount += 1;
+      }
+      continue;
+    }
+
     if (inlinePrice) {
       const description = cleanLidlDescription(line);
-      if (description) {
+      if (description && !IGNORED_DESCRIPTIONS.has(description)) {
         items.set(normalizeItemKey(description), {
           text: description,
           price: inlinePrice,
@@ -511,16 +482,74 @@ function parseLidlReceiptText(text: string): RecentPurchaseParseResult {
       continue;
     }
 
-    const nextLine = lines[index + 1] ?? "";
     const nextPrice = findPriceInLine(nextLine);
     if (!nextPrice) {
       notImportedCount += 1;
       continue;
     }
 
+    const description = cleanLidlDescription(line);
+    if (IGNORED_DESCRIPTIONS.has(description || line)) {
+      notImportedCount += 1;
+      continue;
+    }
+
+    items.set(normalizeItemKey(description || line), {
+      text: description || line,
+      price: nextPrice,
+      category: inferCategoryFromDescription(description || line)
+    });
+  }
+
+  return {
+    items: Array.from(items.values()),
+    notImportedCount
+  };
+}
+
+function parseLooseReceiptText(text: string): RecentPurchaseParseResult {
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => normalizeItemName(stripLeadingTaxMarker(line)))
+    .filter(Boolean);
+
+  const items = new Map<string, RecentPurchaseCatalogItem>();
+  let notImportedCount = 0;
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+
+    if (shouldStopAtLine(line) || shouldStopLidlLine(line)) {
+      continue;
+    }
+
+    const inlineParsed = parseInlineDescriptionWithPrice(line);
+    if (inlineParsed) {
+      items.set(normalizeItemKey(inlineParsed.description), {
+        text: inlineParsed.description,
+        price: inlineParsed.price,
+        category: inferCategoryFromDescription(inlineParsed.description)
+      });
+      continue;
+    }
+
+    if (!isLikelyGenericDescriptionLine(line) && !isLikelyLidlDescriptionLine(line)) {
+      continue;
+    }
+
+    const price =
+      findPriceInLine(lines[index + 1] ?? "") ??
+      findPriceInLine(lines[index + 2] ?? "") ??
+      findPriceInLine(lines[index + 3] ?? "");
+
+    if (!price) {
+      notImportedCount += 1;
+      continue;
+    }
+
     items.set(normalizeItemKey(line), {
       text: line,
-      price: nextPrice,
+      price,
       category: inferCategoryFromDescription(line)
     });
   }
@@ -575,6 +604,56 @@ function shouldUseLidlParser(text: string, storeHint?: string | null) {
   return normalizedStoreHint.includes("lidl") || normalizedText.includes("lidl");
 }
 
+function detectImportSourceName(text: string, storeHint?: string | null) {
+  if (shouldUseLidlParser(text, storeHint)) {
+    return "Lidl";
+  }
+
+  if (shouldUseSectionParser(text, storeHint)) {
+    return "Continente";
+  }
+
+  return null;
+}
+
+function extractPdfPageLines(items: Array<{ str?: string; transform?: number[] }>) {
+  const lines: Array<{ y: number; parts: Array<{ x: number; text: string }> }> = [];
+
+  for (const item of items) {
+    const text = item.str?.trim();
+    if (!text) {
+      continue;
+    }
+
+    const transform = Array.isArray(item.transform) ? item.transform : [];
+    const x = typeof transform[4] === "number" ? transform[4] : 0;
+    const y = typeof transform[5] === "number" ? transform[5] : 0;
+    const existingLine = lines.find((line) => Math.abs(line.y - y) <= 2);
+
+    if (existingLine) {
+      existingLine.parts.push({ x, text });
+      continue;
+    }
+
+    lines.push({
+      y,
+      parts: [{ x, text }]
+    });
+  }
+
+  return lines
+    .sort((left, right) => right.y - left.y)
+    .map((line) =>
+      line.parts
+        .sort((left, right) => left.x - right.x)
+        .map((part) => part.text)
+        .join(" ")
+        .replace(/\s+/g, " ")
+        .trim()
+    )
+    .filter(Boolean);
+}
+
 async function extractTextFromPdf(file: File) {
   await ensurePdfRuntimeGlobals();
   const [{ getDocument }, workerModule] = await Promise.all([
@@ -597,10 +676,12 @@ async function extractTextFromPdf(file: File) {
       for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
         const page = await pdf.getPage(pageNumber);
         const textContent = await page.getTextContent();
-        const pageText = textContent.items
-          .map((item) => ("str" in item ? item.str : ""))
-          .filter(Boolean)
-          .join("\n");
+        const pageText = extractPdfPageLines(
+          textContent.items.map((item) => ({
+            str: "str" in item ? item.str : "",
+            transform: "transform" in item && Array.isArray(item.transform) ? item.transform : undefined
+          }))
+        ).join("\n");
 
         if (pageText) {
           pageTexts.push(pageText);
@@ -616,51 +697,15 @@ async function extractTextFromPdf(file: File) {
   }
 }
 
-async function extractTextFromImage(file: File) {
-  const imageBuffer = await prepareImageForOcr(file);
-  const { PSM, createWorker } = await import("tesseract.js");
-  const worker = await withTimeout(
-    createWorker(OCR_LANGUAGE, 1, {
-      langPath: process.cwd(),
-      gzip: false,
-      cachePath: process.cwd()
-    }),
-    OCR_TIMEOUT_MS,
-    "Image OCR timed out while starting the local recognition worker."
-  );
-
-  try {
-    await worker.setParameters({
-      tessedit_pageseg_mode: PSM.SINGLE_BLOCK
-    });
-
-    const recognizeResult = await withTimeout(
-      worker.recognize(imageBuffer),
-      OCR_TIMEOUT_MS,
-      "Image OCR timed out while reading the uploaded receipt."
-    );
-    const {
-      data: { text }
-    } = recognizeResult;
-    return text;
-  } finally {
-    await worker.terminate();
-  }
-}
-
 function isPdfFile(file: File) {
   return file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
-}
-
-function isImageFile(file: File) {
-  return file.type.startsWith(IMAGE_MIME_PREFIX);
 }
 
 export async function parseRecentPurchaseFiles(files: File[], options: ParseOptions = {}) {
   const extractedTexts: string[] = [];
 
   for (const file of files) {
-    const extractedText = isPdfFile(file) ? await extractTextFromPdf(file) : isImageFile(file) ? await extractTextFromImage(file) : "";
+    const extractedText = isPdfFile(file) ? await extractTextFromPdf(file) : "";
     extractedTexts.push(extractedText);
   }
 
@@ -678,19 +723,24 @@ export function parseRecentPurchaseTexts(texts: string[], options: ParseOptions 
       continue;
     }
 
-    const candidateResults: RecentPurchaseParseResult[] = [parseGenericReceiptText(text)];
-
-    if (shouldUseSectionParser(text, options.storeHint)) {
-      candidateResults.unshift(parseReceiptText(text));
-    }
-
-    if (shouldUseLidlParser(text, options.storeHint)) {
-      candidateResults.unshift(parseLidlReceiptText(text));
-    }
+    const candidateResults: RecentPurchaseParseResult[] = shouldUseLidlParser(text, options.storeHint)
+      ? [parseLidlReceiptText(text)]
+      : shouldUseSectionParser(text, options.storeHint)
+        ? [parseReceiptText(text), parseGenericReceiptText(text), parseLooseReceiptText(text)]
+        : [parseGenericReceiptText(text), parseLooseReceiptText(text)];
 
     const result = selectBestParseResult(candidateResults);
-    mergeParsedItems(items, result);
-    notImportedCount += result.notImportedCount;
+    const importSourceName = detectImportSourceName(text, options.storeHint);
+    const normalizedResult: RecentPurchaseParseResult = {
+      ...result,
+      items: result.items.map((item) => ({
+        ...item,
+        importSourceType: importSourceName ? "receipt_pdf" : item.importSourceType,
+        importSourceName: importSourceName ?? item.importSourceName ?? null
+      }))
+    };
+    mergeParsedItems(items, normalizedResult);
+    notImportedCount += normalizedResult.notImportedCount;
   }
 
   return {

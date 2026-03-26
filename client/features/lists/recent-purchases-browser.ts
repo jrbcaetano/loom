@@ -1,8 +1,8 @@
 "use client";
 
-const OCR_LANGUAGE = "por";
+const OCR_LANGUAGE = "por+eng";
 const OCR_TIMEOUT_MS = 45_000;
-const OCR_MAX_IMAGE_DIMENSION = 1280;
+const OCR_MAX_IMAGE_DIMENSION = 1800;
 
 type BrowserOcrWorker = {
   recognize(image: Blob): Promise<{ data: { text: string } }>;
@@ -80,10 +80,10 @@ async function prepareImageForBrowserOcr(file: File) {
     const grayscale = Math.round(
       pixels[index] * 0.299 + pixels[index + 1] * 0.587 + pixels[index + 2] * 0.114
     );
-    const threshold = grayscale > 180 ? 255 : 0;
-    pixels[index] = threshold;
-    pixels[index + 1] = threshold;
-    pixels[index + 2] = threshold;
+    const boosted = grayscale < 96 ? 0 : grayscale > 224 ? 255 : Math.round((grayscale - 96) * (255 / 128));
+    pixels[index] = boosted;
+    pixels[index + 1] = boosted;
+    pixels[index + 2] = boosted;
   }
 
   context.putImageData(imageData, 0, 0);
@@ -99,7 +99,7 @@ async function prepareImageForBrowserOcr(file: File) {
         resolve(blob);
       },
       "image/jpeg",
-      0.82
+      0.92
     );
   });
 }
@@ -109,11 +109,14 @@ async function getBrowserOcrWorker() {
     browserOcrWorkerPromise = (async () => {
       const { PSM, createWorker } = await import("tesseract.js");
       const worker = await createWorker(OCR_LANGUAGE, 1, {
+        langPath: "/tesseract",
+        gzip: false,
         logger: () => undefined
       });
 
       await worker.setParameters({
-        tessedit_pageseg_mode: PSM.SINGLE_BLOCK
+        tessedit_pageseg_mode: PSM.SPARSE_TEXT,
+        preserve_interword_spaces: "1"
       });
 
       return worker;

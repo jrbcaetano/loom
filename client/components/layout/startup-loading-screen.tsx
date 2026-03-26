@@ -15,7 +15,7 @@ export function StartupLoadingScreen() {
             <Image src="/brand/loom-symbol.png" alt="" width={72} height={72} className="loom-startup-loading-logo" priority />
           </div>
           <p className="loom-startup-loading-eyebrow">Loom is waking up the house</p>
-          <h1 className="loom-startup-loading-title">One tiny moment while everything gets cozy.</h1>
+          <h1 className="loom-startup-loading-title">Loading...</h1>
         </div>
 
         <div className="loom-startup-loading-progress" aria-hidden>

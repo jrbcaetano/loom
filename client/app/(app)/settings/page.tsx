@@ -103,6 +103,9 @@ export default async function SettingsPage() {
           <Link href="/expenses" className="loom-subtle-link">
             {t("nav.expenses")}
           </Link>
+          <Link href="/schedules" className="loom-subtle-link">
+            {t("nav.schedules", "Schedules")}
+          </Link>
           <Link href="/documents" className="loom-subtle-link">
             {t("nav.documents")}
           </Link>
