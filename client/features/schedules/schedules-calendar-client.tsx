@@ -515,25 +515,35 @@ export function SchedulesCalendarClient({
                               className={`loom-schedules-month-cell ${isSameMonth(day, monthAnchor) ? "" : "is-outside"} ${isSelected ? "is-selected" : ""} ${isToday(day) ? "is-today" : ""} ${dayOccurrences.length > 0 ? "is-has-items" : ""}`.trim()}
                               onClick={() => setSelectedMonthDay((current) => (current && isSameDay(current, day) ? null : day))}
                             >
-                              <div className="loom-schedules-month-date">{format(day, "d", { locale: dateFnsLocale })}</div>
+                              <div className="loom-schedules-month-cell-surface">
+                                <div className="loom-schedules-month-date">{format(day, "d", { locale: dateFnsLocale })}</div>
+                                {dayOccurrences.length > 0 ? <span className="loom-schedules-month-indicator" aria-hidden="true" /> : null}
+                              </div>
                             </button>
                           );
                         })}
                       </div>
                       <div className="loom-schedules-month-bars">
                         {bars.map((bar) => (
-                          <button
-                            key={bar.occurrence.id}
-                            type="button"
-                            className={`loom-schedules-month-bar ${categoryClass(bar.occurrence.category)} ${!bar.startsThisWeek ? "is-continued-left" : ""} ${!bar.endsThisWeek ? "is-continued-right" : ""}`.trim()}
-                            style={{ gridColumn: `${bar.startColumn} / span ${bar.spanColumns}`, gridRow: `${bar.lane + 1}`, ...scheduleSurfaceStyle(bar.occurrence.color) }}
-                            onMouseEnter={(event) => showScheduleHoverCard(bar.occurrence, event)}
-                            onMouseLeave={() => hideScheduleHoverCard(bar.occurrence.sourceScheduleId)}
-                            onClick={(event) => showScheduleHoverCard(bar.occurrence, event)}
-                          >
-                            <span className="loom-schedules-month-bar-title">{getInitials(bar.occurrence.familyMemberName)} - {bar.occurrence.title}</span>
-                            <span className="loom-schedules-month-bar-meta">{bar.occurrence.startsAtLocal.slice(0, 5)}</span>
-                          </button>
+                          (() => {
+                            const coveredDays = week.slice(bar.startColumn - 1, bar.startColumn - 1 + bar.spanColumns);
+                            const isOutsideMonthBar = coveredDays.length > 0 && coveredDays.every((day) => !isSameMonth(day, monthAnchor));
+
+                            return (
+                              <button
+                                key={bar.occurrence.id}
+                                type="button"
+                                className={`loom-schedules-month-bar ${categoryClass(bar.occurrence.category)} ${isOutsideMonthBar ? "is-outside-month" : ""} ${!bar.startsThisWeek ? "is-continued-left" : ""} ${!bar.endsThisWeek ? "is-continued-right" : ""}`.trim()}
+                                style={{ gridColumn: `${bar.startColumn} / span ${bar.spanColumns}`, gridRow: `${bar.lane + 1}`, ...scheduleSurfaceStyle(bar.occurrence.color) }}
+                                onMouseEnter={(event) => showScheduleHoverCard(bar.occurrence, event)}
+                                onMouseLeave={() => hideScheduleHoverCard(bar.occurrence.sourceScheduleId)}
+                                onClick={(event) => showScheduleHoverCard(bar.occurrence, event)}
+                              >
+                                <span className="loom-schedules-month-bar-title">{getInitials(bar.occurrence.familyMemberName)} - {bar.occurrence.title}</span>
+                                <span className="loom-schedules-month-bar-meta">{bar.occurrence.startsAtLocal.slice(0, 5)}</span>
+                              </button>
+                            );
+                          })()
                         ))}
                       </div>
                     </section>
@@ -654,7 +664,17 @@ export function SchedulesCalendarClient({
       ) : null}
 
       <ResponsivePanel isOpen={isCreateOpen} title={t("schedules.createTitle", "Create schedule")} onClose={closePanels} variant="modal" size="wide">
-        <ScheduleForm familyId={familyId} familyMembers={familyMembers} templates={templates} endpoint="/api/schedules" method="POST" submitLabel={t("schedules.createTitle", "Create schedule")} redirectTo="/schedules" onSaved={() => closePanels()} />
+        <ScheduleForm
+          familyId={familyId}
+          familyMembers={familyMembers}
+          templates={templates}
+          endpoint="/api/schedules"
+          method="POST"
+          submitLabel={t("schedules.createTitle", "Create schedule")}
+          redirectTo="/schedules"
+          initialValues={selectedMonthDay ? { startsOn: format(selectedMonthDay, "yyyy-MM-dd") } : undefined}
+          onSaved={() => closePanels()}
+        />
       </ResponsivePanel>
 
       <ResponsivePanel

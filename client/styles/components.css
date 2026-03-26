@@ -1927,65 +1927,88 @@
   border: 1px solid var(--loom-card-border-subtle);
   border-radius: 24px;
   overflow: hidden;
+  padding: 0.55rem;
+  background: var(--loom-color-surface);
 }
 
 .loom-schedules-month-row {
   position: relative;
   min-height: calc(8rem + (var(--loom-schedule-lanes, 1) * 1.75rem));
-  background: var(--loom-color-surface);
+  background: transparent;
 }
 
 .loom-schedules-month-row + .loom-schedules-month-row {
-  border-top: 1px solid var(--loom-card-border-subtle);
+  margin-top: 0.45rem;
 }
 
 .loom-schedules-month-cells {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
   min-height: inherit;
+  gap: 0.55rem;
 }
 
 .loom-schedules-month-cell {
   min-height: inherit;
-  padding: 0.75rem 0.6rem 0.6rem;
-  border-right: 1px solid var(--loom-card-border-subtle);
-  background: var(--loom-color-surface);
-  border-top: 0;
-  border-bottom: 0;
-  border-left: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
   text-align: center;
   cursor: pointer;
-  transition: background-color var(--loom-motion-fast) var(--loom-ease-standard), color var(--loom-motion-fast) var(--loom-ease-standard);
+  transition: color var(--loom-motion-fast) var(--loom-ease-standard);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
 }
 
-.loom-schedules-month-cell:last-child {
-  border-right: 0;
+.loom-schedules-month-cell-surface {
+  min-height: inherit;
+  width: 100%;
+  border-radius: 14px;
+  padding: 0.75rem 0.6rem 0.6rem;
+  background: transparent;
+  border: 1px solid transparent;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.35rem;
+  transition:
+    background-color var(--loom-motion-fast) var(--loom-ease-standard),
+    border-color var(--loom-motion-fast) var(--loom-ease-standard),
+    box-shadow var(--loom-motion-fast) var(--loom-ease-standard),
+    color var(--loom-motion-fast) var(--loom-ease-standard);
 }
 
-.loom-schedules-month-cell.is-has-items {
+.loom-schedules-month-cell.is-has-items .loom-schedules-month-cell-surface {
   background: var(--loom-card-bg-muted);
+  border-color: var(--loom-card-border-subtle);
 }
 
-.loom-schedules-month-cell.is-outside {
-  background: var(--loom-card-bg-muted);
-  color: var(--loom-color-text-muted);
+.loom-schedules-month-cell.is-outside .loom-schedules-month-cell-surface {
+  background: rgb(148 163 184 / 0.03);
+  border-color: rgb(148 163 184 / 0.16);
+  color: rgb(148 163 184 / 0.92);
 }
 
-.loom-schedules-month-cell.is-selected {
-  background: var(--loom-color-primary);
-  color: var(--loom-inverse-text);
+.loom-schedules-month-cell.is-outside.is-has-items .loom-schedules-month-cell-surface {
+  background: rgb(148 163 184 / 0.12);
+  border-color: rgb(148 163 184 / 0.22);
 }
 
-.loom-schedules-month-cell.is-today {
+.loom-schedules-month-cell.is-selected .loom-schedules-month-cell-surface {
+  background: var(--loom-color-surface);
+  border-color: var(--loom-selected-border);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.7);
+}
+
+.loom-schedules-month-cell.is-today .loom-schedules-month-cell-surface {
   box-shadow: inset 0 0 0 2px var(--loom-selected-border);
 }
 
-.loom-schedules-month-cell.is-selected.is-today {
-  box-shadow: inset 0 0 0 2px rgb(255 255 255 / 0.82);
+.loom-schedules-month-cell.is-selected.is-today .loom-schedules-month-cell-surface {
+  box-shadow: inset 0 0 0 2px var(--loom-selected-border);
 }
 
 .loom-schedules-month-date {
@@ -1994,6 +2017,25 @@
   width: 100%;
   text-align: center;
   margin: 0;
+}
+
+.loom-schedules-month-indicator {
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: var(--loom-radius-pill);
+  background: #2563eb;
+  opacity: 0.9;
+  margin-top: auto;
+  margin-bottom: 0.1rem;
+}
+
+.loom-schedules-month-cell.is-selected .loom-schedules-month-indicator {
+  background: var(--loom-color-primary);
+}
+
+.loom-schedules-month-cell.is-outside .loom-schedules-month-indicator {
+  background: #b9c9f8;
+  opacity: 0.68;
 }
 
 .loom-schedules-day-row {
@@ -2023,8 +2065,8 @@
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
   grid-auto-rows: 1.55rem;
-  gap: 0.18rem 0;
-  padding: 0 0.25rem 0.5rem;
+  gap: 0.18rem 0.55rem;
+  padding: 0 0 0.5rem;
   pointer-events: none;
 }
 
@@ -2042,6 +2084,11 @@
   font-weight: 700;
   text-align: left;
   pointer-events: auto;
+}
+
+.loom-schedules-month-bar.is-outside-month {
+  opacity: 0.58;
+  filter: saturate(0.7) brightness(1.08);
 }
 
 .loom-schedules-month-bar.is-work {
@@ -2064,14 +2111,12 @@
 .loom-schedules-month-bar.is-continued-left {
   border-top-left-radius: 0;
   border-bottom-left-radius: 0;
-  margin-left: -0.25rem;
   padding-left: 0.75rem;
 }
 
 .loom-schedules-month-bar.is-continued-right {
   border-top-right-radius: 0;
   border-bottom-right-radius: 0;
-  margin-right: -0.25rem;
   padding-right: 0.75rem;
 }
 
