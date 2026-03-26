@@ -6,6 +6,7 @@ import { CalendarView } from "@/features/events/calendar-view";
 import { getFamilyExternalCalendars } from "@/features/families/server";
 import { fetchExternalCalendarEvents } from "@/features/events/external-calendars";
 import { getServerI18n } from "@/lib/i18n/server";
+import { getSchedulesForFamily } from "@/features/schedules/server";
 
 type CalendarPageProps = {
   searchParams: Promise<{ date?: string }>;
@@ -24,12 +25,14 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
 
   let events: Awaited<ReturnType<typeof getEventsForFamily>> = [];
   let tasks: Awaited<ReturnType<typeof getTasksForFamily>> = [];
+  let schedules: Awaited<ReturnType<typeof getSchedulesForFamily>> = [];
   let externalEvents: Awaited<ReturnType<typeof fetchExternalCalendarEvents>> = [];
   let loadError = false;
 
-  const [eventsResult, tasksResult, externalCalendarsResult] = await Promise.allSettled([
+  const [eventsResult, tasksResult, schedulesResult, externalCalendarsResult] = await Promise.allSettled([
     getEventsForFamily(context.activeFamilyId),
     getTasksForFamily(context.activeFamilyId, { status: "all" }),
+    getSchedulesForFamily(context.activeFamilyId),
     getFamilyExternalCalendars(context.activeFamilyId)
   ]);
 
@@ -45,6 +48,13 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
   } else {
     loadError = true;
     console.error("Failed to load calendar tasks", tasksResult.reason);
+  }
+
+  if (schedulesResult.status === "fulfilled") {
+    schedules = schedulesResult.value;
+  } else {
+    loadError = true;
+    console.error("Failed to load calendar schedules", schedulesResult.reason);
   }
 
   if (externalCalendarsResult.status === "fulfilled") {
@@ -130,6 +140,7 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
           assignedToUserId: task.assignedToUserId,
           status: task.status
         }))}
+        schedules={schedules}
       />
     </div>
   );

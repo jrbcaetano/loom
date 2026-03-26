@@ -2,6 +2,7 @@ export const PRODUCT_FEATURE_CATALOG = [
   { key: "tasks", labelKey: "nav.tasks", fallbackLabel: "Tasks", routePrefixes: ["/tasks"] },
   { key: "lists", labelKey: "nav.lists", fallbackLabel: "Lists", routePrefixes: ["/lists"] },
   { key: "calendar", labelKey: "nav.calendar", fallbackLabel: "Calendar", routePrefixes: ["/calendar"] },
+  { key: "schedules", labelKey: "nav.schedules", fallbackLabel: "Schedules", routePrefixes: ["/schedules"] },
   { key: "notifications", labelKey: "nav.notifications", fallbackLabel: "Notifications", routePrefixes: ["/notifications"] },
   { key: "meals", labelKey: "nav.meals", fallbackLabel: "Meal Planner", routePrefixes: ["/meals"] },
   { key: "chores", labelKey: "nav.chores", fallbackLabel: "Chores", routePrefixes: ["/chores"] },

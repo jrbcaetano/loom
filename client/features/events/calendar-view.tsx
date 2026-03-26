@@ -24,6 +24,8 @@ import { useI18n } from "@/lib/i18n/context";
 import { resolveDateFnsLocale } from "@/lib/date";
 import { expandEventOccurrences, type EventRecurrenceRule } from "@/features/events/recurrence";
 import type { TaskStatus } from "@/features/tasks/model";
+import { expandSchedulesForFamily } from "@/features/schedules/occurrences";
+import type { ScheduleSeriesRow } from "@/features/schedules/model";
 
 type EventRow = {
   id: string;
@@ -58,9 +60,26 @@ type CalendarItem = {
   endAt: string;
   allDay?: boolean;
   visibility: "private" | "family" | "selected_members";
-  kind: "event" | "task";
+  kind: "event" | "task" | "schedule";
   isExternal?: boolean;
   assignedToUserId?: string | null;
+};
+
+type ScheduleOccurrenceView = {
+  id: string;
+  sourceScheduleId: string;
+  familyMemberName: string;
+  scheduleTitle: string;
+  title: string;
+  category: ScheduleSeriesRow["category"];
+  location: string | null;
+  occurrenceDate: string;
+  startsAtLocal: string;
+  endsAtLocal: string;
+  spansNextDay: boolean;
+  source: "base" | "override";
+  startAt: string;
+  endAt: string;
 };
 
 function parseDateOnly(value: string | undefined) {
@@ -86,6 +105,16 @@ function parseDateOnly(value: string | undefined) {
 }
 
 function occursOnDay(item: CalendarItem, day: Date) {
+  if (item.kind === "schedule") {
+    const start = new Date(item.startAt);
+    const end = new Date(item.endAt);
+    const dayStart = new Date(day);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(day);
+    dayEnd.setHours(23, 59, 59, 999);
+    return start <= dayEnd && end > dayStart;
+  }
+
   if (item.kind === "event" && item.allDay && item.isExternal) {
     const start = new Date(item.startAt);
     const end = new Date(item.endAt);
@@ -110,6 +139,7 @@ function occursOnDay(item: CalendarItem, day: Date) {
 }
 
 function itemColorClass(item: CalendarItem) {
+  if (item.kind === "schedule") return "is-schedule";
   if (item.kind === "event" && item.isExternal) return "is-external";
   if (item.visibility === "private") return "is-private";
   if (item.visibility === "selected_members") return "is-selected";
@@ -148,7 +178,17 @@ function maxDate(left: Date, right: Date) {
   return left.getTime() >= right.getTime() ? left : right;
 }
 
-export function CalendarView({ events, tasks, selectedDate }: { events: EventRow[]; tasks: TaskRow[]; selectedDate?: string }) {
+export function CalendarView({
+  events,
+  tasks,
+  schedules,
+  selectedDate
+}: {
+  events: EventRow[];
+  tasks: TaskRow[];
+  schedules: ScheduleSeriesRow[];
+  selectedDate?: string;
+}) {
   const { t, locale } = useI18n();
   const dateFnsLocale = resolveDateFnsLocale(locale);
   const initialSelectedDay = parseDateOnly(selectedDate);
@@ -200,6 +240,35 @@ export function CalendarView({ events, tasks, selectedDate }: { events: EventRow
       .sort((left, right) => parseISO(left.startAt).getTime() - parseISO(right.startAt).getTime());
   }, [events, monthGridDays, selectedDay]);
 
+  const expandedSchedules = useMemo<ScheduleOccurrenceView[]>(() => {
+    const monthRangeStart = startOfDay(monthGridDays[0] ?? new Date());
+    const monthRangeEnd = endOfDay(monthGridDays[monthGridDays.length - 1] ?? new Date());
+    const now = new Date();
+    const rangeEnd = endOfDay(addDays(now, 185));
+    const selectedRangeStart = selectedDay ? startOfDay(selectedDay) : now;
+    const selectedRangeEnd = selectedDay ? endOfDay(selectedDay) : now;
+
+    const rangeStart = minDate(monthRangeStart, selectedRangeStart);
+    const effectiveRangeEnd = maxDate(maxDate(monthRangeEnd, rangeEnd), selectedRangeEnd);
+
+    return expandSchedulesForFamily(schedules, rangeStart, effectiveRangeEnd).map((occurrence) => {
+      const start = new Date(`${occurrence.occurrenceDate}T${occurrence.startsAtLocal}`);
+      const [endHours, endMinutes] = occurrence.endsAtLocal.split(":").map((value) => Number.parseInt(value, 10));
+      const end = new Date(`${occurrence.occurrenceDate}T00:00:00`);
+      end.setHours(endHours, endMinutes, 0, 0);
+      if (occurrence.spansNextDay) {
+        end.setDate(end.getDate() + 1);
+      }
+
+      return {
+        ...occurrence,
+        id: occurrence.id,
+        startAt: start.toISOString(),
+        endAt: end.toISOString()
+      };
+    });
+  }, [monthGridDays, schedules, selectedDay]);
+
   const items = useMemo<CalendarItem[]>(() => {
     const eventItems: CalendarItem[] = expandedEvents.map((event) => ({
       id: event.id,
@@ -226,8 +295,17 @@ export function CalendarView({ events, tasks, selectedDate }: { events: EventRow
         assignedToUserId: task.assignedToUserId
       }));
 
-    return [...eventItems, ...taskItems];
-  }, [expandedEvents, tasks]);
+    const scheduleItems: CalendarItem[] = expandedSchedules.map((schedule) => ({
+      id: schedule.id,
+      title: `${schedule.familyMemberName}: ${schedule.title}`,
+      startAt: schedule.startAt,
+      endAt: schedule.endAt,
+      visibility: "family",
+      kind: "schedule"
+    }));
+
+    return [...eventItems, ...taskItems, ...scheduleItems];
+  }, [expandedEvents, expandedSchedules, tasks]);
 
   const itemsByDay = useMemo(
     () =>
@@ -286,9 +364,36 @@ export function CalendarView({ events, tasks, selectedDate }: { events: EventRow
       .sort((a, b) => parseISO(a.startAt).getTime() - parseISO(b.startAt).getTime());
   }, [expandedEvents, selectedDay]);
 
-  const hasUpcomingEvents = selectedDay
-    ? selectedDayEvents.length > 0
-    : groupedUpcomingEvents.today.length + groupedUpcomingEvents.thisWeek.length + groupedUpcomingEvents.following.length > 0;
+  const selectedDaySchedules = useMemo(() => {
+    if (!selectedDay) {
+      return [] as ScheduleOccurrenceView[];
+    }
+
+    return expandedSchedules
+      .filter((schedule) =>
+        occursOnDay(
+          {
+            id: schedule.id,
+            title: schedule.title,
+            startAt: schedule.startAt,
+            endAt: schedule.endAt,
+            visibility: "family",
+            kind: "schedule"
+          },
+          selectedDay
+        )
+      )
+      .sort((left, right) => left.startAt.localeCompare(right.startAt));
+  }, [expandedSchedules, selectedDay]);
+
+  const upcomingSchedules = useMemo(() => {
+    const now = new Date();
+    return expandedSchedules.filter((schedule) => new Date(schedule.endAt) >= now).slice(0, 12);
+  }, [expandedSchedules]);
+
+  const hasUpcomingItems = selectedDay
+    ? selectedDayEvents.length + selectedDaySchedules.length > 0
+    : groupedUpcomingEvents.today.length + groupedUpcomingEvents.thisWeek.length + groupedUpcomingEvents.following.length + upcomingSchedules.length > 0;
   const upcomingSections: Array<{ label: string; events: EventRow[] }> = selectedDay
     ? [{ label: format(selectedDay, "EEEE, MMM d", { locale: dateFnsLocale }), events: selectedDayEvents }]
     : [
@@ -345,9 +450,9 @@ export function CalendarView({ events, tasks, selectedDate }: { events: EventRow
 
         <aside className="loom-calendar-side">
           <section className="loom-card p-4">
-            <h4 className="loom-section-title">{t("home.upcomingEvents", "Upcoming events")}</h4>
+            <h4 className="loom-section-title">{t("calendar.upcomingItems", "Upcoming items")}</h4>
             <div className="loom-stack-sm mt-3">
-              {hasUpcomingEvents ? null : <p className="loom-muted">{t("calendar.noUpcomingItems", "No upcoming items.")}</p>}
+              {hasUpcomingItems ? null : <p className="loom-muted">{t("calendar.noUpcomingItems", "No upcoming items.")}</p>}
               {upcomingSections.map((section) => (
                 <div key={section.label} className="loom-stack-sm">
                   {section.events.length > 0 ? <p className="loom-lists-group-title">{section.label}</p> : null}
@@ -402,6 +507,29 @@ export function CalendarView({ events, tasks, selectedDate }: { events: EventRow
                   })}
                 </div>
               ))}
+              <div className="loom-stack-sm">
+                {selectedDay ? <p className="loom-lists-group-title">{t("nav.schedules", "Schedules")}</p> : upcomingSchedules.length > 0 ? <p className="loom-lists-group-title">{t("nav.schedules", "Schedules")}</p> : null}
+                {(selectedDay ? selectedDaySchedules : upcomingSchedules).map((schedule) => (
+                  <div key={schedule.id} className="loom-calendar-upcoming-row">
+                    <span className="loom-calendar-stripe is-schedule" />
+                    <div className="loom-row-between">
+                      <div>
+                        <p className="m-0 font-semibold">{schedule.familyMemberName} · {schedule.title}</p>
+                        <p className="loom-muted small m-0">
+                          {selectedDay
+                            ? format(selectedDay, "EEE, MMM d", { locale: dateFnsLocale })
+                            : format(new Date(`${schedule.occurrenceDate}T12:00:00`), "EEE, MMM d", { locale: dateFnsLocale })} - {schedule.startsAtLocal.slice(0, 5)}
+                        </p>
+                        <p className="loom-muted small m-0">
+                          {schedule.scheduleTitle}
+                          {schedule.location ? ` · ${schedule.location}` : ""}
+                        </p>
+                      </div>
+                      <span className="loom-home-pill is-muted m-0">{t(`schedules.categoryLabel.${schedule.category}`, schedule.category)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </section>
 
@@ -418,6 +546,9 @@ export function CalendarView({ events, tasks, selectedDate }: { events: EventRow
           </span>
           <span>
             <i className="loom-calendar-dot is-task" /> {t("nav.tasks", "Tasks")}
+          </span>
+          <span>
+            <i className="loom-calendar-dot is-schedule" /> {t("nav.schedules", "Schedules")}
           </span>
           <span>
             <i className="loom-calendar-dot is-selected" /> {t("visibility.selected_members", "Selected members")}

@@ -12,9 +12,20 @@ type ResponsivePanelProps = {
   footer?: ReactNode;
   size?: "default" | "wide";
   headerActions?: ReactNode;
+  variant?: "drawer" | "modal";
 };
 
-export function ResponsivePanel({ isOpen, title, titleContent, onClose, children, footer, size = "default", headerActions }: ResponsivePanelProps) {
+export function ResponsivePanel({
+  isOpen,
+  title,
+  titleContent,
+  onClose,
+  children,
+  footer,
+  size = "default",
+  headerActions,
+  variant = "drawer"
+}: ResponsivePanelProps) {
   const { t } = useI18n();
   useEffect(() => {
     if (!isOpen) {
@@ -36,9 +47,9 @@ export function ResponsivePanel({ isOpen, title, titleContent, onClose, children
   }
 
   return (
-    <div className="loom-panel-overlay" role="presentation">
+    <div className={`loom-panel-overlay ${variant === "modal" ? "is-modal" : ""}`.trim()} role="presentation">
       <button type="button" className="loom-panel-backdrop" aria-label="Close panel" onClick={onClose} />
-      <aside className={`loom-panel-shell ${size === "wide" ? "is-wide" : ""}`.trim()} role="dialog" aria-modal="true" aria-label={title}>
+      <aside className={`loom-panel-shell ${size === "wide" ? "is-wide" : ""} ${variant === "modal" ? "is-modal" : ""}`.trim()} role="dialog" aria-modal="true" aria-label={title}>
         <header className="loom-panel-header">
           <div className="loom-panel-title-slot">{titleContent ?? <h3 className="loom-section-title m-0">{title}</h3>}</div>
           {headerActions ?? (

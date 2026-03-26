@@ -26,6 +26,7 @@ type NavIconName =
   | "tasks"
   | "lists"
   | "calendar"
+  | "schedules"
   | "notifications"
   | "meals"
   | "chores"
@@ -79,6 +80,13 @@ function NavIcon({ name, className }: { name: NavIconName; className?: string })
         <svg {...commonProps} className={className}>
           <rect x="3.5" y="5.25" width="17" height="15.25" rx="2.25" />
           <path d="M16.5 3.5v3.5M7.5 3.5v3.5M3.5 9.25h17" />
+        </svg>
+      );
+    case "schedules":
+      return (
+        <svg {...commonProps} className={className}>
+          <circle cx="12" cy="12" r="8.25" />
+          <path d="M12 7.75v4.75l3 1.75" />
         </svg>
       );
     case "notifications":
@@ -188,6 +196,7 @@ const primaryNav: NavItem[] = [
   { href: "/tasks", labelKey: "nav.tasks", icon: "tasks", featureKey: "tasks" },
   { href: "/lists", labelKey: "nav.lists", icon: "lists", featureKey: "lists" },
   { href: "/calendar", labelKey: "nav.calendar", icon: "calendar", featureKey: "calendar" },
+  { href: "/schedules", labelKey: "nav.schedules", icon: "schedules", featureKey: "schedules" },
   {
     href: "/notifications",
     labelKey: "nav.notifications",
