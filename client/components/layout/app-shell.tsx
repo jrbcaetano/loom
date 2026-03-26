@@ -209,7 +209,8 @@ const mobileBottomNav: NavItem[] = [
   { href: "/home", labelKey: "nav.home", icon: "home" },
   { href: "/tasks", labelKey: "nav.tasks", icon: "tasks", featureKey: "tasks" },
   { href: "/lists", labelKey: "nav.lists", icon: "lists", featureKey: "lists" },
-  { href: "/calendar", labelKey: "nav.calendar", icon: "calendar", featureKey: "calendar" }
+  { href: "/calendar", labelKey: "nav.calendar", icon: "calendar", featureKey: "calendar" },
+  { href: "/schedules", labelKey: "nav.schedules", icon: "schedules", featureKey: "schedules" }
 ];
 
 const familyOpsNav: NavItem[] = [
