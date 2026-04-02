@@ -1,4 +1,4 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { getActiveFamilyContext } from "@/features/families/context";
 import { ChoresClient } from "@/features/chores/chores-client";
@@ -26,8 +26,8 @@ export default async function ChoresPage() {
           <h2 className="loom-module-title">{t("nav.chores", "Chores & Rewards")}</h2>
           <p className="loom-module-subtitle">{t("chores.subtitle", "Assign chores and reward completed work with points.")}</p>
         </div>
-        <Link href="/chores/new" className="loom-button-primary">
-          {t("chores.new", "New chore")}
+        <Link href="/chores?create=chore" className="loom-module-header-plus" aria-label={t("chores.new", "New chore")}>
+          +
         </Link>
       </section>
       <ChoresClient familyId={context.activeFamilyId} members={members} initialChores={initialChores} />

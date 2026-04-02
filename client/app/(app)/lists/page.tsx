@@ -35,7 +35,7 @@ export default async function ListsPage() {
           </p>
         </div>
         {allowMultipleLists ? (
-          <Link href="/lists/new" className="loom-lists-plus-button" aria-label={t("lists.createAction")}>
+          <Link href="/lists/new" className="loom-module-header-plus loom-lists-plus-button" aria-label={t("lists.createAction")}>
             +
           </Link>
         ) : null}

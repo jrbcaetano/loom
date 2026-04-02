@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { getActiveFamilyContext } from "@/features/families/context";
 import { getEventsForFamily } from "@/features/events/server";
@@ -7,6 +8,7 @@ import { getFamilyExternalCalendars } from "@/features/families/server";
 import { fetchExternalCalendarEvents } from "@/features/events/external-calendars";
 import { getServerI18n } from "@/lib/i18n/server";
 import { getSchedulesForFamily } from "@/features/schedules/server";
+import { getFamilyMembers } from "@/features/families/server";
 
 type CalendarPageProps = {
   searchParams: Promise<{ date?: string }>;
@@ -27,13 +29,15 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
   let tasks: Awaited<ReturnType<typeof getTasksForFamily>> = [];
   let schedules: Awaited<ReturnType<typeof getSchedulesForFamily>> = [];
   let externalEvents: Awaited<ReturnType<typeof fetchExternalCalendarEvents>> = [];
+  let members: Awaited<ReturnType<typeof getFamilyMembers>> = [];
   let loadError = false;
 
-  const [eventsResult, tasksResult, schedulesResult, externalCalendarsResult] = await Promise.allSettled([
+  const [eventsResult, tasksResult, schedulesResult, externalCalendarsResult, membersResult] = await Promise.allSettled([
     getEventsForFamily(context.activeFamilyId),
     getTasksForFamily(context.activeFamilyId, { status: "all" }),
     getSchedulesForFamily(context.activeFamilyId),
-    getFamilyExternalCalendars(context.activeFamilyId)
+    getFamilyExternalCalendars(context.activeFamilyId),
+    getFamilyMembers(context.activeFamilyId)
   ]);
 
   if (eventsResult.status === "fulfilled") {
@@ -85,6 +89,13 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
     console.error("Failed to load external calendar settings", externalCalendarsResult.reason);
   }
 
+  if (membersResult.status === "fulfilled") {
+    members = membersResult.value;
+  } else {
+    loadError = true;
+    console.error("Failed to load family members for calendar", membersResult.reason);
+  }
+
   return (
     <div className="loom-module-page">
       <section className="loom-module-header">
@@ -96,6 +107,11 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
             </p>
           ) : null}
         </div>
+        <div className="loom-module-header-actions">
+          <Link href={selectedDate ? `/calendar?date=${selectedDate}&create=event` : "/calendar?create=event"} className="loom-module-header-plus" aria-label={t("calendar.createTitle", "Create event")}>
+            +
+          </Link>
+        </div>
       </section>
       <CalendarView
         selectedDate={selectedDate}
@@ -103,7 +119,9 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
           ...events.map((event) => ({
             id: event.id,
             sourceEventId: event.id,
+            familyId: event.familyId,
             title: event.title,
+            description: event.description,
             startAt: event.startAt,
             endAt: event.endAt,
             allDay: event.allDay,
@@ -118,7 +136,9 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
           ...externalEvents.map((event) => ({
             id: event.id,
             sourceEventId: event.sourceEventId,
+            familyId: undefined,
             title: event.title,
+            description: null,
             startAt: event.startAt,
             endAt: event.endAt,
             allDay: event.allDay,
@@ -141,6 +161,13 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
           status: task.status
         }))}
         schedules={schedules}
+        familyId={context.activeFamilyId}
+        members={members
+          .filter((member) => member.userId)
+          .map((member) => ({
+            userId: member.userId!,
+            displayName: member.fullName ?? member.email ?? t("common.member", "Member")
+          }))}
       />
     </div>
   );

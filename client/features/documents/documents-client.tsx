@@ -1,9 +1,13 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
-import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { CreateEntityModal } from "@/components/patterns/create-entity-modal";
+import { RouteStateEntityDetailRegistry, type EntityDetailRegistryEntry } from "@/features/entities/entity-detail-registry";
+import { DocumentDetailPanel } from "@/features/documents/document-detail-panel";
+import { DocumentForm } from "@/features/documents/document-form";
 import { useI18n } from "@/lib/i18n/context";
+import { useCollectionRouteState } from "@/lib/routing/use-collection-route-state";
 
 type DocumentRow = {
   id: string;
@@ -25,12 +29,21 @@ async function fetchDocuments(familyId: string, search: string) {
 
 export function DocumentsClient({ familyId, initialDocuments = [] }: { familyId: string; initialDocuments?: DocumentRow[] }) {
   const { t, dateLocale } = useI18n();
+  const queryClient = useQueryClient();
+  const { routeState, updateRouteState, openItem, clearItem, clearCreate } = useCollectionRouteState();
   const [search, setSearch] = useState("");
   const query = useQuery({
     queryKey: ["documents", familyId, search],
     queryFn: () => fetchDocuments(familyId, search),
     initialData: search.trim().length === 0 ? initialDocuments : undefined
   });
+
+  const detailRegistry: EntityDetailRegistryEntry[] = [
+    {
+      key: "document",
+      Component: DocumentDetailPanel
+    }
+  ];
 
   return (
     <div className="loom-stack">
@@ -50,9 +63,9 @@ export function DocumentsClient({ familyId, initialDocuments = [] }: { familyId:
           {(query.data ?? []).map((document) => (
             <article key={document.id} className="loom-conversation-row">
               <div>
-                <Link href={`/documents/${document.id}`} className="loom-link-strong">
+                <button type="button" className="loom-link-button loom-link-strong" onClick={() => openItem(document.id)}>
                   {document.title}
-                </Link>
+                </button>
                 <p className="loom-entity-meta">{document.category ?? t("common.uncategorized", "Uncategorized")}</p>
               </div>
               <div className="loom-inline-actions">
@@ -63,6 +76,38 @@ export function DocumentsClient({ familyId, initialDocuments = [] }: { familyId:
           ))}
         </div>
       </section>
+
+      <CreateEntityModal
+        isOpen={routeState.create === "document"}
+        title={t("documents.createTitle", "Create document")}
+        eyebrow={t("nav.documents", "Documents")}
+        subtitle={t("documents.createSubtitle", "Store key records and optional file links for your family.")}
+        onClose={() => clearCreate()}
+      >
+        <DocumentForm
+          familyId={familyId}
+          endpoint="/api/documents"
+          method="POST"
+          submitLabel={t("documents.createTitle", "Create document")}
+          redirectTo="/documents"
+          disableRedirect
+          onSaved={({ documentId }) => {
+            queryClient.invalidateQueries({ queryKey: ["documents"] });
+            clearCreate();
+            if (documentId) {
+              openItem(documentId);
+            }
+          }}
+        />
+      </CreateEntityModal>
+
+      <RouteStateEntityDetailRegistry
+        routeState={routeState}
+        entries={detailRegistry}
+        close={() => clearItem()}
+        updateRouteState={updateRouteState}
+      />
     </div>
   );
 }
+

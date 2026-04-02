@@ -21,7 +21,9 @@ export function NoteForm({
   method,
   submitLabel,
   redirectTo,
-  initialValues
+  initialValues,
+  disableRedirect = false,
+  onSaved
 }: {
   familyId: string;
   endpoint: string;
@@ -29,6 +31,8 @@ export function NoteForm({
   submitLabel: string;
   redirectTo: string;
   initialValues?: Partial<NoteFormValues>;
+  disableRedirect?: boolean;
+  onSaved?: (payload: { noteId?: string }) => void;
 }) {
   const router = useRouter();
   const { t } = useI18n();
@@ -61,6 +65,13 @@ export function NoteForm({
     const payload = (await response.json().catch(() => null)) as { noteId?: string; error?: string } | null;
     if (!response.ok) {
       setServerError(payload?.error ?? t("notes.saveError", "Failed to save note"));
+      setIsLoading(false);
+      return;
+    }
+
+    onSaved?.({ noteId: payload?.noteId });
+
+    if (disableRedirect) {
       setIsLoading(false);
       return;
     }

@@ -5,11 +5,14 @@ import { addDays, addMonths, eachDayOfInterval, endOfMonth, endOfWeek, format, s
 import { useRouter } from "next/navigation";
 import { resolveDateFnsLocale } from "@/lib/date";
 import { useI18n } from "@/lib/i18n/context";
-import { ResponsivePanel } from "@/components/common/responsive-panel";
+import { CreateEntityModal } from "@/components/patterns/create-entity-modal";
+import { EntityDetailShell } from "@/components/patterns/entity-detail-shell";
+import { EntityMetadataGrid, EntityMetadataItem, EntitySection, EntitySummaryMeta, EntitySummaryMetaItem } from "@/components/patterns/entity-metadata";
 import { expandScheduleOccurrences, expandSchedulesForFamily } from "@/features/schedules/occurrences";
 import { ScheduleExceptionsManager } from "@/features/schedules/schedule-exceptions-manager";
 import { ScheduleForm } from "@/features/schedules/schedule-form";
 import type { ScheduleSeriesRow, ScheduleTemplateRow } from "@/features/schedules/model";
+import { useCollectionRouteState } from "@/lib/routing/use-collection-route-state";
 
 type ViewMode = "list" | "month" | "week";
 
@@ -40,6 +43,7 @@ export function SchedulesClient({
   templates: ScheduleTemplateRow[];
   initialSchedules: ScheduleSeriesRow[];
 }) {
+  const { routeState, openItem, clearItem, openCreate, clearCreate } = useCollectionRouteState();
   const router = useRouter();
   const { t, locale } = useI18n();
   const dateFnsLocale = resolveDateFnsLocale(locale);
@@ -47,7 +51,6 @@ export function SchedulesClient({
   const [monthAnchor, setMonthAnchor] = useState(startOfMonth(new Date()));
   const [weekAnchor, setWeekAnchor] = useState(startOfWeek(new Date(), { weekStartsOn: 1 }));
   const [schedules, setSchedules] = useState(initialSchedules);
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingScheduleId, setEditingScheduleId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -55,6 +58,15 @@ export function SchedulesClient({
   useEffect(() => {
     setSchedules(initialSchedules);
   }, [initialSchedules]);
+
+  useEffect(() => {
+    if (!routeState.item) {
+      setEditingScheduleId(null);
+      return;
+    }
+
+    setEditingScheduleId(routeState.item);
+  }, [routeState.item]);
 
   const selectedSchedule = useMemo(
     () => schedules.find((schedule) => schedule.id === editingScheduleId) ?? null,
@@ -115,14 +127,14 @@ export function SchedulesClient({
     }
 
     setIsDeleting(false);
-    setEditingScheduleId(null);
+    clearItem();
     router.refresh();
   }
 
   function closePanels() {
-    setIsCreateOpen(false);
-    setEditingScheduleId(null);
     setDeleteError(null);
+    clearCreate();
+    clearItem();
   }
 
   return (
@@ -145,7 +157,7 @@ export function SchedulesClient({
               </button>
             ))}
           </div>
-          <button type="button" className="loom-button-primary" onClick={() => setIsCreateOpen(true)}>
+          <button type="button" className="loom-button-primary" onClick={() => openCreate("schedule")}>
             {t("schedules.new", "New schedule")}
           </button>
         </div>
@@ -158,7 +170,7 @@ export function SchedulesClient({
             {schedules.map((schedule) => {
               const upcoming = upcomingBySchedule.get(schedule.id);
               return (
-                <button key={schedule.id} type="button" className="loom-conversation-row" onClick={() => setEditingScheduleId(schedule.id)}>
+                <button key={schedule.id} type="button" className="loom-conversation-row" onClick={() => openItem(schedule.id)}>
                   <div>
                     <p className="m-0 font-semibold">{schedule.title}</p>
                     <p className="loom-entity-meta">
@@ -205,7 +217,7 @@ export function SchedulesClient({
                   <span className="loom-calendar-day-number">{format(day, "d", { locale: dateFnsLocale })}</span>
                   <div className="loom-stack-xs mt-2">
                     {items.slice(0, 3).map((item) => (
-                      <button key={item.id} type="button" className="loom-calendar-upcoming-row" onClick={() => setEditingScheduleId(item.sourceScheduleId)}>
+                      <button key={item.id} type="button" className="loom-calendar-upcoming-row" onClick={() => openItem(item.sourceScheduleId)}>
                         <span className="loom-calendar-stripe is-schedule" />
                         <div>
                           <p className="m-0 small font-semibold">{item.familyMemberName}</p>
@@ -245,7 +257,7 @@ export function SchedulesClient({
                   <div className="loom-stack-xs mt-2">
                     {items.length === 0 ? <p className="loom-muted small m-0">{t("schedules.noneOnDay", "No schedule")}</p> : null}
                     {items.map((item) => (
-                      <button key={item.id} type="button" className="loom-calendar-upcoming-row" onClick={() => setEditingScheduleId(item.sourceScheduleId)}>
+                      <button key={item.id} type="button" className="loom-calendar-upcoming-row" onClick={() => openItem(item.sourceScheduleId)}>
                         <span className="loom-calendar-stripe is-schedule" />
                         <div>
                           <p className="m-0 small font-semibold">{item.familyMemberName}</p>
@@ -262,12 +274,12 @@ export function SchedulesClient({
         </section>
       ) : null}
 
-      <ResponsivePanel
-        isOpen={isCreateOpen}
+      <CreateEntityModal
+        isOpen={routeState.create === "schedule"}
         title={t("schedules.createTitle", "Create schedule")}
         onClose={closePanels}
-        variant="modal"
         size="wide"
+        eyebrow={t("nav.schedules", "Schedules")}
       >
         <ScheduleForm
           familyId={familyId}
@@ -279,13 +291,24 @@ export function SchedulesClient({
           redirectTo="/schedules"
           onSaved={() => closePanels()}
         />
-      </ResponsivePanel>
+      </CreateEntityModal>
 
-      <ResponsivePanel
+      <EntityDetailShell
         isOpen={Boolean(selectedSchedule)}
         title={selectedSchedule?.title ?? t("schedules.editTitle", "Edit schedule")}
         onClose={closePanels}
         size="wide"
+        eyebrow={t("nav.schedules", "Schedules")}
+        summaryMeta={
+          selectedSchedule ? (
+            <EntitySummaryMeta>
+              <EntitySummaryMetaItem label={t("common.member", "Member")} value={selectedSchedule.familyMemberName} />
+              <EntitySummaryMetaItem label={t("common.category", "Category")} value={t(`schedules.categoryLabel.${selectedSchedule.category}`, selectedSchedule.category)} />
+              <EntitySummaryMetaItem label={t("schedules.cycleLength", "Cycle length")} value={`${selectedSchedule.cycleLengthWeeks} ${selectedSchedule.cycleLengthWeeks === 1 ? t("calendar.thisWeek", "Week") : t("calendar.weeks", "Weeks")}`} />
+              <EntitySummaryMetaItem label={t("common.status", "Status")} value={selectedSchedule.isEnabled ? t("common.active", "Active") : t("common.disabled", "Disabled")} />
+            </EntitySummaryMeta>
+          ) : undefined
+        }
         headerActions={
           <div className="loom-inline-actions">
             {deleteError ? <span className="loom-feedback-error">{deleteError}</span> : null}
@@ -297,12 +320,26 @@ export function SchedulesClient({
             </button>
           </div>
         }
-      >
-        {selectedSchedule ? (
-          <div className="loom-form-stack">
-            <ScheduleForm
-              familyId={familyId}
-              familyMembers={familyMembers}
+        >
+          {selectedSchedule ? (
+            <div className="loom-form-stack">
+              <EntitySection title={t("common.details", "Details")}>
+                <EntityMetadataGrid>
+                  <EntityMetadataItem label={t("common.member", "Member")} value={selectedSchedule.familyMemberName} />
+                  <EntityMetadataItem label={t("common.category", "Category")} value={t(`schedules.categoryLabel.${selectedSchedule.category}`, selectedSchedule.category)} />
+                  <EntityMetadataItem label={t("common.location", "Location")} value={selectedSchedule.location ?? t("common.notSet", "Not set")} />
+                  <EntityMetadataItem label={t("schedules.cycleLength", "Cycle length")} value={`${selectedSchedule.cycleLengthWeeks} ${selectedSchedule.cycleLengthWeeks === 1 ? t("calendar.thisWeek", "Week") : t("calendar.weeks", "Weeks")}`} />
+                  <EntityMetadataItem label={t("common.status", "Status")} value={selectedSchedule.isEnabled ? t("common.active", "Active") : t("common.disabled", "Disabled")} />
+                  <EntityMetadataItem label={t("common.date", "Date")} value={`${selectedSchedule.startsOn}${selectedSchedule.endsOn ? ` - ${selectedSchedule.endsOn}` : ""}`} />
+                </EntityMetadataGrid>
+              </EntitySection>
+              <EntitySection title={t("common.description", "Description")}>
+                <p className="m-0">{selectedSchedule.notes ?? t("common.noDescription", "No description.")}</p>
+              </EntitySection>
+              <EntitySection title={t("schedules.editTitle", "Edit schedule")}>
+              <ScheduleForm
+                familyId={familyId}
+                familyMembers={familyMembers}
               templates={templates}
               endpoint={`/api/schedules/${selectedSchedule.id}`}
               method="PATCH"
@@ -357,13 +394,16 @@ export function SchedulesClient({
                     spansNextDay: block.spansNextDay,
                     sortOrder: block.sortOrder
                   }))
-                }))
-              }}
-            />
-            <ScheduleExceptionsManager schedule={selectedSchedule} templates={templates} />
-          </div>
-        ) : null}
-      </ResponsivePanel>
+                  }))
+                }}
+              />
+              </EntitySection>
+              <EntitySection title={t("schedules.exceptionsTitle", "Exceptions and overrides")}>
+              <ScheduleExceptionsManager schedule={selectedSchedule} templates={templates} />
+              </EntitySection>
+            </div>
+          ) : null}
+        </EntityDetailShell>
     </div>
   );
 }

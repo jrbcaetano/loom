@@ -1,6 +1,7 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { getActiveFamilyContext } from "@/features/families/context";
+import { getFamilyMembers } from "@/features/families/server";
 import { ExpensesClient } from "@/features/expenses/expenses-client";
 import { getExpenses, getMonthlySummary } from "@/features/expenses/server";
 import { getServerI18n } from "@/lib/i18n/server";
@@ -16,6 +17,9 @@ export default async function ExpensesPage() {
     getExpenses(context.activeFamilyId),
     getMonthlySummary(context.activeFamilyId)
   ]);
+  const members = (await getFamilyMembers(context.activeFamilyId))
+    .filter((member) => member.userId)
+    .map((member) => ({ userId: member.userId!, displayName: member.fullName ?? member.email ?? t("common.member", "Member") }));
 
   return (
     <div className="loom-module-page">
@@ -24,11 +28,12 @@ export default async function ExpensesPage() {
           <h2 className="loom-module-title">{t("nav.expenses", "Expenses")}</h2>
           <p className="loom-module-subtitle">{t("expenses.subtitle", "Track family spending and review monthly totals.")}</p>
         </div>
-        <Link href="/expenses/new" className="loom-button-primary">
+        <Link href="/expenses?create=expense" className="loom-button-primary">
           {t("expenses.new", "New expense")}
         </Link>
       </section>
-      <ExpensesClient familyId={context.activeFamilyId} initialExpenses={initialExpenses} initialSummary={initialSummary} />
+      <ExpensesClient familyId={context.activeFamilyId} members={members} initialExpenses={initialExpenses} initialSummary={initialSummary} />
     </div>
   );
 }
+

@@ -305,7 +305,9 @@ export function EventForm({
   submitLabel,
   redirectTo,
   initialValues,
-  defaultDate
+  defaultDate,
+  disableRedirect = false,
+  onSaved
 }: {
   familyId: string;
   members: MemberOption[];
@@ -315,6 +317,8 @@ export function EventForm({
   redirectTo: string;
   initialValues?: EventInitialValues;
   defaultDate?: string;
+  disableRedirect?: boolean;
+  onSaved?: (payload: { eventId?: string; startAt: string }) => void;
 }) {
   const [serverError, setServerError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -420,6 +424,13 @@ export function EventForm({
 
     if (!response.ok) {
       setServerError(payload?.error ?? t("calendar.saveError", "Failed to save event"));
+      setIsLoading(false);
+      return;
+    }
+
+    onSaved?.({ eventId: payload?.eventId, startAt: values.startAt });
+
+    if (disableRedirect) {
       setIsLoading(false);
       return;
     }

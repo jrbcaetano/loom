@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { SettingsPanelActions, SettingsPanelSection } from "@/components/patterns/settings-panel";
 import { useI18n } from "@/lib/i18n/context";
 import type { TaskLabelScope } from "@/features/tasks/model";
 
@@ -118,27 +119,32 @@ export function TaskLabelsManager({ scope, familyId }: { scope: TaskLabelScope; 
 
   return (
     <div className="loom-form-stack">
-      <div className="loom-grid-2">
-        <label className="loom-field">
-          <span>{t("tasks.labelName", "Label name")}</span>
-          <input className="loom-input" value={newName} onChange={(event) => setNewName(event.target.value)} maxLength={80} />
-        </label>
-        <label className="loom-field">
-          <span>{t("tasks.labelColor", "Color")}</span>
-          <input className="loom-input" type="color" value={newColor} onChange={(event) => setNewColor(event.target.value.toUpperCase())} />
-        </label>
-      </div>
+      <SettingsPanelSection
+        title={t("tasks.addLabel", "Add label")}
+        description={t("family.taskLabelsHint", "These labels are shared with the whole family for planning and filtering tasks.")}
+      >
+        <div className="loom-grid-2">
+          <label className="loom-field">
+            <span>{t("tasks.labelName", "Label name")}</span>
+            <input className="loom-input" value={newName} onChange={(event) => setNewName(event.target.value)} maxLength={80} />
+          </label>
+          <label className="loom-field">
+            <span>{t("tasks.labelColor", "Color")}</span>
+            <input className="loom-input" type="color" value={newColor} onChange={(event) => setNewColor(event.target.value.toUpperCase())} />
+          </label>
+        </div>
 
-      <div>
-        <button
-          className="loom-button-primary"
-          type="button"
-          onClick={() => createMutation.mutate()}
-          disabled={!newName.trim() || createMutation.isPending || (scope === "family" && !familyId)}
-        >
-          {createMutation.isPending ? t("common.saving", "Saving...") : t("tasks.addLabel", "Add label")}
-        </button>
-      </div>
+        <SettingsPanelActions>
+          <button
+            className="loom-button-primary"
+            type="button"
+            onClick={() => createMutation.mutate()}
+            disabled={!newName.trim() || createMutation.isPending || (scope === "family" && !familyId)}
+          >
+            {createMutation.isPending ? t("common.saving", "Saving...") : t("tasks.addLabel", "Add label")}
+          </button>
+        </SettingsPanelActions>
+      </SettingsPanelSection>
 
       {labelsQuery.isPending ? <p className="loom-muted">{t("common.loading", "Loading...")}</p> : null}
       {labelsQuery.error ? <p className="loom-feedback-error">{labelsQuery.error.message}</p> : null}
@@ -147,7 +153,7 @@ export function TaskLabelsManager({ scope, familyId }: { scope: TaskLabelScope; 
         {(labelsQuery.data ?? []).map((label) => {
           const draft = editing[label.id] ?? { name: label.name, color: label.color };
           return (
-            <div key={label.id} className="loom-soft-row">
+            <SettingsPanelSection key={label.id} title={draft.name || t("tasks.labelName", "Label name")}>
               <div className="loom-grid-2">
                 <input
                   className="loom-input"
@@ -172,7 +178,7 @@ export function TaskLabelsManager({ scope, familyId }: { scope: TaskLabelScope; 
                 />
               </div>
 
-              <div className="loom-inline-actions mt-3">
+              <SettingsPanelActions>
                 <button
                   className="loom-button-ghost"
                   type="button"
@@ -184,8 +190,8 @@ export function TaskLabelsManager({ scope, familyId }: { scope: TaskLabelScope; 
                 <button className="loom-button-ghost" type="button" onClick={() => deleteMutation.mutate(label.id)} disabled={deleteMutation.isPending}>
                   {t("common.remove", "Remove")}
                 </button>
-              </div>
-            </div>
+              </SettingsPanelActions>
+            </SettingsPanelSection>
           );
         })}
 

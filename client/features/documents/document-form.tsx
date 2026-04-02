@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -22,7 +22,9 @@ export function DocumentForm({
   method,
   submitLabel,
   redirectTo,
-  initialValues
+  initialValues,
+  disableRedirect = false,
+  onSaved
 }: {
   familyId: string;
   endpoint: string;
@@ -30,6 +32,8 @@ export function DocumentForm({
   submitLabel: string;
   redirectTo: string;
   initialValues?: Partial<DocumentFormValues>;
+  disableRedirect?: boolean;
+  onSaved?: (payload: { documentId?: string }) => void;
 }) {
   const router = useRouter();
   const { t } = useI18n();
@@ -69,6 +73,13 @@ export function DocumentForm({
       return;
     }
 
+    onSaved?.({ documentId: payload?.documentId });
+
+    if (disableRedirect) {
+      setIsLoading(false);
+      return;
+    }
+
     const next = payload?.documentId ? `/documents/${payload.documentId}` : redirectTo;
     router.push(next);
     router.refresh();
@@ -99,3 +110,4 @@ export function DocumentForm({
     </form>
   );
 }
+

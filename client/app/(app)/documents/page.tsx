@@ -1,4 +1,4 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { getActiveFamilyContext } from "@/features/families/context";
 import { DocumentsClient } from "@/features/documents/documents-client";
@@ -21,7 +21,7 @@ export default async function DocumentsPage() {
           <h2 className="loom-module-title">{t("nav.documents", "Documents")}</h2>
           <p className="loom-module-subtitle">{t("documents.subtitle", "Store important household records, references, and files.")}</p>
         </div>
-        <Link href="/documents/new" className="loom-button-primary">
+        <Link href="/documents?create=document" className="loom-button-primary">
           {t("documents.new", "New document")}
         </Link>
       </section>
@@ -29,3 +29,4 @@ export default async function DocumentsPage() {
     </div>
   );
 }
+

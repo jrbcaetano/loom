@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState } from "react";
 import {
   addDays,
@@ -26,11 +25,19 @@ import { expandEventOccurrences, type EventRecurrenceRule } from "@/features/eve
 import type { TaskStatus } from "@/features/tasks/model";
 import { expandSchedulesForFamily } from "@/features/schedules/occurrences";
 import type { ScheduleSeriesRow } from "@/features/schedules/model";
+import { useCollectionRouteState } from "@/lib/routing/use-collection-route-state";
+import { EntityDetailShell } from "@/components/patterns/entity-detail-shell";
+import { CreateEntityModal } from "@/components/patterns/create-entity-modal";
+import { EntityDrawerEmptyState } from "@/components/patterns/entity-drawer-state";
+import { EntityAssigneeBadge, EntityMetadataGrid, EntityMetadataItem, EntitySection, EntitySummaryMeta, EntitySummaryMetaItem, EntityVisibilityBadge } from "@/components/patterns/entity-metadata";
+import { EventForm } from "@/features/events/event-form";
 
 type EventRow = {
   id: string;
   sourceEventId: string;
+  familyId?: string;
   title: string;
+  description?: string | null;
   startAt: string;
   endAt: string;
   allDay: boolean;
@@ -182,13 +189,18 @@ export function CalendarView({
   events,
   tasks,
   schedules,
-  selectedDate
+  selectedDate,
+  familyId,
+  members
 }: {
   events: EventRow[];
   tasks: TaskRow[];
   schedules: ScheduleSeriesRow[];
   selectedDate?: string;
+  familyId: string;
+  members: Array<{ userId: string; displayName: string }>;
 }) {
+  const { routeState, updateRouteState, openItem, clearItem, openCreate, clearCreate } = useCollectionRouteState();
   const { t, locale } = useI18n();
   const dateFnsLocale = resolveDateFnsLocale(locale);
   const initialSelectedDay = parseDateOnly(selectedDate);
@@ -391,6 +403,16 @@ export function CalendarView({
     return expandedSchedules.filter((schedule) => new Date(schedule.endAt) >= now).slice(0, 12);
   }, [expandedSchedules]);
 
+  const selectedEvent = useMemo(() => {
+    if (!routeState.item) {
+      return null;
+    }
+
+    return events.find((event) => event.sourceEventId === routeState.item || event.id === routeState.item) ?? null;
+  }, [events, routeState.item]);
+  const isEditingSelectedEvent = routeState.panel === "edit";
+  const isCreateOpen = routeState.create === "event";
+
   const hasUpcomingItems = selectedDay
     ? selectedDayEvents.length + selectedDaySchedules.length > 0
     : groupedUpcomingEvents.today.length + groupedUpcomingEvents.thisWeek.length + groupedUpcomingEvents.following.length + upcomingSchedules.length > 0;
@@ -401,18 +423,20 @@ export function CalendarView({
         { label: t("calendar.groupThisWeek", "This Week"), events: groupedUpcomingEvents.thisWeek },
         { label: t("calendar.groupFollowing", "Following"), events: groupedUpcomingEvents.following }
       ];
-  const addEventHref = selectedDay ? `/calendar/new?date=${format(selectedDay, "yyyy-MM-dd")}` : "/calendar/new";
+  const addEventDate = selectedDay ? format(selectedDay, "yyyy-MM-dd") : undefined;
 
   return (
     <div className="loom-calendar-figma">
       <div className="loom-calendar-header">
-        <button className="loom-calendar-nav" type="button" onClick={() => setCurrentMonth((value) => subMonths(value, 1))} aria-label={t("calendar.previousMonth", "Previous month")}>
-          ‹
-        </button>
-        <h3 className="loom-calendar-month">{format(currentMonth, "MMMM yyyy", { locale: dateFnsLocale })}</h3>
-        <button className="loom-calendar-nav" type="button" onClick={() => setCurrentMonth((value) => addMonths(value, 1))} aria-label={t("calendar.nextMonth", "Next month")}>
-          ›
-        </button>
+        <div className="loom-calendar-header-main">
+          <button className="loom-calendar-nav" type="button" onClick={() => setCurrentMonth((value) => subMonths(value, 1))} aria-label={t("calendar.previousMonth", "Previous month")}>
+            {"<"}
+          </button>
+          <h3 className="loom-calendar-month">{format(currentMonth, "MMMM yyyy", { locale: dateFnsLocale })}</h3>
+          <button className="loom-calendar-nav" type="button" onClick={() => setCurrentMonth((value) => addMonths(value, 1))} aria-label={t("calendar.nextMonth", "Next month")}>
+            {">"}
+          </button>
+        </div>
       </div>
 
       <div className="loom-calendar-layout">
@@ -434,6 +458,8 @@ export function CalendarView({
                   key={day.toISOString()}
                   type="button"
                   className={`loom-calendar-day ${isCurrent ? "" : "is-muted"} ${isSelected ? "is-selected" : ""} ${isToday(day) ? "is-today" : ""} ${dayItems.length > 0 ? "is-has-items" : ""}`}
+                  aria-pressed={isSelected}
+                  aria-label={`${format(day, "EEEE, MMMM d", { locale: dateFnsLocale })}${dayItems.length > 0 ? `, ${dayItems.length} items` : ""}`}
                   onClick={() => setSelectedDay((current) => (current && isSameDay(current, day) ? null : day))}
                 >
                   <span className="loom-calendar-day-number">{format(day, "d", { locale: dateFnsLocale })}</span>
@@ -500,9 +526,15 @@ export function CalendarView({
                     }
 
                     return (
-                      <Link key={event.id} href={`/calendar/${event.sourceEventId}`} className="loom-calendar-upcoming-row loom-calendar-upcoming-link">
+                      <button
+                        key={event.id}
+                        type="button"
+                        className="loom-calendar-upcoming-row loom-calendar-upcoming-link"
+                        aria-label={`${t("calendar.openEvent", "Open event")}: ${event.title}`}
+                        onClick={() => openItem(event.sourceEventId)}
+                      >
                         {content}
-                      </Link>
+                      </button>
                     );
                   })}
                 </div>
@@ -514,7 +546,7 @@ export function CalendarView({
                     <span className="loom-calendar-stripe is-schedule" />
                     <div className="loom-row-between">
                       <div>
-                        <p className="m-0 font-semibold">{schedule.familyMemberName} · {schedule.title}</p>
+                        <p className="m-0 font-semibold">{schedule.familyMemberName} - {schedule.title}</p>
                         <p className="loom-muted small m-0">
                           {selectedDay
                             ? format(selectedDay, "EEE, MMM d", { locale: dateFnsLocale })
@@ -522,7 +554,7 @@ export function CalendarView({
                         </p>
                         <p className="loom-muted small m-0">
                           {schedule.scheduleTitle}
-                          {schedule.location ? ` · ${schedule.location}` : ""}
+                          {schedule.location ? ` - ${schedule.location}` : ""}
                         </p>
                       </div>
                       <span className="loom-home-pill is-muted m-0">{t(`schedules.categoryLabel.${schedule.category}`, schedule.category)}</span>
@@ -533,9 +565,6 @@ export function CalendarView({
             </div>
           </section>
 
-          <a className="loom-button-primary loom-calendar-add" href={addEventHref} aria-label={t("calendar.createTitle", "Create event")}>
-            + {t("calendar.addEvent", "Add Event")}
-          </a>
         </aside>
       </div>
 
@@ -561,7 +590,133 @@ export function CalendarView({
           </span>
         </div>
       </section>
+
+      <EntityDetailShell
+        isOpen={Boolean(selectedEvent)}
+        title={selectedEvent?.title ?? t("calendar.eventDetails", "Event details")}
+        eyebrow={t("nav.calendar", "Calendar")}
+        subtitle={
+          selectedEvent ? (
+            <>
+              {new Date(selectedEvent.startAt).toLocaleString(locale)} - {new Date(selectedEvent.endAt).toLocaleString(locale)}
+            </>
+          ) : undefined
+        }
+        badge={selectedEvent?.isExternal ? <span className="loom-home-pill is-muted m-0">{selectedEvent.externalCalendarName ?? t("calendar.external", "External")}</span> : undefined}
+        summaryMeta={
+          selectedEvent ? (
+            <EntitySummaryMeta>
+              <EntitySummaryMetaItem label={t("calendar.starts", "Starts")} value={new Date(selectedEvent.startAt).toLocaleDateString(locale)} />
+              <EntitySummaryMetaItem label={t("calendar.ends", "Ends")} value={new Date(selectedEvent.endAt).toLocaleDateString(locale)} />
+              <EntitySummaryMetaItem label={t("common.visibility", "Visibility")} value={t(`visibility.${selectedEvent.visibility}`, selectedEvent.visibility)} />
+              <EntitySummaryMetaItem label={t("common.location", "Location")} value={selectedEvent.location ?? t("common.notSet", "Not set")} />
+            </EntitySummaryMeta>
+          ) : undefined
+        }
+        onClose={() => updateRouteState({ item: null, panel: null })}
+        headerActions={
+          selectedEvent && !selectedEvent.isExternal ? (
+            <div className="loom-inline-actions">
+              <button
+                type="button"
+                className="loom-button-ghost"
+                onClick={() => updateRouteState({ panel: isEditingSelectedEvent ? null : "edit" })}
+              >
+                {isEditingSelectedEvent ? t("common.cancel", "Cancel") : t("calendar.edit", "Edit event")}
+              </button>
+              <button type="button" className="loom-task-icon-button" aria-label={t("common.close", "Close")} onClick={() => updateRouteState({ item: null, panel: null })}>
+                ??
+              </button>
+            </div>
+          ) : undefined
+        }
+      >
+          {selectedEvent ? (
+            isEditingSelectedEvent && !selectedEvent.isExternal ? (
+            <EventForm
+              familyId={familyId}
+              members={members}
+              endpoint={`/api/events/${selectedEvent.sourceEventId}`}
+              method="PATCH"
+              submitLabel={t("calendar.save", "Save event")}
+              redirectTo="/calendar"
+              disableRedirect
+              onSaved={() => {
+                updateRouteState({ panel: null });
+              }}
+              initialValues={{
+                title: selectedEvent.title,
+                description: selectedEvent.description ?? "",
+                startAt: new Date(new Date(selectedEvent.startAt).getTime() - new Date(selectedEvent.startAt).getTimezoneOffset() * 60_000).toISOString().slice(0, 16),
+                endAt: new Date(new Date(selectedEvent.endAt).getTime() - new Date(selectedEvent.endAt).getTimezoneOffset() * 60_000).toISOString().slice(0, 16),
+                location: selectedEvent.location ?? "",
+                allDay: selectedEvent.allDay,
+                visibility: selectedEvent.visibility,
+                recurrenceRule: selectedEvent.recurrenceRule ?? null
+              }}
+            />
+            ) : (
+              <>
+                <EntitySection title={t("common.details", "Details")}>
+                  <EntityMetadataGrid>
+                    <EntityMetadataItem label={t("calendar.starts", "Starts")} value={new Date(selectedEvent.startAt).toLocaleString(locale)} />
+                    <EntityMetadataItem label={t("calendar.ends", "Ends")} value={new Date(selectedEvent.endAt).toLocaleString(locale)} />
+                    <EntityMetadataItem
+                      label={t("common.visibility", "Visibility")}
+                      value={
+                        <EntityVisibilityBadge
+                          visibility={selectedEvent.visibility}
+                          labels={{
+                            private: t("visibility.private", "Private"),
+                            family: t("visibility.family", "Family"),
+                            selected_members: t("visibility.selected_members", "Selected members")
+                          }}
+                        />
+                      }
+                    />
+                    <EntityMetadataItem label={t("common.location", "Location")} value={selectedEvent.location ?? t("common.notSet", "Not set")} />
+                    <EntityMetadataItem
+                      label={t("common.createdBy", "Created by")}
+                      value={<EntityAssigneeBadge value={selectedEvent.createdByName ?? t("common.unknown", "Unknown")} />}
+                    />
+                  </EntityMetadataGrid>
+                </EntitySection>
+                <EntitySection title={t("common.description", "Description")}>
+                  <p className="m-0">{selectedEvent.description ?? t("common.noDescription", "No description.")}</p>
+                </EntitySection>
+              </>
+            )
+          ) : (
+            <EntityDrawerEmptyState message={t("common.none", "None")} />
+          )}
+        </EntityDetailShell>
+
+      <CreateEntityModal
+        isOpen={isCreateOpen}
+        title={t("calendar.createTitle", "Create event")}
+        eyebrow={t("nav.calendar", "Calendar")}
+        subtitle={t("calendar.createSubtitle", "Add shared or private events to the family calendar.")}
+        onClose={clearCreate}
+      >
+        <EventForm
+          familyId={familyId}
+          members={members}
+          endpoint="/api/events"
+          method="POST"
+          submitLabel={t("calendar.createTitle", "Create event")}
+          redirectTo="/calendar"
+          disableRedirect
+          onSaved={({ eventId, startAt }) => {
+            clearCreate();
+            const selected = startAt.slice(0, 10);
+            if (selected) {
+              setSelectedDay(parseDateOnly(selected));
+            }
+            updateRouteState({ panel: null, item: eventId ?? null }, { replace: true });
+          }}
+          defaultDate={addEventDate}
+        />
+      </CreateEntityModal>
     </div>
   );
 }
-

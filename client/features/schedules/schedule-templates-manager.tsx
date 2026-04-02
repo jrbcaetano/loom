@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { SettingsPanelActions, SettingsPanelSection } from "@/components/patterns/settings-panel";
 import { useI18n } from "@/lib/i18n/context";
 import type { ScheduleCategory, ScheduleTemplateRow } from "@/features/schedules/model";
 
@@ -118,8 +119,10 @@ export function ScheduleTemplatesManager({
         />
       ))}
 
-      <article className="loom-card p-4">
-        <h3 className="loom-section-title">{t("schedules.newTemplate", "New template")}</h3>
+      <SettingsPanelSection
+        title={t("schedules.newTemplate", "New template")}
+        description={t("family.scheduleTemplatesHint", "Create shared shift and timetable templates that can be reused by any family member when planning schedules.")}
+      >
         <div className="loom-form-inline mt-3">
           <label className="loom-field">
             <span>{t("common.title", "Title")}</span>
@@ -158,10 +161,12 @@ export function ScheduleTemplatesManager({
           <span>{t("common.notes", "Notes")}</span>
           <textarea className="loom-input" rows={2} value={createDraft.notes} onChange={(event) => setCreateDraft((current) => ({ ...current, notes: event.target.value }))} />
         </label>
-        <button type="button" className="loom-button-primary" onClick={() => saveTemplate(null, createDraft)} disabled={savingId === "new"}>
-          {savingId === "new" ? t("common.saving", "Saving...") : t("common.create", "Create")}
-        </button>
-      </article>
+        <SettingsPanelActions>
+          <button type="button" className="loom-button-primary" onClick={() => saveTemplate(null, createDraft)} disabled={savingId === "new"}>
+            {savingId === "new" ? t("common.saving", "Saving...") : t("common.create", "Create")}
+          </button>
+        </SettingsPanelActions>
+      </SettingsPanelSection>
 
       {errorText ? <p className="loom-feedback-error">{errorText}</p> : null}
     </div>
@@ -193,7 +198,7 @@ function TemplateCard({
   });
 
   return (
-    <article className="loom-card p-4">
+    <SettingsPanelSection title={template.title}>
       <div className="loom-row-between">
         <strong>{template.title}</strong>
         <button type="button" className="loom-button-ghost" onClick={onDelete} disabled={isSaving}>
@@ -238,9 +243,11 @@ function TemplateCard({
         <span>{t("common.notes", "Notes")}</span>
         <textarea className="loom-input" rows={2} value={localDraft.notes} onChange={(event) => setLocalDraft((current) => ({ ...current, notes: event.target.value }))} />
       </label>
-      <button type="button" className="loom-button-primary" onClick={() => onSave(localDraft)} disabled={isSaving}>
-        {isSaving ? t("common.saving", "Saving...") : t("common.save", "Save")}
-      </button>
-    </article>
+      <SettingsPanelActions>
+        <button type="button" className="loom-button-primary" onClick={() => onSave(localDraft)} disabled={isSaving}>
+          {isSaving ? t("common.saving", "Saving...") : t("common.save", "Save")}
+        </button>
+      </SettingsPanelActions>
+    </SettingsPanelSection>
   );
 }

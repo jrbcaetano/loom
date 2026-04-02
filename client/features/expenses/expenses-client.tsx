@@ -1,9 +1,13 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
-import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { CreateEntityModal } from "@/components/patterns/create-entity-modal";
+import { RouteStateEntityDetailRegistry, type EntityDetailRegistryEntry } from "@/features/entities/entity-detail-registry";
+import { ExpenseDetailPanel } from "@/features/expenses/expense-detail-panel";
+import { ExpenseForm } from "@/features/expenses/expense-form";
 import { useI18n } from "@/lib/i18n/context";
+import { useCollectionRouteState } from "@/lib/routing/use-collection-route-state";
 
 type ExpenseRow = {
   id: string;
@@ -37,14 +41,18 @@ async function fetchSummary(familyId: string) {
 
 export function ExpensesClient({
   familyId,
+  members,
   initialExpenses = [],
   initialSummary = []
 }: {
   familyId: string;
+  members: Array<{ userId: string; displayName: string }>;
   initialExpenses?: ExpenseRow[];
   initialSummary?: MonthlySummary[];
 }) {
   const { t } = useI18n();
+  const queryClient = useQueryClient();
+  const { routeState, updateRouteState, openItem, clearItem, clearCreate } = useCollectionRouteState();
   const [search, setSearch] = useState("");
 
   const expensesQuery = useQuery({
@@ -59,13 +67,26 @@ export function ExpensesClient({
     initialData: initialSummary
   });
 
+  const detailRegistry: EntityDetailRegistryEntry[] = [
+    {
+      key: "expense",
+      Component: (props) => <ExpenseDetailPanel {...props} members={members} />
+    }
+  ];
+
   return (
     <div className="loom-stack">
       <section className="loom-card loom-filter-card">
         <div className="loom-filter-row">
           <label className="loom-field">
             <span>{t("common.search", "Search")}</span>
-            <input className="loom-input" type="search" placeholder={t("expenses.searchPlaceholder", "Search expenses by title")} value={search} onChange={(event) => setSearch(event.target.value)} />
+            <input
+              className="loom-input"
+              type="search"
+              placeholder={t("expenses.searchPlaceholder", "Search expenses by title")}
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
           </label>
           <article className="loom-soft-row">
             <p className="m-0 text-sm text-muted-foreground">{t("expenses.entries", "Entries")}</p>
@@ -82,9 +103,9 @@ export function ExpensesClient({
           {(expensesQuery.data ?? []).map((expense) => (
             <article key={expense.id} className="loom-conversation-row">
               <div className="loom-row-between">
-                <Link href={`/expenses/${expense.id}`} className="loom-link-strong">
+                <button type="button" className="loom-link-button loom-link-strong" onClick={() => openItem(expense.id)}>
                   {expense.title}
-                </Link>
+                </button>
                 <p className="m-0 font-semibold">
                   {Number(expense.amount).toFixed(2)} {expense.currency}
                 </p>
@@ -109,6 +130,40 @@ export function ExpensesClient({
           ))}
         </div>
       </section>
+
+      <CreateEntityModal
+        isOpen={routeState.create === "expense"}
+        title={t("expenses.createTitle", "Create expense")}
+        eyebrow={t("nav.expenses", "Expenses")}
+        subtitle={t("expenses.createSubtitle", "Capture title, amount, category, and who paid.")}
+        onClose={() => clearCreate()}
+      >
+        <ExpenseForm
+          familyId={familyId}
+          members={members}
+          endpoint="/api/expenses"
+          method="POST"
+          submitLabel={t("expenses.createTitle", "Create expense")}
+          redirectTo="/expenses"
+          disableRedirect
+          onSaved={({ expenseId }) => {
+            queryClient.invalidateQueries({ queryKey: ["expenses"] });
+            queryClient.invalidateQueries({ queryKey: ["expenses-summary"] });
+            clearCreate();
+            if (expenseId) {
+              openItem(expenseId);
+            }
+          }}
+        />
+      </CreateEntityModal>
+
+      <RouteStateEntityDetailRegistry
+        routeState={routeState}
+        entries={detailRegistry}
+        close={() => clearItem()}
+        updateRouteState={updateRouteState}
+      />
     </div>
   );
 }
+

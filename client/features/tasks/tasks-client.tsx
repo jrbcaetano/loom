@@ -7,7 +7,12 @@ import { createClient } from "@/lib/supabase/client";
 import { useI18n } from "@/lib/i18n/context";
 import { resolveDateFnsLocale } from "@/lib/date";
 import type { TaskStatus } from "@/features/tasks/model";
-import { ResponsivePanel } from "@/components/common/responsive-panel";
+import { EntityDetailShell } from "@/components/patterns/entity-detail-shell";
+import { CreateEntityModal } from "@/components/patterns/create-entity-modal";
+import { EntityActivityStream } from "@/components/patterns/entity-activity-stream";
+import { EntityAssigneeBadge, EntityMetadataGrid, EntityMetadataItem, EntitySection, EntitySummaryMeta, EntitySummaryMetaItem, EntityVisibilityBadge } from "@/components/patterns/entity-metadata";
+import { mapEntityActivityEntries } from "@/features/entities/entity-activity-adapters";
+import { useCollectionRouteState } from "@/lib/routing/use-collection-route-state";
 
 type TaskLabel = {
   id: string;
@@ -353,22 +358,6 @@ function normalizeServerErrorMessage(value: string) {
   return value;
 }
 
-function renderAuditValue(value: unknown, dateLocale: string) {
-  if (value === null || value === undefined || value === "") {
-    return "None";
-  }
-
-  if (typeof value === "string") {
-    const parsedDate = new Date(value);
-    if (!Number.isNaN(parsedDate.getTime()) && /T/.test(value)) {
-      return parsedDate.toLocaleString(dateLocale);
-    }
-    return value;
-  }
-
-  return String(value);
-}
-
 function cleanShortcutToken(value: string, session: QuickShortcutSession) {
   const nextValue = `${value.slice(0, session.start)} ${value.slice(session.end)}`;
   return nextValue.replace(/\s+/g, " ").trim();
@@ -486,6 +475,7 @@ export function TasksClient({
   familyLabels: TaskLabel[];
   initialTasks?: TaskRow[];
 }) {
+  const { routeState, openItem, clearItem, openCreate, clearCreate } = useCollectionRouteState();
   const { t, locale, dateLocale } = useI18n();
   const queryClient = useQueryClient();
 
@@ -561,6 +551,26 @@ export function TasksClient({
   const activeLabels = visibilityMode === "my" ? personalLabels : familyLabels;
   const drawerLabelOptions = useMemo(() => [...personalLabels, ...familyLabels], [personalLabels, familyLabels]);
   const quickAddLabelOptions = activeLabels;
+
+  useEffect(() => {
+    if (routeState.item) {
+      setSelectedTaskId(routeState.item);
+      return;
+    }
+
+    setSelectedTaskId(null);
+  }, [routeState.item]);
+
+  useEffect(() => {
+    if (routeState.create === "task") {
+      setShowQuickAdd(true);
+      setQuickEditor((current) => current ?? "title");
+      return;
+    }
+
+    setShowQuickAdd(false);
+  }, [routeState.create]);
+
   useEffect(() => {
     setSelectedLabelIds((current) => current.filter((labelId) => activeLabels.some((label) => label.id === labelId)));
   }, [activeLabels]);
@@ -867,9 +877,9 @@ export function TasksClient({
   useEffect(() => {
     if (!selectedTaskId) return;
     if (!(data ?? []).some((task) => task.id === selectedTaskId)) {
-      setSelectedTaskId(null);
+      clearItem();
     }
-  }, [data, selectedTaskId]);
+  }, [clearItem, data, selectedTaskId]);
 
   useEffect(() => {
     setCommentDraft("");
@@ -1621,7 +1631,7 @@ export function TasksClient({
                 <button
                   type="button"
                   className={`loom-task-title-button ${task.status === "done" ? "loom-home-line-through" : ""}`}
-                  onClick={() => setSelectedTaskId(task.id)}
+                  onClick={() => openItem(task.id)}
                 >
                   {task.title}
                 </button>
@@ -1823,6 +1833,7 @@ export function TasksClient({
     setIsCommentComposerOpen(false);
     queuedDrawerSaveRef.current = false;
     closeAfterDrawerSaveRef.current = false;
+    clearItem();
   }
 
   function closeQuickAdd() {
@@ -1838,6 +1849,7 @@ export function TasksClient({
     setQuickShortcutActiveIndex(0);
     setQuickShortcutAnchor(null);
     setQuickAddError(null);
+    clearCreate();
   }
 
   function applyQuickShortcutOption(option: QuickShortcutOption) {
@@ -2185,6 +2197,7 @@ export function TasksClient({
             onClick={() => {
               setQuickEditor("title");
               setShowQuickAdd(true);
+              openCreate("task");
             }}
           >
             +
@@ -2316,7 +2329,7 @@ export function TasksClient({
                         }}
                       >
                         <div className="loom-row-between">
-                          <button type="button" className="loom-task-title-button" onClick={() => setSelectedTaskId(task.id)}>
+                          <button type="button" className="loom-task-title-button" onClick={() => openItem(task.id)}>
                             {task.title}
                           </button>
                         </div>
@@ -2488,7 +2501,7 @@ export function TasksClient({
                         className="loom-calendar-task-hover-edit"
                         aria-label={t("tasks.editTask", "Edit task")}
                         onClick={() => {
-                          setSelectedTaskId(hoveredTask.id);
+                          openItem(hoveredTask.id);
                           setCalendarHoverCard(null);
                         }}
                       >
@@ -2563,10 +2576,12 @@ export function TasksClient({
       </section>
       </div>
 
-      {showQuickAdd ? (
-        <div className="loom-quick-task-overlay" role="presentation">
-          <button type="button" className="loom-quick-task-backdrop" aria-label={t("common.cancel", "Cancel")} onClick={closeQuickAdd} />
-            <section className="loom-quick-task-modal" role="dialog" aria-modal="true" aria-label={t("tasks.quickAddTitle", "Quick add task")}>
+      <CreateEntityModal
+        isOpen={showQuickAdd}
+        title={t("tasks.quickAddTitle", "Quick add task")}
+        eyebrow={t("nav.tasks", "Tasks")}
+        onClose={closeQuickAdd}
+      >
               <div className="loom-quick-task-body">
                 <div className="loom-quick-task-top">
                   {quickEditor === "title" ? (
@@ -2741,40 +2756,21 @@ export function TasksClient({
               </button>
             </footer>
             {quickAddError ? <p className="loom-feedback-error m-0">{quickAddError}</p> : null}
-          </section>
-        </div>
-      ) : null}
+      </CreateEntityModal>
 
-      <ResponsivePanel
+      <EntityDetailShell
         isOpen={Boolean(selectedTask)}
-        title={drawerDraft?.title?.trim() || t("tasks.taskDetails", "Task details")}
-        titleContent={
-          selectedTask && drawerDraft ? (
-            drawerEditor === "title" ? (
-              <input
-                ref={titleInputRef}
-                className="loom-input loom-task-drawer-title-input loom-task-inline-text-editor is-header"
-                value={drawerDraft.title}
-                onBlur={() => setDrawerEditor((value) => (value === "title" ? null : value))}
-                onChange={(event) => {
-                  setDrawerSaveError(null);
-                  setDrawerDraft((current) => (current ? { ...current, title: event.target.value } : current));
-                }}
-                onKeyDown={(event) => {
-                  if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    event.currentTarget.blur();
-                    void saveDrawerTask();
-                  }
-                }}
-              />
-            ) : (
-              <button type="button" className="loom-task-inline-text-trigger is-title is-header" onClick={() => setDrawerEditor("title")}>
-                {drawerDraft.title || t("common.title", "Title")}
-              </button>
-            )
-          ) : null
+        title={selectedTask?.title?.trim() || t("tasks.taskDetails", "Task details")}
+        eyebrow={t("nav.tasks", "Tasks")}
+        summaryMeta={
+          selectedTask ? (
+            <EntitySummaryMeta>
+              <EntitySummaryMetaItem label={t("tasks.status", "Status")} value={statusLabel(selectedTask.status, t)} />
+              <EntitySummaryMetaItem label={t("tasks.assignee", "Assignee")} value={memberOptions.find((member) => member.userId === selectedTask.assignedToUserId)?.displayName ?? t("tasks.unassigned", "Unassigned")} />
+              <EntitySummaryMetaItem label={t("tasks.dueDate", "Due date")} value={selectedTask.dueAt ? new Date(selectedTask.dueAt).toLocaleDateString(dateLocale) : t("tasks.noDueDate", "No due date")} />
+              <EntitySummaryMetaItem label={t("common.visibility", "Visibility")} value={t(`visibility.${selectedTask.visibility}`, selectedTask.visibility)} />
+            </EntitySummaryMeta>
+          ) : undefined
         }
         onClose={closeDrawer}
         size="wide"
@@ -2807,18 +2803,24 @@ export function TasksClient({
             <div className="loom-task-drawer-main">
               {drawerSaveError ? <p className="loom-feedback-error m-0">{drawerSaveError}</p> : null}
               <section className="loom-task-drawer-primary-surface">
-                {drawerEditor === "description" ? (
-                  <textarea
-                    ref={descriptionTextareaRef}
-                    className="loom-input loom-textarea loom-task-description-large loom-task-inline-text-editor"
-                    rows={8}
-                    value={drawerDraft.description}
-                    onBlur={() => setDrawerEditor((value) => (value === "description" ? null : value))}
+                {drawerEditor === "title" ? (
+                  <input
+                    ref={titleInputRef}
+                    className="loom-input loom-task-drawer-title-input loom-task-inline-text-editor"
+                    aria-label={t("common.title", "Title")}
+                    value={drawerDraft.title}
+                    onBlur={() => setDrawerEditor((value) => (value === "title" ? null : value))}
                     onChange={(event) => {
                       setDrawerSaveError(null);
-                      setDrawerDraft((current) => (current ? { ...current, description: event.target.value } : current));
+                      setDrawerDraft((current) => (current ? { ...current, title: event.target.value } : current));
                     }}
                     onKeyDown={(event) => {
+                      if (event.key === "Escape") {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        setDrawerEditor((value) => (value === "title" ? null : value));
+                        return;
+                      }
                       if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
                         event.preventDefault();
                         event.stopPropagation();
@@ -2828,7 +2830,40 @@ export function TasksClient({
                     }}
                   />
                 ) : (
-                  <button type="button" className="loom-task-inline-text-trigger is-description" onClick={() => setDrawerEditor("description")}>
+                  <button type="button" className="loom-task-inline-text-trigger is-title" aria-label={t("tasks.editTitle", "Edit title")} onClick={() => setDrawerEditor("title")}>
+                    {drawerDraft.title || t("common.title", "Title")}
+                  </button>
+                )}
+
+                {drawerEditor === "description" ? (
+                  <textarea
+                    ref={descriptionTextareaRef}
+                    className="loom-input loom-textarea loom-task-description-large loom-task-inline-text-editor"
+                    rows={8}
+                    aria-label={t("common.description", "Description")}
+                    value={drawerDraft.description}
+                    onBlur={() => setDrawerEditor((value) => (value === "description" ? null : value))}
+                    onChange={(event) => {
+                      setDrawerSaveError(null);
+                      setDrawerDraft((current) => (current ? { ...current, description: event.target.value } : current));
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === "Escape") {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        setDrawerEditor((value) => (value === "description" ? null : value));
+                        return;
+                      }
+                      if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        event.currentTarget.blur();
+                        void saveDrawerTask();
+                      }
+                    }}
+                  />
+                ) : (
+                  <button type="button" className="loom-task-inline-text-trigger is-description" aria-label={t("tasks.editDescription", "Edit description")} onClick={() => setDrawerEditor("description")}>
                     {drawerDraft.description ? (
                       <span className="loom-task-inline-text-copy">{drawerDraft.description}</span>
                     ) : (
@@ -2839,111 +2874,82 @@ export function TasksClient({
               </section>
 
               <section className="loom-task-drawer-primary-surface is-comments">
-                <div className="loom-row-between">
-                  <h4 className="loom-section-title m-0">{t("tasks.activity", "Activity")}</h4>
-                  <div className="loom-inline-actions">
-                    <div className="loom-task-comment-sort-toggle" role="group" aria-label={t("tasks.commentsSort", "Comment sort")}>
-                      <button
-                        type="button"
-                        className={commentsSort === "oldest" ? "is-active" : ""}
-                        onClick={() => setCommentsSort("oldest")}
-                      >
-                        {t("tasks.commentsSortOldest", "Oldest first")}
-                      </button>
-                      <button
-                        type="button"
-                        className={commentsSort === "newest" ? "is-active" : ""}
-                        onClick={() => setCommentsSort("newest")}
-                      >
-                        {t("tasks.commentsSortNewest", "Newest first")}
-                      </button>
-                    </div>
-                    <span className="loom-home-pill is-muted">{selectedTaskCommentsQuery.data?.length ?? 0}</span>
-                  </div>
-                </div>
-
-                <div className="loom-task-comments-list mt-3">
-                  {selectedTaskCommentsQuery.isPending ? <p className="loom-muted m-0">{t("common.loading", "Loading...")}</p> : null}
-                  {selectedTaskCommentsQuery.error ? <p className="loom-feedback-error m-0">{selectedTaskCommentsQuery.error.message}</p> : null}
-
-                  {sortedComments.map((comment) => (
-                    <article key={comment.id} className={`loom-task-comment-item ${comment.entryKind === "audit" ? "is-audit" : ""}`.trim()}>
-                      {comment.entryKind === "audit" ? (
-                        <>
-                          <span className="loom-task-audit-marker" aria-hidden="true" />
-                          <div className="loom-task-comment-body loom-task-audit-body">
-                            <p className="m-0 loom-task-comment-headline">
-                              <span className="loom-task-audit-title">{comment.authorName}</span>
-                              <span className="loom-muted small">{new Date(comment.createdAt).toLocaleString(dateLocale)}</span>
-                            </p>
-                            <p className="m-0 loom-task-audit-copy">{comment.body}</p>
-                            <div className="loom-task-audit-delta">
-                              <span className="loom-task-audit-field">{String(comment.metadata.fieldLabel ?? "Updated")}</span>
-                              <span className="loom-task-audit-value is-previous">{renderAuditValue(comment.metadata.previousValue, dateLocale)}</span>
-                              <span className="loom-task-audit-arrow" aria-hidden="true">→</span>
-                              <span className="loom-task-audit-value is-next">{renderAuditValue(comment.metadata.nextValue, dateLocale)}</span>
-                            </div>
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          <span
-                            className={`loom-task-assignee-avatar ${comment.authorAvatarUrl ? "has-image" : ""}`}
-                            style={comment.authorAvatarUrl ? { backgroundImage: `url("${comment.authorAvatarUrl}")` } : undefined}
-                            aria-hidden="true"
-                          >
-                            {comment.authorAvatarUrl ? null : getInitials(comment.authorName)}
-                          </span>
-                          <div className="loom-task-comment-body">
-                            <p className="m-0 loom-task-comment-headline">
-                              <span className="font-semibold">{comment.authorName}</span>
-                              <span className="loom-muted small">{new Date(comment.createdAt).toLocaleString(dateLocale)}</span>
-                            </p>
-                            <p className="m-0 mt-2">{comment.body}</p>
-                          </div>
-                        </>
-                      )}
-                    </article>
-                  ))}
-                  {selectedTaskCommentsQuery.data && selectedTaskCommentsQuery.data.length === 0 ? (
-                    <p className="loom-muted m-0">{t("tasks.noActivity", "No activity yet.")}</p>
-                  ) : null}
-                </div>
-
-                <div className="loom-task-comment-form mt-3">
-                  {isCommentComposerOpen ? (
-                    <>
-                      <textarea
-                        ref={commentTextareaRef}
-                        className="loom-input loom-textarea loom-task-comment-editor"
-                        placeholder={t("tasks.commentPlaceholder", "Comment")}
-                        value={commentDraft}
-                        onBlur={() => void submitCommentDraft()}
-                        onChange={(event) => setCommentDraft(event.target.value)}
-                        onKeyDown={(event) => {
-                          if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            void submitCommentDraft();
-                          }
-                        }}
-                        rows={4}
-                      />
-                      <p className="loom-muted small m-0">{t("tasks.commentAutoSaveHint", "Comments post automatically when you click away or press Ctrl+Enter.")}</p>
-                    </>
-                  ) : (
-                    <button type="button" className="loom-task-comment-trigger" onClick={() => setIsCommentComposerOpen(true)}>
-                      {commentDraft.trim() ? commentDraft : t("tasks.commentPlaceholder", "Comment")}
-                    </button>
-                  )}
-                  {commentMutation.error ? <p className="loom-feedback-error m-0">{commentMutation.error.message}</p> : null}
-                </div>
+                <EntitySection
+                  title={t("tasks.activity", "Activity")}
+                  actions={<span className="loom-home-pill is-muted">{selectedTaskCommentsQuery.data?.length ?? 0}</span>}
+                >
+                  <EntityActivityStream
+                    entries={mapEntityActivityEntries(sortedComments)}
+                    dateLocale={dateLocale}
+                    sortValue={commentsSort}
+                    onSortChange={setCommentsSort}
+                    loadingState={selectedTaskCommentsQuery.isPending ? <p className="loom-muted m-0">{t("common.loading", "Loading...")}</p> : undefined}
+                    errorState={selectedTaskCommentsQuery.error ? <p className="loom-feedback-error m-0">{selectedTaskCommentsQuery.error.message}</p> : undefined}
+                    emptyState={<p className="loom-muted m-0">{t("tasks.noActivity", "No activity yet.")}</p>}
+                    composer={
+                      <>
+                        {isCommentComposerOpen ? (
+                          <>
+                            <textarea
+                              ref={commentTextareaRef}
+                              className="loom-input loom-textarea loom-task-comment-editor"
+                              placeholder={t("tasks.commentPlaceholder", "Comment")}
+                              value={commentDraft}
+                              onBlur={() => void submitCommentDraft()}
+                              onChange={(event) => setCommentDraft(event.target.value)}
+                              onKeyDown={(event) => {
+                                if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                  void submitCommentDraft();
+                                }
+                              }}
+                              rows={4}
+                            />
+                            <p className="loom-muted small m-0">{t("tasks.commentAutoSaveHint", "Comments post automatically when you click away or press Ctrl+Enter.")}</p>
+                          </>
+                        ) : (
+                          <button type="button" className="loom-task-comment-trigger" onClick={() => setIsCommentComposerOpen(true)}>
+                            {commentDraft.trim() ? commentDraft : t("tasks.commentPlaceholder", "Comment")}
+                          </button>
+                        )}
+                        {commentMutation.error ? <p className="loom-feedback-error m-0">{commentMutation.error.message}</p> : null}
+                      </>
+                    }
+                  />
+                </EntitySection>
               </section>
             </div>
 
             <aside className="loom-task-drawer-aside">
               <section className="loom-task-drawer-sidebar-surface">
                 <h4 className="loom-section-title m-0">{t("tasks.settings", "Task settings")}</h4>
+                <EntitySection title={t("common.details", "Details")}>
+                  <EntityMetadataGrid>
+                    <EntityMetadataItem label={t("tasks.status", "Status")} value={statusLabel(selectedTask.status, t)} />
+                    <EntityMetadataItem
+                      label={t("tasks.priority", "Priority")}
+                      value={t(`tasks.priority${selectedTask.priority.charAt(0).toUpperCase()}${selectedTask.priority.slice(1)}`, selectedTask.priority)}
+                    />
+                    <EntityMetadataItem
+                      label={t("tasks.assignee", "Assignee")}
+                      value={<EntityAssigneeBadge value={memberOptions.find((member) => member.userId === selectedTask.assignedToUserId)?.displayName ?? t("tasks.unassigned", "Unassigned")} />}
+                    />
+                    <EntityMetadataItem
+                      label={t("common.visibility", "Visibility")}
+                      value={
+                        <EntityVisibilityBadge
+                          visibility={selectedTask.visibility}
+                          labels={{
+                            private: t("visibility.private", "Private"),
+                            family: t("visibility.family", "Family"),
+                            selected_members: t("visibility.selected_members", "Selected members")
+                          }}
+                        />
+                      }
+                    />
+                  </EntityMetadataGrid>
+                </EntitySection>
                 <div className="loom-task-editable-list mt-3">
                   <div className="loom-task-editable-item">
                     <span className="loom-muted small">{t("tasks.status", "Status")}</span>
@@ -3152,7 +3158,7 @@ export function TasksClient({
             </aside>
           </div>
         ) : null}
-      </ResponsivePanel>
+      </EntityDetailShell>
     </div>
   );
 }

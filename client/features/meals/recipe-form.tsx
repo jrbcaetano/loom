@@ -28,7 +28,9 @@ export function RecipeForm({
   method,
   redirectTo,
   submitLabel,
-  initialValues
+  initialValues,
+  disableRedirect,
+  onSaved
 }: {
   familyId: string;
   endpoint: string;
@@ -36,6 +38,8 @@ export function RecipeForm({
   redirectTo: string;
   submitLabel: string;
   initialValues?: Partial<RecipeFormValues>;
+  disableRedirect?: boolean;
+  onSaved?: (payload: { recipeId?: string }) => void;
 }) {
   const router = useRouter();
   const { t } = useI18n();
@@ -76,6 +80,13 @@ export function RecipeForm({
     if (!response.ok) {
       setServerError(payload?.error ?? t("recipes.saveError", "Failed to save recipe"));
       setIsLoading(false);
+      return;
+    }
+
+    if (disableRedirect) {
+      setIsLoading(false);
+      onSaved?.({ recipeId: payload?.recipeId });
+      router.refresh();
       return;
     }
 

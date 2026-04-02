@@ -24,7 +24,9 @@ export function RoutineForm({
   method,
   submitLabel,
   redirectTo,
-  initialValues
+  initialValues,
+  disableRedirect = false,
+  onSaved
 }: {
   familyId: string;
   members: MemberOption[];
@@ -33,6 +35,8 @@ export function RoutineForm({
   submitLabel: string;
   redirectTo: string;
   initialValues?: Partial<RoutineFormValues>;
+  disableRedirect?: boolean;
+  onSaved?: (payload: { routineId?: string }) => void;
 }) {
   const router = useRouter();
   const { t } = useI18n();
@@ -70,6 +74,13 @@ export function RoutineForm({
     const payload = (await response.json().catch(() => null)) as { routineId?: string; error?: string } | null;
     if (!response.ok) {
       setServerError(payload?.error ?? t("routines.saveError", "Failed to save routine"));
+      setIsLoading(false);
+      return;
+    }
+
+    onSaved?.({ routineId: payload?.routineId });
+
+    if (disableRedirect) {
       setIsLoading(false);
       return;
     }

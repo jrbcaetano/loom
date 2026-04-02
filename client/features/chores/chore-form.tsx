@@ -26,7 +26,9 @@ export function ChoreForm({
   method,
   submitLabel,
   redirectTo,
-  initialValues
+  initialValues,
+  disableRedirect = false,
+  onSaved
 }: {
   familyId: string;
   members: MemberOption[];
@@ -35,6 +37,8 @@ export function ChoreForm({
   submitLabel: string;
   redirectTo: string;
   initialValues?: Partial<ChoreFormValues>;
+  disableRedirect?: boolean;
+  onSaved?: (payload: { choreId?: string }) => void;
 }) {
   const router = useRouter();
   const { t } = useI18n();
@@ -73,6 +77,13 @@ export function ChoreForm({
     const payload = (await response.json().catch(() => null)) as { choreId?: string; error?: string } | null;
     if (!response.ok) {
       setServerError(payload?.error ?? t("chores.saveError", "Failed to save chore"));
+      setIsLoading(false);
+      return;
+    }
+
+    onSaved?.({ choreId: payload?.choreId });
+
+    if (disableRedirect) {
       setIsLoading(false);
       return;
     }

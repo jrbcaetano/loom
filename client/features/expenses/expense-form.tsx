@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -27,7 +27,9 @@ export function ExpenseForm({
   method,
   submitLabel,
   redirectTo,
-  initialValues
+  initialValues,
+  disableRedirect = false,
+  onSaved
 }: {
   familyId: string;
   members: MemberOption[];
@@ -36,6 +38,8 @@ export function ExpenseForm({
   submitLabel: string;
   redirectTo: string;
   initialValues?: Partial<ExpenseFormValues>;
+  disableRedirect?: boolean;
+  onSaved?: (payload: { expenseId?: string; date: string }) => void;
 }) {
   const router = useRouter();
   const { t } = useI18n();
@@ -77,6 +81,13 @@ export function ExpenseForm({
     const payload = (await response.json().catch(() => null)) as { expenseId?: string; error?: string } | null;
     if (!response.ok) {
       setServerError(payload?.error ?? t("expenses.saveError", "Failed to save expense"));
+      setIsLoading(false);
+      return;
+    }
+
+    onSaved?.({ expenseId: payload?.expenseId, date: values.date });
+
+    if (disableRedirect) {
       setIsLoading(false);
       return;
     }
@@ -134,3 +145,4 @@ export function ExpenseForm({
     </form>
   );
 }
+

@@ -14,7 +14,13 @@ const inviteSchema = z.object({
 
 type InviteValues = z.infer<typeof inviteSchema>;
 
-export function InviteMemberForm({ familyId }: { familyId: string }) {
+export function InviteMemberForm({
+  familyId,
+  onSaved
+}: {
+  familyId: string;
+  onSaved?: () => void;
+}) {
   const { t } = useI18n();
   const [serverError, setServerError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -46,6 +52,7 @@ export function InviteMemberForm({ familyId }: { familyId: string }) {
     form.reset({ email: "", role: "adult" });
     setIsLoading(false);
     router.refresh();
+    onSaved?.();
   }
 
   return (

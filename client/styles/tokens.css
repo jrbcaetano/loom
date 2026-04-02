@@ -1,17 +1,17 @@
 :root {
-  --loom-base-bg: #f4f6fb;
+  --loom-base-bg: #f6f4ef;
   --loom-base-surface: #ffffff;
-  --loom-base-surface-soft: #eef2f8;
-  --loom-base-surface-strong: #e6ebf5;
-  --loom-base-text: #172033;
-  --loom-base-text-muted: #667085;
-  --loom-base-text-soft: #8690a3;
-  --loom-base-border: #d9e0ec;
-  --loom-base-border-strong: #c2cede;
-  --loom-base-primary: #4f7df3;
-  --loom-base-primary-hover: #3f6be0;
-  --loom-base-primary-soft: #edf3ff;
-  --loom-base-primary-strong: #2347a0;
+  --loom-base-surface-soft: #f1eee7;
+  --loom-base-surface-strong: #e7e1d6;
+  --loom-base-text: #1f2937;
+  --loom-base-text-muted: #6b7280;
+  --loom-base-text-soft: #8a94a6;
+  --loom-base-border: #ddd6ca;
+  --loom-base-border-strong: #cfc4b4;
+  --loom-base-primary: #2f6fed;
+  --loom-base-primary-hover: #2459c6;
+  --loom-base-primary-soft: #e7efff;
+  --loom-base-primary-strong: #1f4ea3;
   --loom-base-danger: #d4183d;
   --loom-base-danger-soft: #fff5f5;
   --loom-base-danger-border: #f1c4cf;
@@ -98,7 +98,7 @@
   --loom-color-overlay: var(--loom-base-overlay);
   --loom-color-focus-ring: var(--loom-base-focus-ring);
   --loom-surface-elevated: var(--loom-color-surface);
-  --loom-hero-gradient: linear-gradient(180deg, #ffffff 0%, #f7f9ff 100%);
+  --loom-hero-gradient: linear-gradient(180deg, #fffdf8 0%, #f5f1e9 100%);
   --loom-loading-gradient: linear-gradient(90deg, #eef1f6 25%, #f6f8fc 37%, #eef1f6 63%);
   --loom-selected-surface: var(--loom-color-primary-soft);
   --loom-selected-border: var(--loom-color-info-border);

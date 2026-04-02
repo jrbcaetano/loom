@@ -1,4 +1,4 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { getActiveFamilyContext } from "@/features/families/context";
 import { NotesClient } from "@/features/notes/notes-client";
@@ -21,8 +21,8 @@ export default async function NotesPage() {
           <h2 className="loom-module-title">{t("nav.notes", "Notes")}</h2>
           <p className="loom-module-subtitle">{t("notes.subtitle", "Shared family knowledge and important references.")}</p>
         </div>
-        <Link href="/notes/new" className="loom-button-primary">
-          {t("notes.new", "New note")}
+        <Link href="/notes?create=note" className="loom-module-header-plus" aria-label={t("notes.new", "New note")}>
+          +
         </Link>
       </section>
       <NotesClient familyId={context.activeFamilyId} initialNotes={initialNotes} />

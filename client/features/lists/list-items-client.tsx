@@ -7,8 +7,11 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/client";
-import { ResponsivePanel } from "@/components/common/responsive-panel";
+import { CreateEntityModal } from "@/components/patterns/create-entity-modal";
+import { EntityDetailShell } from "@/components/patterns/entity-detail-shell";
+import { EntitySummaryMeta, EntitySummaryMetaItem } from "@/components/patterns/entity-metadata";
 import { useI18n } from "@/lib/i18n/context";
+import { useCollectionRouteState } from "@/lib/routing/use-collection-route-state";
 
 const addItemSchema = z.object({
   text: z.string().trim().min(1).max(240),
@@ -271,6 +274,7 @@ export function ListItemsClient({
   canDelete: boolean;
   categories: ListCategory[];
 }) {
+  const { routeState, openItem, clearItem, openCreate, clearCreate } = useCollectionRouteState();
   const queryClient = useQueryClient();
   const router = useRouter();
   const { t, locale } = useI18n();
@@ -311,6 +315,15 @@ export function ListItemsClient({
     queryKey,
     queryFn: () => fetchListItems(listId)
   });
+
+  useEffect(() => {
+    if (routeState.create === "list-item") {
+      setShowComposer(true);
+      return;
+    }
+
+    setShowComposer(false);
+  }, [routeState.create]);
 
   const addMutation = useMutation({
     mutationFn: async (values: AddItemValues) => {
@@ -431,6 +444,29 @@ export function ListItemsClient({
       queryClient.invalidateQueries({ queryKey });
     }
   });
+
+  useEffect(() => {
+    if (!routeState.item) {
+      setEditingItemId(null);
+      editForm.reset({ itemId: "", text: "", quantity: "", price: "", category: "" });
+      return;
+    }
+
+    const matchingItem = (items ?? []).find((item) => item.id === routeState.item);
+    if (!matchingItem) {
+      return;
+    }
+
+    setShowComposer(false);
+    setEditingItemId(matchingItem.id);
+    editForm.reset({
+      itemId: matchingItem.id,
+      text: matchingItem.text,
+      quantity: matchingItem.quantity ?? "",
+      price: normalizePriceInputValue(matchingItem.price),
+      category: matchingItem.category ?? ""
+    });
+  }, [editForm, items, routeState.item]);
 
   useEffect(() => {
     const supabase = createClient();
@@ -860,6 +896,7 @@ export function ListItemsClient({
   function closeEdit() {
     setEditingItemId(null);
     editForm.reset({ itemId: "", text: "", quantity: "", price: "", category: "" });
+    clearItem();
   }
 
   function closeComposer() {
@@ -870,11 +907,14 @@ export function ListItemsClient({
     setIsItemMenuOpen(false);
     setPendingAddValues(null);
     setSimilarItemSuggestions([]);
+    clearCreate();
   }
 
   function openAddPanel() {
-    closeEdit();
+    setEditingItemId(null);
+    editForm.reset({ itemId: "", text: "", quantity: "", price: "", category: "" });
     setShowComposer(true);
+    openCreate("list-item");
   }
 
   function closePanel() {
@@ -884,14 +924,7 @@ export function ListItemsClient({
 
   function startEdit(item: ListItem) {
     setShowComposer(false);
-    setEditingItemId(item.id);
-    editForm.reset({
-      itemId: item.id,
-      text: item.text,
-      quantity: item.quantity ?? "",
-      price: normalizePriceInputValue(item.price),
-      category: item.category ?? ""
-    });
+    openItem(item.id);
   }
 
   function submitEdit(values: EditItemValues) {
@@ -1206,10 +1239,11 @@ export function ListItemsClient({
         </section>
       ) : null}
 
-      <ResponsivePanel
-        isOpen={showComposer || Boolean(editingItem)}
-        title={showComposer ? t("lists.addItem") : t("common.edit")}
-        onClose={closePanel}
+      <CreateEntityModal
+        isOpen={showComposer}
+        title={t("lists.addItem")}
+        onClose={closeComposer}
+        eyebrow={t("nav.lists", "Lists")}
       >
         {showComposer ? (
           <form className="loom-form-stack" onSubmit={form.handleSubmit(onSubmit)}>
@@ -1381,6 +1415,78 @@ export function ListItemsClient({
           </form>
         ) : null}
 
+        {showComposer && pendingAddValues && similarItemSuggestions.length > 0 ? (
+          <section className="loom-card p-4">
+            <h3 className="loom-section-title">{t("lists.similarPopupTitle", "Similar items found")}</h3>
+            <p className="loom-muted small">
+              {t("lists.similarPopupBody", "Use one of these existing items instead of creating a duplicate?")}
+            </p>
+            <div className="loom-stack-sm">
+              {similarItemSuggestions.map((entry) => (
+                <button
+                  key={entry.item.id}
+                  type="button"
+                  className="loom-item-suggestion-option"
+                  onClick={() => mergeIntoExistingItem(entry.item.id, pendingAddValues)}
+                >
+                  <span className="loom-item-suggestion-name">{entry.item.text}</span>
+                  <span className="loom-item-suggestion-meta">
+                    {[entry.item.quantity, entry.item.category].filter(Boolean).join(" - ") || t("lists.form.noCategory")}
+                  </span>
+                </button>
+              ))}
+            </div>
+            <div className="loom-form-actions mt-3">
+              <button
+                type="button"
+                className="loom-button-ghost"
+                onClick={() => {
+                  setPendingAddValues(null);
+                  setSimilarItemSuggestions([]);
+                }}
+              >
+                {t("common.cancel")}
+              </button>
+              <button
+                type="button"
+                className="loom-button-primary"
+                onClick={() => {
+                  submitNewItem(pendingAddValues);
+                  setPendingAddValues(null);
+                  setSimilarItemSuggestions([]);
+                }}
+              >
+                {t("lists.addAsNew", "Add as new item")}
+              </button>
+            </div>
+          </section>
+        ) : null}
+      </CreateEntityModal>
+
+      <EntityDetailShell
+        isOpen={Boolean(editingItem)}
+        title={editingItem?.text ?? t("common.edit")}
+        eyebrow={t("nav.lists", "Lists")}
+        subtitle={
+          editingItem ? (
+            <>
+              {editingItem.category ?? t("lists.form.noCategory")}
+              {editingItem.quantity ? ` · ${editingItem.quantity}` : ""}
+            </>
+            ) : undefined
+        }
+        summaryMeta={
+          editingItem ? (
+            <EntitySummaryMeta>
+              <EntitySummaryMetaItem label={t("common.category")} value={editingItem.category ?? t("lists.form.noCategory")} />
+              <EntitySummaryMetaItem label={t("lists.form.quantity")} value={editingItem.quantity ?? t("common.none", "None")} />
+              <EntitySummaryMetaItem label={t("common.created", "Created")} value={formatDateTime(editingItem.createdAt)} />
+              <EntitySummaryMetaItem label={t("common.updated")} value={formatDateTime(editingItem.updatedAt)} />
+            </EntitySummaryMeta>
+          ) : undefined
+        }
+        onClose={closeEdit}
+      >
         {editingItem ? (
           <form className="loom-form-stack" onSubmit={editForm.handleSubmit(submitEdit)}>
             <label className="loom-lists-inline-field">
@@ -1434,54 +1540,7 @@ export function ListItemsClient({
             </div>
           </form>
         ) : null}
-
-        {showComposer && pendingAddValues && similarItemSuggestions.length > 0 ? (
-          <section className="loom-card p-4">
-            <h3 className="loom-section-title">{t("lists.similarPopupTitle", "Similar items found")}</h3>
-            <p className="loom-muted small">
-              {t("lists.similarPopupBody", "Use one of these existing items instead of creating a duplicate?")}
-            </p>
-            <div className="loom-stack-sm">
-              {similarItemSuggestions.map((entry) => (
-                <button
-                  key={entry.item.id}
-                  type="button"
-                  className="loom-item-suggestion-option"
-                  onClick={() => mergeIntoExistingItem(entry.item.id, pendingAddValues)}
-                >
-                  <span className="loom-item-suggestion-name">{entry.item.text}</span>
-                  <span className="loom-item-suggestion-meta">
-                    {[entry.item.quantity, entry.item.category].filter(Boolean).join(" - ") || t("lists.form.noCategory")}
-                  </span>
-                </button>
-              ))}
-            </div>
-            <div className="loom-form-actions mt-3">
-              <button
-                type="button"
-                className="loom-button-ghost"
-                onClick={() => {
-                  setPendingAddValues(null);
-                  setSimilarItemSuggestions([]);
-                }}
-              >
-                {t("common.cancel")}
-              </button>
-              <button
-                type="button"
-                className="loom-button-primary"
-                onClick={() => {
-                  submitNewItem(pendingAddValues);
-                  setPendingAddValues(null);
-                  setSimilarItemSuggestions([]);
-                }}
-              >
-                {t("lists.addAsNew", "Add as new item")}
-              </button>
-            </div>
-          </section>
-        ) : null}
-      </ResponsivePanel>
+      </EntityDetailShell>
 
       <button className="loom-lists-action-add" type="button" onClick={openAddPanel}>
         + {t("lists.addItem")}

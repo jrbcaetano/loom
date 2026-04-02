@@ -39,6 +39,14 @@ function getGreetingKey(reference: Date) {
   return "home.greetingNight";
 }
 
+function getCalendarItemHref(eventId: string) {
+  return `/calendar?item=${encodeURIComponent(eventId)}`;
+}
+
+function getTaskItemHref(taskId: string) {
+  return `/tasks?item=${encodeURIComponent(taskId)}`;
+}
+
 export default async function HomePage() {
   const user = await requireUser();
   const { t, dateLocale, locale } = await getServerI18n();
@@ -140,7 +148,7 @@ export default async function HomePage() {
               {groupedUpcomingEvents.today.map((event) => {
                 const eventDate = new Date(event.start_at);
                 return (
-                  <Link key={event.id} href={`/calendar/${event.id}`} className="loom-home-row is-today">
+                  <Link key={event.id} href={getCalendarItemHref(event.id)} className="loom-home-row is-today">
                     <span className="loom-home-time">{eventDate.toLocaleTimeString(dateLocale, { hour: "numeric", minute: "2-digit" })}</span>
                     <span className="loom-home-text">{event.title}</span>
                     <span>{t("calendar.today", "Today")}</span>
@@ -151,7 +159,7 @@ export default async function HomePage() {
               {groupedUpcomingEvents.thisWeek.map((event) => {
                 const eventDate = new Date(event.start_at);
                 return (
-                  <Link key={event.id} href={`/calendar/${event.id}`} className="loom-home-row">
+                  <Link key={event.id} href={getCalendarItemHref(event.id)} className="loom-home-row">
                     <span className="loom-home-time">{eventDate.toLocaleString(dateLocale, { weekday: "short", hour: "numeric", minute: "2-digit" })}</span>
                     <span className="loom-home-text">{event.title}</span>
                     <span>&gt;</span>
@@ -162,7 +170,7 @@ export default async function HomePage() {
               {groupedUpcomingEvents.following.map((event) => {
                 const eventDate = new Date(event.start_at);
                 return (
-                  <Link key={event.id} href={`/calendar/${event.id}`} className="loom-home-row">
+                  <Link key={event.id} href={getCalendarItemHref(event.id)} className="loom-home-row">
                     <span className="loom-home-time">{eventDate.toLocaleString(dateLocale, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span>
                     <span className="loom-home-text">{event.title}</span>
                     <span>&gt;</span>
@@ -238,7 +246,7 @@ export default async function HomePage() {
             <div className="loom-stack-sm mt-3">
               {tasksPreview.length === 0 ? <p className="loom-muted">{t("home.noTasksDueToday", "No tasks due today.")}</p> : null}
               {tasksPreview.map((task) => (
-                <Link key={task.id} href={`/tasks/${task.id}`} className="loom-home-check-row">
+                <Link key={task.id} href={getTaskItemHref(task.id)} className="loom-home-check-row">
                   <span className="loom-home-checkbox" />
                   <span className="loom-home-task-copy">
                     <span>{task.title}</span>
@@ -330,13 +338,13 @@ export default async function HomePage() {
                   <p className="loom-home-statline">
                     <span>{t("home.weatherFeelsLike", "Feels like")}</span>
                     <strong className="loom-weather-widget-stat">
-                      {weather.apparentTemperature !== null ? `${Math.round(weather.apparentTemperature)}${weather.unitLabel}` : "—"}
+                      {weather.apparentTemperature !== null ? `${Math.round(weather.apparentTemperature)}${weather.unitLabel}` : "-"}
                     </strong>
                   </p>
                   <p className="loom-home-statline">
                     <span>{t("home.weatherWind", "Wind")}</span>
                     <strong className="loom-weather-widget-stat">
-                      {weather.windSpeed !== null ? `${Math.round(weather.windSpeed)} km/h` : "—"}
+                      {weather.windSpeed !== null ? `${Math.round(weather.windSpeed)} km/h` : "-"}
                     </strong>
                   </p>
                 </div>

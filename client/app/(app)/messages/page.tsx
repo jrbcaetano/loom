@@ -1,4 +1,4 @@
-import { requireUser } from "@/lib/auth";
+﻿import { requireUser } from "@/lib/auth";
 import { getActiveFamilyContext } from "@/features/families/context";
 import { getFamilyMembers } from "@/features/families/server";
 import { MessagesClient } from "@/features/messages/messages-client";
@@ -27,7 +27,8 @@ export default async function MessagesPage() {
           <p className="loom-module-subtitle">{t("messages.subtitle", "Family and direct conversations in one inbox.")}</p>
         </div>
       </section>
-      <MessagesClient familyId={context.activeFamilyId} members={members} initialConversations={initialConversations} />
+      <MessagesClient familyId={context.activeFamilyId} currentUserId={user.id} members={members} initialConversations={initialConversations} />
     </div>
   );
 }
+

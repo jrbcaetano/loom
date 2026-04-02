@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { SettingsPanelActions, SettingsPanelSection } from "@/components/patterns/settings-panel";
 import { useI18n } from "@/lib/i18n/context";
 
 type ShoppingListCsvRowResult = {
@@ -182,59 +183,64 @@ export function ShoppingListCsvManager({ familyId }: ShoppingListCsvManagerProps
 
     return (
       <div className="loom-stack-sm">
-        <div className="loom-soft-row loom-csv-manager-card">
+        <SettingsPanelSection
+          title={isCategoryDataset ? t("family.shoppingListCategoryCsvTitle", "Shopping list categories CSV") : t("family.shoppingListCsvTitle", "Shopping list items CSV")}
+          description={
+            isCategoryDataset
+              ? t("family.shoppingListCategoryCsvHint", "Download or import the allowed Shopping List categories used by your family items.")
+              : t("family.shoppingListCsvHint", "Download the CSV template or your current Shopping List, edit it offline, and import one or more CSV files back in sequence.")
+          }
+        >
           <div className="loom-stack-sm">
-            <p className="m-0 font-semibold">
-              {isCategoryDataset ? t("family.shoppingListCategoryCsvTitle", "Shopping list categories CSV") : t("family.shoppingListCsvTitle", "Shopping list items CSV")}
-            </p>
-            <p className="loom-muted small m-0">
-              {isCategoryDataset
-                ? t("family.shoppingListCategoryCsvHint", "Download or import the allowed Shopping List categories used by your family items.")
-                : t("family.shoppingListCsvHint", "Download the CSV template or your current Shopping List, edit it offline, and import one or more CSV files back in sequence.")}
-            </p>
+            <SettingsPanelActions>
+              <button
+                type="button"
+                className="loom-button-ghost"
+                onClick={() =>
+                  downloadCsv(
+                    "template",
+                    dataset,
+                    isCategoryDataset ? "shopping-list-categories-template.csv" : "shopping-list-template.csv",
+                    "isDownloadingTemplate"
+                  )
+                }
+                disabled={isDownloadingTemplate[dataset] || isExporting[dataset] || isImporting[dataset]}
+              >
+                {isDownloadingTemplate[dataset] ? t("common.loading", "Loading...") : t("family.downloadCsvTemplate", "Download template")}
+              </button>
+              <button
+                type="button"
+                className="loom-button-ghost"
+                onClick={() =>
+                  downloadCsv(
+                    "export",
+                    dataset,
+                    isCategoryDataset ? "shopping-list-categories-export.csv" : "shopping-list-export.csv",
+                    "isExporting"
+                  )
+                }
+                disabled={isDownloadingTemplate[dataset] || isExporting[dataset] || isImporting[dataset]}
+              >
+                {isExporting[dataset]
+                  ? t("common.loading", "Loading...")
+                  : isCategoryDataset
+                    ? t("family.exportShoppingListCategoryCsv", "Export categories")
+                    : t("family.exportShoppingListCsv", "Export current list")}
+              </button>
+            </SettingsPanelActions>
           </div>
+        </SettingsPanelSection>
 
-          <div className="loom-form-actions">
-            <button
-              type="button"
-              className="loom-button-ghost"
-              onClick={() =>
-                downloadCsv(
-                  "template",
-                  dataset,
-                  isCategoryDataset ? "shopping-list-categories-template.csv" : "shopping-list-template.csv",
-                  "isDownloadingTemplate"
-                )
-              }
-              disabled={isDownloadingTemplate[dataset] || isExporting[dataset] || isImporting[dataset]}
-            >
-              {isDownloadingTemplate[dataset] ? t("common.loading", "Loading...") : t("family.downloadCsvTemplate", "Download template")}
-            </button>
-            <button
-              type="button"
-              className="loom-button-ghost"
-              onClick={() =>
-                downloadCsv(
-                  "export",
-                  dataset,
-                  isCategoryDataset ? "shopping-list-categories-export.csv" : "shopping-list-export.csv",
-                  "isExporting"
-                )
-              }
-              disabled={isDownloadingTemplate[dataset] || isExporting[dataset] || isImporting[dataset]}
-            >
-              {isExporting[dataset]
-                ? t("common.loading", "Loading...")
-                : isCategoryDataset
-                  ? t("family.exportShoppingListCategoryCsv", "Export categories")
-                  : t("family.exportShoppingListCsv", "Export current list")}
-            </button>
-          </div>
-        </div>
-
-        <div className="loom-soft-row loom-csv-manager-card">
+        <SettingsPanelSection
+          title={isCategoryDataset ? t("family.importShoppingListCategoryCsv", "Import category CSV files") : t("family.importShoppingListCsv", "Import CSV files")}
+          description={
+            isCategoryDataset
+              ? t("family.importShoppingListCategoryCsvHelp", 'Use action "upsert" to add categories and "delete" to remove unused ones.')
+              : t("family.importShoppingListCsvHelp", 'Use action "upsert" to add or update items, and "delete" to remove them. Include the exported id when updating or deleting an existing item.')
+          }
+        >
           <label className="loom-field">
-            <span>{isCategoryDataset ? t("family.importShoppingListCategoryCsv", "Import category CSV files") : t("family.importShoppingListCsv", "Import CSV files")}</span>
+            <span>{t("common.files", "Files")}</span>
             <input
               className="loom-input"
               type="file"
@@ -252,12 +258,6 @@ export function ShoppingListCsvManager({ familyId }: ShoppingListCsvManagerProps
             />
           </label>
 
-          <p className="loom-muted small m-0">
-            {isCategoryDataset
-              ? t("family.importShoppingListCategoryCsvHelp", 'Use action "upsert" to add categories and "delete" to remove unused ones.')
-              : t("family.importShoppingListCsvHelp", 'Use action "upsert" to add or update items, and "delete" to remove them. Include the exported id when updating or deleting an existing item.')}
-          </p>
-
           {selectedFiles.length > 0 ? (
             <div className="loom-stack-sm">
               {selectedFiles.map((file) => (
@@ -268,7 +268,7 @@ export function ShoppingListCsvManager({ familyId }: ShoppingListCsvManagerProps
             </div>
           ) : null}
 
-          <div className="loom-form-actions">
+          <SettingsPanelActions>
             <button
               type="button"
               className="loom-button-ghost"
@@ -284,15 +284,14 @@ export function ShoppingListCsvManager({ familyId }: ShoppingListCsvManagerProps
                   ? t("family.importShoppingListCategoryCsvAction", "Import category files")
                   : t("family.importShoppingListCsvAction", "Import files")}
             </button>
-          </div>
+          </SettingsPanelActions>
 
           {serverError ? <p className="loom-feedback-error m-0">{serverError}</p> : null}
-        </div>
+        </SettingsPanelSection>
 
         {datasetResults.length > 0 ? (
-          <div className="loom-soft-row loom-csv-manager-card">
+          <SettingsPanelSection title={t("family.importOverview", "Import overview")}>
             <div className="loom-stack-sm">
-              <p className="m-0 font-semibold">{t("family.importOverview", "Import overview")}</p>
               <div className="loom-csv-overview-grid">
                 <div>
                   <span className="loom-muted small">{t("family.filesProcessed", "Files processed")}</span>
@@ -362,7 +361,7 @@ export function ShoppingListCsvManager({ familyId }: ShoppingListCsvManagerProps
                 </div>
               ))}
             </div>
-          </div>
+          </SettingsPanelSection>
         ) : null}
       </div>
     );

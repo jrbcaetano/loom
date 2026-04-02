@@ -1,12 +1,13 @@
-"use client";
+﻿"use client";
 
 import { startTransition, useState } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { RouteStateEntityDetailRegistry, type EntityDetailRegistryEntry } from "@/features/entities/entity-detail-registry";
+import { MessageDetailPanel } from "@/features/messages/message-detail-panel";
 import { useI18n } from "@/lib/i18n/context";
+import { useCollectionRouteState } from "@/lib/routing/use-collection-route-state";
 
-type ConversationSummary = {
+export type ConversationSummary = {
   id: string;
   familyId: string;
   type: "family" | "direct";
@@ -30,16 +31,18 @@ async function fetchConversations(familyId: string) {
 
 export function MessagesClient({
   familyId,
+  currentUserId,
   members,
   initialConversations
 }: {
   familyId: string;
+  currentUserId: string;
   members: MemberOption[];
   initialConversations?: ConversationSummary[];
 }) {
   const { t } = useI18n();
-  const router = useRouter();
   const queryClient = useQueryClient();
+  const { routeState, updateRouteState, openItem, clearItem } = useCollectionRouteState();
   const [selectedUserId, setSelectedUserId] = useState("");
   const [serverError, setServerError] = useState<string | null>(null);
 
@@ -66,22 +69,44 @@ export function MessagesClient({
       setServerError(null);
       queryClient.invalidateQueries({ queryKey: ["conversations", familyId] });
       startTransition(() => {
-        router.push(`/messages/${conversationId}`);
+        openItem(conversationId);
       });
     },
     onError: (mutationError) => {
-      setServerError(mutationError instanceof Error ? mutationError.message : t("messages.createDirectError", "Failed to create direct conversation"));
+      setServerError(
+        mutationError instanceof Error
+          ? mutationError.message
+          : t("messages.createDirectError", "Failed to create direct conversation")
+      );
     }
   });
+
+  const selectedConversation = (data ?? []).find((conversation) => conversation.id === routeState.item) ?? null;
+  const familyConversation = (data ?? []).find((conversation) => conversation.type === "family") ?? null;
+  const detailRegistry: EntityDetailRegistryEntry[] = [
+    {
+      key: "conversation",
+      Component: (props) => <MessageDetailPanel {...props} currentUserId={currentUserId} conversation={selectedConversation} />
+    }
+  ];
 
   return (
     <div className="loom-stack">
       <section className="loom-card p-5">
         <div className="loom-row-between">
           <h2 className="loom-section-title">{t("messages.startPrivate", "Start private conversation")}</h2>
-          <Link href="/messages/family" className="loom-button-ghost">
+          <button
+            type="button"
+            className="loom-button-ghost"
+            onClick={() => {
+              if (familyConversation) {
+                openItem(familyConversation.id);
+              }
+            }}
+            disabled={!familyConversation}
+          >
             {t("messages.familyChat", "Family chat")}
-          </Link>
+          </button>
         </div>
         <div className="loom-form-inline mt-3">
           <label className="loom-field">
@@ -110,19 +135,29 @@ export function MessagesClient({
           {(data ?? []).map((conversation) => (
             <article key={conversation.id} className="loom-conversation-row">
               <div>
-                <Link className="loom-link-strong" href={`/messages/${conversation.id}`}>
+                <button type="button" className="loom-link-button loom-link-strong" onClick={() => openItem(conversation.id)}>
                   {conversation.type === "family" ? t("messages.familyChat", "Family chat") : conversation.memberNames.join(", ")}
-                </Link>
+                </button>
                 <p className="loom-entity-meta">{conversation.lastMessage ?? t("messages.noMessagesYet", "No messages yet")}</p>
               </div>
               <div className="loom-inline-actions">
                 {conversation.unreadCount > 0 ? <span className="loom-unread-dot" /> : null}
-                <span className="loom-badge">{conversation.unreadCount > 0 ? `${conversation.unreadCount} ${t("messages.unread", "unread")}` : t("messages.read", "Read")}</span>
+                <span className="loom-badge">
+                  {conversation.unreadCount > 0 ? `${conversation.unreadCount} ${t("messages.unread", "unread")}` : t("messages.read", "Read")}
+                </span>
               </div>
             </article>
           ))}
         </div>
       </section>
+
+      <RouteStateEntityDetailRegistry
+        routeState={routeState}
+        entries={detailRegistry}
+        close={() => clearItem()}
+        updateRouteState={updateRouteState}
+      />
     </div>
   );
 }
+
