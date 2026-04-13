@@ -30,6 +30,7 @@ type AppShellProps = {
   userAvatarUrl?: string | null;
   activeFamilyName?: string | null;
   activeFamilyId?: string | null;
+  familyCount?: number;
   isProductAdmin?: boolean;
   unreadNotificationsCount?: number;
   unreadMessagesCount?: number;
@@ -43,6 +44,7 @@ export function AppShell({
   userAvatarUrl,
   activeFamilyName,
   activeFamilyId,
+  familyCount = 1,
   isProductAdmin = false,
   unreadNotificationsCount = 0,
   unreadMessagesCount = 0,
@@ -76,8 +78,15 @@ export function AppShell({
     [normalizedFeatureAvailability]
   );
   const visiblePrimaryNav = useMemo(
-    () => visibleModes.filter((item) => item.placement === "primary"),
-    [visibleModes]
+    () =>
+      visibleModes
+        .filter((item) => item.placement === "primary")
+        .map((item) =>
+          item.key === "family" && familyCount > 1 && _activeFamilyName
+            ? { ...item, fallbackLabel: _activeFamilyName }
+            : item
+        ),
+    [familyCount, _activeFamilyName, visibleModes]
   );
   const visibleMoreNav = useMemo(
     () => visibleModes.filter((item) => item.placement === "more"),
@@ -244,10 +253,6 @@ export function AppShell({
             <span>Loom</span>
           </Link>
         </div>
-        <div className="loom-family-context">
-          <span className="loom-family-context-label">{t("settings.activeFamily", "Active family")}</span>
-          <strong className="loom-family-context-name">{_activeFamilyName ?? t("family.none", "No family selected")}</strong>
-        </div>
 
         <SidebarNav
           pathname={pathname}
@@ -317,7 +322,6 @@ export function AppShell({
                   <Image src="/brand/loom-symbol.png" alt="" width={30} height={30} className="loom-brand-badge" aria-hidden />
                   <span>Loom</span>
                 </Link>
-                <span className="loom-mobile-family-pill">{_activeFamilyName ?? t("family.none", "No family selected")}</span>
               </div>
               <div className="loom-mobile-header-actions">
                 {isMessagesEnabled ? (

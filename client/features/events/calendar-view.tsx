@@ -206,6 +206,7 @@ export function CalendarView({
   const initialSelectedDay = parseDateOnly(selectedDate);
   const [currentMonth, setCurrentMonth] = useState<Date>(startOfMonth(initialSelectedDay ?? new Date()));
   const [selectedDay, setSelectedDay] = useState<Date | null>(initialSelectedDay);
+  const [eventEditSaveState, setEventEditSaveState] = useState<"idle" | "pending" | "saving" | "saved" | "error">("idle");
 
   const monthGridDays = useMemo(() => {
     const monthStart = startOfMonth(currentMonth);
@@ -614,18 +615,31 @@ export function CalendarView({
           ) : undefined
         }
         onClose={() => updateRouteState({ item: null, panel: null })}
+        status={
+          isEditingSelectedEvent && selectedEvent && !selectedEvent.isExternal
+            ? eventEditSaveState === "error"
+              ? t("common.error", "Error")
+              : eventEditSaveState === "saving"
+                ? t("common.saving", "Saving...")
+                : eventEditSaveState === "pending"
+                  ? t("tasks.pendingChanges", "Pending changes")
+                  : eventEditSaveState === "saved"
+                    ? t("tasks.allChangesSaved", "Saved")
+                    : ""
+            : undefined
+        }
         headerActions={
           selectedEvent && !selectedEvent.isExternal ? (
             <div className="loom-inline-actions">
               <button
                 type="button"
                 className="loom-button-ghost"
-                onClick={() => updateRouteState({ panel: isEditingSelectedEvent ? null : "edit" })}
+                onClick={() => {
+                  setEventEditSaveState("idle");
+                  updateRouteState({ panel: isEditingSelectedEvent ? null : "edit" });
+                }}
               >
                 {isEditingSelectedEvent ? t("common.cancel", "Cancel") : t("calendar.edit", "Edit event")}
-              </button>
-              <button type="button" className="loom-task-icon-button" aria-label={t("common.close", "Close")} onClick={() => updateRouteState({ item: null, panel: null })}>
-                ??
               </button>
             </div>
           ) : undefined
@@ -641,8 +655,10 @@ export function CalendarView({
               submitLabel={t("calendar.save", "Save event")}
               redirectTo="/calendar"
               disableRedirect
+              saveMode="autosave"
+              onSaveStateChange={setEventEditSaveState}
               onSaved={() => {
-                updateRouteState({ panel: null });
+                setEventEditSaveState("saved");
               }}
               initialValues={{
                 title: selectedEvent.title,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -307,7 +307,9 @@ export function EventForm({
   initialValues,
   defaultDate,
   disableRedirect = false,
-  onSaved
+  onSaved,
+  saveMode = "submit",
+  onSaveStateChange
 }: {
   familyId: string;
   members: MemberOption[];
@@ -319,12 +321,16 @@ export function EventForm({
   defaultDate?: string;
   disableRedirect?: boolean;
   onSaved?: (payload: { eventId?: string; startAt: string }) => void;
+  saveMode?: "submit" | "autosave";
+  onSaveStateChange?: (state: "idle" | "pending" | "saving" | "saved" | "error") => void;
 }) {
   const [serverError, setServerError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [saveState, setSaveState] = useState<"idle" | "pending" | "saving" | "saved" | "error">("idle");
   const [timeInputMode, setTimeInputMode] = useState<"duration" | "endAt">("duration");
   const router = useRouter();
   const { t, locale } = useI18n();
+  const formRef = useRef<HTMLFormElement | null>(null);
   const timingDefaults = useMemo(() => getDefaultEventTimes(defaultDate), [defaultDate]);
   const defaultStartAt = initialValues?.startAt ?? timingDefaults.startAt;
   const defaultEndAt = initialValues?.endAt ?? timingDefaults.endAt;
@@ -351,6 +357,24 @@ export function EventForm({
   const startAtValue = form.watch("startAt");
   const endAtValue = form.watch("endAt");
   const durationMinutesValue = form.watch("durationMinutes");
+  const autosaveEnabled = saveMode === "autosave";
+
+  useEffect(() => {
+    onSaveStateChange?.(saveState);
+  }, [onSaveStateChange, saveState]);
+
+  useEffect(() => {
+    if (!autosaveEnabled || isLoading) {
+      return;
+    }
+
+    if (form.formState.isDirty) {
+      setSaveState((current) => (current === "saving" ? current : "pending"));
+      return;
+    }
+
+    setSaveState((current) => (current === "saved" || current === "error" ? current : "idle"));
+  }, [autosaveEnabled, form.formState.isDirty, isLoading]);
 
   const startAtDate = parseLocalDateTime(startAtValue) ?? new Date();
   const startWeekdayLabel = new Intl.DateTimeFormat(locale === "pt" ? "pt-PT" : "en-GB", { weekday: "long" }).format(startAtDate);
@@ -397,6 +421,7 @@ export function EventForm({
   async function onSubmit(values: EventValues) {
     setServerError(null);
     setIsLoading(true);
+    setSaveState("saving");
 
     const selectedMemberIds =
       visibility === "selected_members"
@@ -425,6 +450,7 @@ export function EventForm({
     if (!response.ok) {
       setServerError(payload?.error ?? t("calendar.saveError", "Failed to save event"));
       setIsLoading(false);
+      setSaveState("error");
       return;
     }
 
@@ -432,6 +458,9 @@ export function EventForm({
 
     if (disableRedirect) {
       setIsLoading(false);
+      form.reset(values);
+      setSaveState("saved");
+      router.refresh();
       return;
     }
 
@@ -445,8 +474,40 @@ export function EventForm({
     router.refresh();
   }
 
+  function triggerAutosave() {
+    if (!autosaveEnabled || isLoading || !form.formState.isDirty) {
+      return;
+    }
+
+    void form.handleSubmit(onSubmit)();
+  }
+
   return (
-    <form className="loom-form-stack" onSubmit={form.handleSubmit(onSubmit)}>
+    <form
+      ref={formRef}
+      className="loom-form-stack"
+      onSubmit={form.handleSubmit(onSubmit)}
+      onBlurCapture={() => {
+        if (!autosaveEnabled) {
+          return;
+        }
+
+        window.requestAnimationFrame(() => {
+          triggerAutosave();
+        });
+      }}
+      onKeyDown={(event) => {
+        if (!autosaveEnabled) {
+          return;
+        }
+
+        if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+          event.preventDefault();
+          event.stopPropagation();
+          triggerAutosave();
+        }
+      }}
+    >
       <label className="loom-field">
         <span>{t("common.title", "Title")}</span>
         <input className="loom-input" type="text" {...form.register("title")} />
@@ -645,9 +706,13 @@ export function EventForm({
         </div>
       ) : null}
 
-      <button className="loom-button-primary" type="submit" disabled={isLoading}>
-        {isLoading ? t("common.saving", "Saving...") : submitLabel}
-      </button>
+      {!autosaveEnabled ? (
+        <button className="loom-button-primary" type="submit" disabled={isLoading}>
+          {isLoading ? t("common.saving", "Saving...") : submitLabel}
+        </button>
+      ) : (
+        <p className="loom-muted small m-0">{t("common.autoSaveHint", "Changes save automatically when you leave a field or press Ctrl+Enter.")}</p>
+      )}
 
       {serverError ? <p className="loom-feedback-error">{serverError}</p> : null}
     </form>

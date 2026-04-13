@@ -114,9 +114,6 @@ export function ChoreDetailPanel({
             <button type="button" className="loom-button-ghost" onClick={() => updateRouteState({ panel: isEditing ? null : "edit" })}>
               {isEditing ? t("common.cancel", "Cancel") : t("chores.edit", "Edit chore")}
             </button>
-            <button type="button" className="loom-task-icon-button" aria-label={t("common.close", "Close")} onClick={close}>
-              ??
-            </button>
           </div>
         ) : undefined
       }

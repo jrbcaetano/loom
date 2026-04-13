@@ -1762,6 +1762,26 @@ export function TasksClient({
     }, 450);
   }
 
+  function commitDrawerTextEdit(editor: Extract<DrawerEditor, "title" | "description">) {
+    if (drawerSaveTimeoutRef.current) {
+      window.clearTimeout(drawerSaveTimeoutRef.current);
+      drawerSaveTimeoutRef.current = null;
+    }
+
+    setDrawerEditor((value) => (value === editor ? null : value));
+    void saveDrawerTask();
+  }
+
+  function cancelDrawerTextEdit(field: "title" | "description") {
+    const savedValue = drawerSavedDraftRef.current;
+
+    setDrawerDraft((current) =>
+      current && savedValue ? { ...current, [field]: savedValue[field] } : current
+    );
+    setDrawerEditor((value) => (value === field ? null : value));
+    setDrawerSaveError(null);
+  }
+
   async function submitCommentDraft() {
     if (!selectedTaskRef.current) return false;
 
@@ -1977,7 +1997,14 @@ export function TasksClient({
   }
 
   useEffect(() => {
-    if (!selectedTask || !drawerDraft || !drawerSavedDraft || !isDrawerDirty) {
+    if (
+      !selectedTask ||
+      !drawerDraft ||
+      !drawerSavedDraft ||
+      !isDrawerDirty ||
+      drawerEditor === "title" ||
+      drawerEditor === "description"
+    ) {
       return;
     }
 
@@ -1987,9 +2014,9 @@ export function TasksClient({
       if (drawerSaveTimeoutRef.current) {
         window.clearTimeout(drawerSaveTimeoutRef.current);
         drawerSaveTimeoutRef.current = null;
-      }
-    };
-  }, [drawerDraft, drawerSavedDraft, isDrawerDirty, selectedTask]);
+        }
+      };
+  }, [drawerDraft, drawerEditor, drawerSavedDraft, isDrawerDirty, selectedTask]);
 
   useEffect(() => {
     if (!selectedTask) {
@@ -2774,28 +2801,16 @@ export function TasksClient({
         }
         onClose={closeDrawer}
         size="wide"
-        headerActions={
-          <div className="loom-inline-actions">
-            <span className="loom-task-drawer-save-indicator" aria-live="polite">
-              {drawerSaveError
-                ? t("common.error", "Error")
-                : drawerSaveState === "saving"
-                  ? t("common.saving", "Saving...")
-                  : isDrawerDirty
-                    ? t("tasks.pendingChanges", "Saving soon...")
-                    : drawerSaveState === "saved"
-                      ? t("tasks.allChangesSaved", "Saved")
-                      : ""}
-            </span>
-            <button
-              type="button"
-              className="loom-task-icon-button"
-              aria-label={t("common.close", "Close")}
-              onClick={closeDrawer}
-            >
-              ×
-            </button>
-          </div>
+        status={
+          drawerSaveError
+            ? t("common.error", "Error")
+            : drawerSaveState === "saving"
+              ? t("common.saving", "Saving...")
+              : isDrawerDirty
+                ? t("tasks.pendingChanges", "Pending changes")
+                : drawerSaveState === "saved"
+                  ? t("tasks.allChangesSaved", "Saved")
+                  : ""
         }
       >
         {selectedTask && drawerDraft ? (
@@ -2809,7 +2824,7 @@ export function TasksClient({
                     className="loom-input loom-task-drawer-title-input loom-task-inline-text-editor"
                     aria-label={t("common.title", "Title")}
                     value={drawerDraft.title}
-                    onBlur={() => setDrawerEditor((value) => (value === "title" ? null : value))}
+                    onBlur={() => commitDrawerTextEdit("title")}
                     onChange={(event) => {
                       setDrawerSaveError(null);
                       setDrawerDraft((current) => (current ? { ...current, title: event.target.value } : current));
@@ -2818,14 +2833,13 @@ export function TasksClient({
                       if (event.key === "Escape") {
                         event.preventDefault();
                         event.stopPropagation();
-                        setDrawerEditor((value) => (value === "title" ? null : value));
+                        cancelDrawerTextEdit("title");
                         return;
                       }
                       if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
                         event.preventDefault();
                         event.stopPropagation();
-                        event.currentTarget.blur();
-                        void saveDrawerTask();
+                        commitDrawerTextEdit("title");
                       }
                     }}
                   />
@@ -2842,7 +2856,7 @@ export function TasksClient({
                     rows={8}
                     aria-label={t("common.description", "Description")}
                     value={drawerDraft.description}
-                    onBlur={() => setDrawerEditor((value) => (value === "description" ? null : value))}
+                    onBlur={() => commitDrawerTextEdit("description")}
                     onChange={(event) => {
                       setDrawerSaveError(null);
                       setDrawerDraft((current) => (current ? { ...current, description: event.target.value } : current));
@@ -2851,14 +2865,13 @@ export function TasksClient({
                       if (event.key === "Escape") {
                         event.preventDefault();
                         event.stopPropagation();
-                        setDrawerEditor((value) => (value === "description" ? null : value));
+                        cancelDrawerTextEdit("description");
                         return;
                       }
                       if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
                         event.preventDefault();
                         event.stopPropagation();
-                        event.currentTarget.blur();
-                        void saveDrawerTask();
+                        commitDrawerTextEdit("description");
                       }
                     }}
                   />
@@ -2876,13 +2889,23 @@ export function TasksClient({
               <section className="loom-task-drawer-primary-surface is-comments">
                 <EntitySection
                   title={t("tasks.activity", "Activity")}
-                  actions={<span className="loom-home-pill is-muted">{selectedTaskCommentsQuery.data?.length ?? 0}</span>}
+                  actions={
+                    <div className="loom-inline-actions">
+                      <div className="loom-task-comment-sort-toggle" role="group" aria-label="Activity sort">
+                        <button type="button" className={commentsSort === "oldest" ? "is-active" : ""} onClick={() => setCommentsSort("oldest")}>
+                          Oldest first
+                        </button>
+                        <button type="button" className={commentsSort === "newest" ? "is-active" : ""} onClick={() => setCommentsSort("newest")}>
+                          Newest first
+                        </button>
+                      </div>
+                      <span className="loom-home-pill is-muted">{selectedTaskCommentsQuery.data?.length ?? 0}</span>
+                    </div>
+                  }
                 >
                   <EntityActivityStream
                     entries={mapEntityActivityEntries(sortedComments)}
                     dateLocale={dateLocale}
-                    sortValue={commentsSort}
-                    onSortChange={setCommentsSort}
                     loadingState={selectedTaskCommentsQuery.isPending ? <p className="loom-muted m-0">{t("common.loading", "Loading...")}</p> : undefined}
                     errorState={selectedTaskCommentsQuery.error ? <p className="loom-feedback-error m-0">{selectedTaskCommentsQuery.error.message}</p> : undefined}
                     emptyState={<p className="loom-muted m-0">{t("tasks.noActivity", "No activity yet.")}</p>}
@@ -2924,33 +2947,7 @@ export function TasksClient({
             <aside className="loom-task-drawer-aside">
               <section className="loom-task-drawer-sidebar-surface">
                 <h4 className="loom-section-title m-0">{t("tasks.settings", "Task settings")}</h4>
-                <EntitySection title={t("common.details", "Details")}>
-                  <EntityMetadataGrid>
-                    <EntityMetadataItem label={t("tasks.status", "Status")} value={statusLabel(selectedTask.status, t)} />
-                    <EntityMetadataItem
-                      label={t("tasks.priority", "Priority")}
-                      value={t(`tasks.priority${selectedTask.priority.charAt(0).toUpperCase()}${selectedTask.priority.slice(1)}`, selectedTask.priority)}
-                    />
-                    <EntityMetadataItem
-                      label={t("tasks.assignee", "Assignee")}
-                      value={<EntityAssigneeBadge value={memberOptions.find((member) => member.userId === selectedTask.assignedToUserId)?.displayName ?? t("tasks.unassigned", "Unassigned")} />}
-                    />
-                    <EntityMetadataItem
-                      label={t("common.visibility", "Visibility")}
-                      value={
-                        <EntityVisibilityBadge
-                          visibility={selectedTask.visibility}
-                          labels={{
-                            private: t("visibility.private", "Private"),
-                            family: t("visibility.family", "Family"),
-                            selected_members: t("visibility.selected_members", "Selected members")
-                          }}
-                        />
-                      }
-                    />
-                  </EntityMetadataGrid>
-                </EntitySection>
-                <div className="loom-task-editable-list mt-3">
+                <div className="loom-task-editable-list">
                   <div className="loom-task-editable-item">
                     <span className="loom-muted small">{t("tasks.status", "Status")}</span>
                     <select

@@ -121,9 +121,6 @@ export function ExpenseDetailPanel({
             >
               {isEditing ? t("common.cancel", "Cancel") : t("expenses.edit", "Edit expense")}
             </button>
-            <button type="button" className="loom-task-icon-button" aria-label={t("common.close", "Close")} onClick={close}>
-              ×
-            </button>
           </div>
         ) : undefined
       }

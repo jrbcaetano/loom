@@ -187,7 +187,6 @@ function MealEntryDetailPanel({
             <button type="button" className="loom-button-ghost" onClick={() => updateRouteState({ panel: isEditing ? null : "edit" })}>
               {isEditing ? t("common.cancel", "Cancel") : t("common.edit", "Edit")}
             </button>
-            <button type="button" className="loom-task-icon-button" aria-label={t("common.close", "Close")} onClick={close}>x</button>
           </div>
         ) : undefined
       }

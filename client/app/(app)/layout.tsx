@@ -38,6 +38,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       userAvatarUrl={profile?.avatarUrl ?? getAuthAvatarUrl(user)}
       activeFamilyName={activeFamily?.name ?? null}
       activeFamilyId={activeFamily?.id ?? null}
+      familyCount={context.families.length}
       isProductAdmin={isProductAdmin}
       unreadNotificationsCount={unreadNotificationsCount}
       unreadMessagesCount={unreadMessagesCount}

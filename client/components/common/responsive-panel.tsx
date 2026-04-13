@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { type ReactNode, useEffect, useId, useRef } from "react";
 import { useI18n } from "@/lib/i18n/context";
@@ -12,6 +12,7 @@ type ResponsivePanelProps = {
   footer?: ReactNode;
   size?: "default" | "wide";
   headerActions?: ReactNode;
+  status?: ReactNode;
   variant?: "drawer" | "modal";
 };
 
@@ -24,11 +25,17 @@ export function ResponsivePanel({
   footer,
   size = "default",
   headerActions,
+  status,
   variant = "drawer"
 }: ResponsivePanelProps) {
   const { t } = useI18n();
   const titleId = useId();
   const panelRef = useRef<HTMLElement | null>(null);
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -40,7 +47,7 @@ export function ResponsivePanel({
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        onClose();
+        onCloseRef.current();
       }
     };
 
@@ -53,7 +60,7 @@ export function ResponsivePanel({
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isOpen, onClose]);
+  }, [isOpen]);
 
   if (!isOpen) {
     return null;
@@ -74,11 +81,17 @@ export function ResponsivePanel({
           <div className="loom-panel-title-slot" id={titleId}>
             {titleContent ?? <h3 className="loom-section-title m-0">{title}</h3>}
           </div>
-          {headerActions ?? (
-            <button type="button" className="loom-button-ghost" onClick={onClose}>
-              {t("common.close", "Close")}
+          <div className="loom-panel-header-actions">
+            {status ? (
+              <div className="loom-panel-status" aria-live="polite">
+                {status}
+              </div>
+            ) : null}
+            {headerActions}
+            <button type="button" className="loom-task-icon-button loom-panel-close-button" aria-label={t("common.close", "Close")} onClick={onClose}>
+              ×
             </button>
-          )}
+          </div>
         </header>
         <div className="loom-panel-content">{children}</div>
         {footer ? <div className="loom-panel-footer">{footer}</div> : null}

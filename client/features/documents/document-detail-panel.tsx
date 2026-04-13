@@ -101,9 +101,6 @@ export function DocumentDetailPanel({
             >
               {isEditing ? t("common.cancel", "Cancel") : t("documents.edit", "Edit document")}
             </button>
-            <button type="button" className="loom-task-icon-button" aria-label={t("common.close", "Close")} onClick={close}>
-              ×
-            </button>
           </div>
         ) : undefined
       }

@@ -3,9 +3,9 @@
   "private": true,
   "version": "0.1.0",
   "scripts": {
-    "dev:server": "npm run dev --prefix server",
-    "dev:client": "npm run dev --prefix client",
-    "build:client": "npm run build --prefix client"
+    "dev:server": "node -e \"const {spawn}=require('child_process'); const path=require('path'); const root=process.cwd().replace(/^\\\\\\\\\\\\?\\\\/,''); const child=spawn(process.platform==='win32'?'npm.cmd':'npm',['run','dev'],{cwd:path.join(root,'server'),stdio:'inherit'}); child.on('exit',code=>process.exit(code??1)); child.on('error',error=>{console.error(error.message); process.exit(1);});\"",
+    "dev:client": "node -e \"const {spawn}=require('child_process'); const path=require('path'); const root=process.cwd().replace(/^\\\\\\\\\\\\?\\\\/,''); const child=spawn(process.platform==='win32'?'npm.cmd':'npm',['run','dev'],{cwd:path.join(root,'client'),stdio:'inherit'}); child.on('exit',code=>process.exit(code??1)); child.on('error',error=>{console.error(error.message); process.exit(1);});\"",
+    "build:client": "node -e \"const {spawn}=require('child_process'); const path=require('path'); const root=process.cwd().replace(/^\\\\\\\\\\\\?\\\\/,''); const child=spawn(process.platform==='win32'?'npm.cmd':'npm',['run','build'],{cwd:path.join(root,'client'),stdio:'inherit'}); child.on('exit',code=>process.exit(code??1)); child.on('error',error=>{console.error(error.message); process.exit(1);});\""
   },
   "dependencies": {
     "next": "^16.2.1"

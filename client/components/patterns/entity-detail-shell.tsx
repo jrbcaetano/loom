@@ -17,6 +17,7 @@ type EntityDetailShellProps = {
   titleNode?: ReactNode;
   headerActions?: ReactNode;
   summaryMeta?: ReactNode;
+  status?: ReactNode;
 };
 
 export function EntityDetailShell({
@@ -31,7 +32,8 @@ export function EntityDetailShell({
   badge,
   titleNode,
   headerActions,
-  summaryMeta
+  summaryMeta,
+  status
 }: EntityDetailShellProps) {
   return (
     <ResponsivePanel
@@ -41,6 +43,7 @@ export function EntityDetailShell({
       footer={footer}
       size={size}
       headerActions={headerActions}
+      status={status}
       titleContent={
         <EntitySummaryHeader
           eyebrow={eyebrow}

@@ -679,7 +679,6 @@
 
 .loom-home-greeting {
   padding: 1.1rem 1.15rem;
-  border: 1px solid var(--loom-color-border);
   border-radius: 22px;
   background: var(--loom-hero-gradient);
   box-shadow: var(--loom-shadow-sm);
@@ -687,7 +686,7 @@
 
 .loom-home-greeting-title {
   margin: 0.4rem 0 0;
-  font-size: clamp(2rem, 1.4rem + 1.6vw, 2.75rem);
+  font-size: clamp(1.55rem, 1.15rem + 1vw, 2.1rem);
   line-height: 1.02;
   font-weight: var(--loom-font-weight-display);
   letter-spacing: -0.03em;
@@ -3599,6 +3598,23 @@
   border-bottom: 1px solid var(--loom-color-border);
 }
 
+.loom-panel-header-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+.loom-panel-status {
+  min-height: 1.2rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--loom-color-text-muted);
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
 .loom-panel-title-slot {
   min-width: 0;
   flex: 1;
@@ -3616,7 +3632,7 @@
   grid-template-columns: 1fr;
   gap: 0;
   min-height: 100%;
-  background: #f3f1ee;
+  background: var(--loom-color-bg);
   border: 0;
   border-radius: 18px 0 0 18px;
   overflow: hidden;
@@ -3747,7 +3763,7 @@
   min-height: 1.2rem;
   font-size: 0.78rem;
   font-weight: 700;
-  color: #5d6778;
+  color: var(--loom-color-text-muted);
   letter-spacing: 0.01em;
 }
 
@@ -4070,7 +4086,7 @@
   }
 
   .loom-home-greeting-title {
-    font-size: 1.9rem;
+    font-size: 1.55rem;
     line-height: 1.04;
   }
 
@@ -4119,6 +4135,11 @@
   .loom-panel-header {
     align-items: flex-start;
     padding-top: calc(1rem + env(safe-area-inset-top, 0px));
+  }
+
+  .loom-panel-header-actions {
+    width: 100%;
+    justify-content: space-between;
   }
 
   .loom-panel-footer {

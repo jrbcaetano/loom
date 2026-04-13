@@ -18,8 +18,8 @@ export type LoomModeDefinition = {
 export const LOOM_MODE_REGISTRY: LoomModeDefinition[] = [
   { key: "home", labelKey: "nav.home", fallbackLabel: "Home", href: "/home", icon: "home", placement: "primary", mobileTabEligible: true, desktopProminent: true },
   { key: "tasks", labelKey: "nav.tasks", fallbackLabel: "Tasks", href: "/tasks", icon: "tasks", placement: "primary", featureKey: "tasks", mobileTabEligible: true, desktopProminent: true },
-  { key: "calendar", labelKey: "nav.calendar", fallbackLabel: "Calendar", href: "/calendar", icon: "calendar", placement: "primary", featureKey: "calendar", mobileTabEligible: true, desktopProminent: true },
   { key: "lists", labelKey: "nav.lists", fallbackLabel: "Lists", href: "/lists", icon: "lists", placement: "primary", featureKey: "lists", mobileTabEligible: true, desktopProminent: true },
+  { key: "calendar", labelKey: "nav.calendar", fallbackLabel: "Calendar", href: "/calendar", icon: "calendar", placement: "primary", featureKey: "calendar", mobileTabEligible: true, desktopProminent: true },
   { key: "schedules", labelKey: "nav.schedules", fallbackLabel: "Schedules", href: "/schedules", icon: "schedules", placement: "primary", featureKey: "schedules", desktopProminent: true },
   { key: "family", labelKey: "nav.family", fallbackLabel: "Family", href: "/family/members", icon: "family", placement: "primary", featureKey: "family_members", desktopProminent: true },
   { key: "notifications", labelKey: "nav.notifications", fallbackLabel: "Notifications", href: "/notifications", icon: "notifications", placement: "more", featureKey: "notifications" },

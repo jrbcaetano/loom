@@ -697,9 +697,6 @@ export function SchedulesCalendarClient({
             <button type="button" className="loom-button-ghost" onClick={() => void archiveSchedule()} disabled={isDeleting}>
               {isDeleting ? t("common.deleting", "Deleting...") : t("common.archive", "Archive")}
             </button>
-            <button type="button" className="loom-task-icon-button" aria-label={t("common.close", "Close")} onClick={closePanels}>
-              ×
-            </button>
           </div>
         }
       >
